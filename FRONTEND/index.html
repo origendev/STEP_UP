@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StepUp — Placement Hub</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Core styles: order matters (tokens → layout → shared components) -->
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+
+<!-- Per-page styles -->
+<link rel="stylesheet" href="css/pages/home.css">
+<link rel="stylesheet" href="css/pages/profile.css">
+<link rel="stylesheet" href="css/pages/jobs.css">
+<link rel="stylesheet" href="css/pages/demands.css">
+<link rel="stylesheet" href="css/pages/skills.css">
+<link rel="stylesheet" href="css/pages/progress.css">
+</head>
+<body>
+
+<!-- ================= APP SHELL ================= -->
+<div class="topbar">
+  <div class="brand"><span class="brand-mark">S</span>StepUp</div>
+
+  <div class="navlinks" id="navlinks">
+    <button class="navlink active" data-tab="home">Home</button>
+    <button class="navlink" data-tab="jobs">Jobs</button>
+    <button class="navlink" data-tab="demands">Demands</button>
+    <button class="navlink" data-tab="skills">Skills</button>
+    <button class="navlink" data-tab="progress">Progress</button>
+  </div>
+
+  <div class="top-actions">
+    <button class="icon-btn" aria-label="Search" title="Search">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
+    <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button class="icon-btn" aria-label="Notifications" title="Notifications">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    </button>
+    <div class="avatar" id="avatarBtn" title="View profile">V</div>
+  </div>
+</div>
+
+<!-- Pages from /pages are injected here by js/core/router.js -->
+<main id="app"></main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

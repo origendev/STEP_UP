@@ -1,0 +1,108 @@
+<!-- ============================================================
+     profile.html — Student profile page
+============================================================ -->
+<div class="view" id="view-profile">
+
+  <div class="profile-head">
+
+    <!-- Summary card -->
+    <div class="profile-card">
+      <div class="profile-avatar">V</div>
+      <div class="profile-name">Vaishavi R</div>
+      <div class="profile-role">B.Tech, Computer Science · Batch 2027</div>
+      <div class="profile-tags">
+        <span class="profile-tag">Reg No: 21CS1042</span>
+        <span class="profile-tag">CGPA: 8.4</span>
+      </div>
+      <div class="completeness-wrap">
+        <div class="completeness-row"><span>Profile completeness</span><span id="pctLabel">78%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="pctFill" style="width:78%"></div></div>
+      </div>
+    </div>
+
+    <!-- Editable personal details -->
+    <div class="card profile-details">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>
+          Personal Details
+        </div>
+        <button class="btn-tiny" id="editToggleBtn">Edit</button>
+      </div>
+      <div class="field-grid">
+        <div class="field"><label>Full Name</label><input type="text" value="Vaishavi R" disabled></div>
+        <div class="field"><label>Date of Birth</label><input type="text" value="14 Mar 2004" disabled></div>
+        <div class="field"><label>Email</label><input type="text" value="vaishavi.r@college.edu" disabled></div>
+        <div class="field"><label>Phone Number</label><input type="text" value="+91 98765 43210" disabled></div>
+        <div class="field"><label>Gender</label><input type="text" value="Female" disabled></div>
+        <div class="field"><label>Category</label><input type="text" value="General" disabled></div>
+        <div class="field full"><label>Address</label><input type="text" value="12, Lake View Road, Hosur, Tamil Nadu" disabled></div>
+      </div>
+      <div class="edit-actions" id="editActions">
+        <button class="btn-solid" id="saveBtn">Save Changes</button>
+        <button class="btn-cancel" id="cancelBtn">Cancel</button>
+      </div>
+    </div>
+
+  </div>
+
+  <section class="block">
+    <div class="grid2">
+
+      <!-- Academic details -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg></span>
+            Academic Details
+          </div>
+        </div>
+        <div class="field-grid">
+          <div class="field"><label>10th Percentage</label><input type="text" value="91.2%" disabled></div>
+          <div class="field"><label>12th Percentage</label><input type="text" value="88.6%" disabled></div>
+          <div class="field"><label>UG CGPA</label><input type="text" value="8.4" disabled></div>
+          <div class="field"><label>Current Backlogs</label><input type="text" value="0" disabled></div>
+          <div class="field"><label>History of Backlogs</label><input type="text" value="1 (cleared)" disabled></div>
+          <div class="field"><label>Department</label><input type="text" value="Computer Science" disabled></div>
+        </div>
+      </div>
+
+      <!-- Social links -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 7l3-3a5 5 0 0 0-7-7"/><path d="M14 11a5 5 0 0 0-7-7l-3 3a5 5 0 0 0 7 7"/></svg></span>
+            Social &amp; Links
+          </div>
+        </div>
+        <div class="social-row">
+          <div class="social-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM3 9h4v12H3zM9 9h3.8v1.7h.05c.53-1 1.83-2.05 3.77-2.05 4.03 0 4.78 2.66 4.78 6.12V21h-4v-5.6c0-1.34-.02-3.06-1.87-3.06-1.87 0-2.16 1.46-2.16 2.96V21H9z"/></svg></div>
+          <input type="text" value="linkedin.com/in/vaishavi-r" disabled>
+        </div>
+        <div class="social-row">
+          <div class="social-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-3.16 19.5c.5.1.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.15-1.11-1.46-1.11-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.1-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.1.39-1.99 1.03-2.69-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.03a9.6 9.6 0 0 1 5 0c1.91-1.3 2.75-1.03 2.75-1.03.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.69 0 3.84-2.33 4.68-4.56 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2z"/></svg></div>
+          <input type="text" value="github.com/vaishavi-r" disabled>
+        </div>
+        <div class="social-row">
+          <div class="social-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg></div>
+          <input type="text" value="vaishavi-portfolio.dev" disabled>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Documents: rows rendered by js/pages/profile.js -->
+  <section class="block">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+          Resume &amp; Documents
+        </div>
+      </div>
+      <div class="doc-list" id="docList"></div>
+    </div>
+  </section>
+
+</div>

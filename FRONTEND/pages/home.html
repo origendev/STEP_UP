@@ -1,0 +1,72 @@
+<!-- ============================================================
+     home.html — Home / dashboard page
+     Injected into #app by js/core/router.js
+============================================================ -->
+<div class="view" id="view-home">
+
+  <div class="hero">
+    <div>
+      <h1>Good evening, Vaishavi</h1>
+      <p>Welcome to your placement hub. Explore opportunities, build your skills, and track your journey toward an offer.</p>
+    </div>
+    <div class="hero-visual">
+      <svg width="90" height="90" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5"><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z"/><path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5"/></svg>
+    </div>
+  </div>
+
+  <div class="grid3">
+
+    <!-- Placement progress donut -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
+          Placement Progress
+        </div>
+      </div>
+      <div class="donut-row">
+        <svg width="118" height="118" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="var(--violet-100)" stroke-width="14"/>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="url(#g1)" stroke-width="14" stroke-linecap="round"
+            stroke-dasharray="314" stroke-dashoffset="182" transform="rotate(-90 60 60)"/>
+          <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="var(--violet-700)"/><stop offset="100%" stop-color="var(--violet-500)"/>
+          </linearGradient></defs>
+          <text x="60" y="56" text-anchor="middle" font-family="Sora" font-size="22" font-weight="800" fill="var(--ink)">42%</text>
+          <text x="60" y="74" text-anchor="middle" font-family="Inter" font-size="10.5" fill="var(--ink-soft)">Completed</text>
+        </svg>
+        <div class="legend">
+          <div class="legend-item"><span class="dot" style="background:var(--violet-600)"></span>Applied — 18</div>
+          <div class="legend-item"><span class="dot" style="background:var(--violet-300)"></span>In Progress — 6</div>
+          <div class="legend-item"><span class="dot" style="background:var(--green)"></span>Offers — 2</div>
+          <div class="legend-item"><span class="dot" style="background:var(--rose)"></span>Rejected — 4</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skills snapshot: rows rendered by js/pages/home.js -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
+          Skills Snapshot
+        </div>
+        <span class="card-link" data-goto="skills">View all →</span>
+      </div>
+      <div id="snapshotList"></div>
+    </div>
+
+    <!-- Recent milestones: rows rendered by js/pages/home.js -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+          Recent Milestones
+        </div>
+        <span class="card-link" data-goto="progress">View all →</span>
+      </div>
+      <div id="milestoneList"></div>
+    </div>
+
+  </div>
+</div>

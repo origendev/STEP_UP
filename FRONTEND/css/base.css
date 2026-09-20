@@ -1,0 +1,66 @@
+/* ============================================================
+   base.css — design tokens, theme, reset, typography
+   Loaded first. Every other stylesheet depends on these vars.
+============================================================ */
+
+:root{
+  --violet-900:#241a4d;
+  --violet-700:#4c2fc4;
+  --violet-600:#5f36e8;
+  --violet-500:#7c5cf0;
+  --violet-300:#c8b9fb;
+  --violet-100:#efe9fd;
+  --lilac-bg:#f6f3ff;
+  --ink:#1c1730;
+  --ink-soft:#6a6482;
+  --line:#e7e1fb;
+  --white:#ffffff;
+  --green:#1fae67;
+  --green-bg:#e6f8ee;
+  --amber:#c78a1e;
+  --amber-bg:#fdf3e0;
+  --rose:#d1466f;
+  --rose-bg:#fbe9ee;
+  --radius-lg:20px;
+  --radius-md:14px;
+  --radius-sm:9px;
+  --shadow-card:0 1px 2px rgba(36,26,77,0.04), 0 8px 24px -12px rgba(36,26,77,0.12);
+}
+
+/* Follow the OS setting, unless the user forced light with the toggle */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#f1eefc;
+    --ink-soft:#a79fc9;
+    --lilac-bg:#15112b;
+    --white:#1e1938;
+    --line:#2f2856;
+    --violet-100:#241f47;
+    --shadow-card:0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+}
+
+/* Forced dark with the toggle */
+:root[data-theme="dark"]{
+  --ink:#f1eefc;
+  --ink-soft:#a79fc9;
+  --lilac-bg:#15112b;
+  --white:#1e1938;
+  --line:#2f2856;
+  --violet-100:#241f47;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+}
+
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; }
+
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--lilac-bg);
+  color:var(--ink);
+  min-height:100vh;
+}
+
+h1,h2,h3,h4,.brand{ font-family:'Sora',sans-serif; }
+a{ color:inherit; text-decoration:none; }
+button{ font-family:inherit; cursor:pointer; }

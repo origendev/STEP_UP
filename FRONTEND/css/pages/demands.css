@@ -1,0 +1,19 @@
+/* ============================================================
+   demands.css — styles used only by pages/demands.html
+============================================================ */
+
+.placeholder-list{ display:flex; flex-direction:column; gap:12px; }
+.placeholder-card{
+  background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:18px 20px; display:flex; align-items:center; justify-content:space-between;
+  gap:14px; box-shadow:var(--shadow-card);
+}
+.placeholder-left{ display:flex; align-items:center; gap:14px; }
+.co-logo{
+  width:44px; height:44px; border-radius:11px;
+  background:var(--violet-100); color:var(--violet-700);
+  display:flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:16px; flex-shrink:0;
+}
+.co-name{ font-weight:700; font-size:15px; }
+.co-meta{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }

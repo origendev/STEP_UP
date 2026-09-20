@@ -1,0 +1,99 @@
+/* ============================================================
+   jobs.css — styles used only by pages/jobs.html
+============================================================ */
+
+.jobs-head{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:20px; flex-wrap:wrap; margin-top:36px;
+}
+.jobs-head h2{ font-size:28px; margin:0; }
+.jobs-title-count{ color:var(--green); font-weight:700; font-size:14px; margin-top:4px; }
+
+.jobs-search{ display:flex; align-items:stretch; gap:10px; }
+.search-input-wrap{
+  display:flex; align-items:center; background:var(--white); border:1px solid var(--line);
+  border-radius:10px; padding:0 14px; min-width:230px;
+}
+.search-input-wrap input{
+  border:none; outline:none; background:transparent; font-family:inherit; font-size:13.5px;
+  padding:10px 8px; width:100%; color:var(--ink);
+}
+.search-btn{
+  width:40px; border:none; border-radius:10px; background:var(--green); color:#fff;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+
+/* ---------- Filter row ---------- */
+.filter-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:22px; }
+.filter-spacer{ flex:1; }
+.toggle-wrap{ display:flex; align-items:center; gap:10px; font-size:13px; font-weight:600; color:var(--ink); }
+.switch{
+  width:38px; height:22px; border-radius:999px; background:var(--violet-100);
+  position:relative; border:1px solid var(--line); flex-shrink:0; cursor:pointer;
+}
+.switch::after{
+  content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%;
+  background:#fff; box-shadow:0 1px 2px rgba(0,0,0,0.25); transition:transform .15s;
+}
+.switch.on{ background:var(--violet-600); }
+.switch.on::after{ transform:translateX(16px); }
+
+/* ---------- Category chips ---------- */
+.chip-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.chip{
+  padding:8px 16px; border-radius:999px; border:1px solid var(--line); background:var(--white);
+  font-weight:600; font-size:12.5px; color:var(--ink-soft);
+}
+.chip:hover{ background:var(--violet-100); }
+.chip.active{ background:var(--green-bg); border-color:#bfe9d3; color:var(--green); }
+
+/* ---------- Table ---------- */
+.table-wrap{
+  margin-top:20px; background:var(--white); border:1px solid var(--line);
+  border-radius:var(--radius-lg); overflow:hidden; box-shadow:var(--shadow-card);
+  overflow-x:auto;
+}
+table.jobs-table{ width:100%; border-collapse:collapse; }
+table.jobs-table th{
+  text-align:left; font-size:12px; font-weight:700; color:var(--ink-soft);
+  padding:14px 16px; background:var(--violet-100); white-space:nowrap;
+}
+table.jobs-table td{
+  padding:14px 16px; border-top:1px solid var(--line); font-size:13.5px; vertical-align:top;
+}
+table.jobs-table tbody tr:hover{ background:var(--lilac-bg); }
+.job-title{ font-weight:700; font-size:14px; }
+.job-sub{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+.cell-sub{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+.empty-row{ padding:40px 16px; text-align:center; color:var(--ink-soft); font-size:13.5px; }
+
+/* ---------- Status pills ---------- */
+.status-pill{
+  display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px;
+  font-size:12px; font-weight:700; white-space:nowrap;
+}
+.status-pill .sdot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.status-green{ background:var(--green-bg); color:var(--green); }
+.status-green .sdot{ background:var(--green); }
+.status-amber{ background:var(--amber-bg); color:var(--amber); }
+.status-amber .sdot{ background:var(--amber); }
+.status-rose{ background:var(--rose-bg); color:var(--rose); }
+.status-rose .sdot{ background:var(--rose); }
+
+/* ---------- Pagination ---------- */
+.pagination-row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 4px 0; flex-wrap:wrap; gap:12px;
+}
+.per-page{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); }
+.per-page select{
+  border:1px solid var(--line); border-radius:8px; padding:6px 10px;
+  font-family:inherit; font-size:13px; background:var(--white); color:var(--ink);
+}
+.pager{ display:flex; align-items:center; gap:6px; }
+.pager button{
+  width:32px; height:32px; border-radius:8px; border:1px solid var(--line); background:var(--white);
+  display:flex; align-items:center; justify-content:center; color:var(--ink-soft);
+}
+.pager button.cur{ background:var(--green); border-color:var(--green); color:#fff; font-weight:700; }
+.pager button:hover:not(.cur){ background:var(--violet-100); }

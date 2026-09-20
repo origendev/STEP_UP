@@ -1,0 +1,36 @@
+/* ============================================================
+   skills.css — styles used only by pages/skills.html
+   (kept ready for when the Skills page is filled in)
+============================================================ */
+
+.skill-summary{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+
+.skills-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.skill-card{
+  background:var(--white); border:1px solid var(--line); border-radius:var(--radius-lg);
+  padding:20px; box-shadow:var(--shadow-card);
+  display:flex; flex-direction:column; gap:14px;
+}
+.skill-card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.skill-name{ font-weight:700; font-size:15.5px; }
+.skill-cat{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+
+/* recommendation rows */
+.rec-list{ display:flex; flex-direction:column; gap:0; }
+.rec-item{ display:flex; align-items:center; gap:14px; padding:13px 0; border-bottom:1px solid var(--line); }
+.rec-item:last-child{ border-bottom:none; }
+.rec-ic{
+  width:38px; height:38px; border-radius:10px;
+  background:var(--violet-100); color:var(--violet-600);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.rec-title{ font-weight:600; font-size:14.5px; }
+.rec-meta{ font-size:12.5px; color:var(--ink-soft); margin-top:1px; }
+
+@media (max-width:980px){
+  .skill-summary{ grid-template-columns:repeat(2,1fr); }
+  .skills-grid{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:680px){
+  .skill-summary, .skills-grid{ grid-template-columns:1fr; }
+}

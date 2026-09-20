@@ -1,0 +1,45 @@
+/* ============================================================
+   progress.css — styles used only by pages/progress.html
+============================================================ */
+
+/* ---------- Funnel ---------- */
+.funnel{ display:flex; gap:12px; }
+.funnel-step{
+  flex:1; background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:18px 16px; position:relative;
+}
+.funnel-step .num{ font-size:26px; font-weight:800; }
+.funnel-step .lbl{ font-size:13px; color:var(--ink-soft); margin-top:2px; }
+.funnel-bar{ height:6px; border-radius:999px; background:var(--violet-100); margin-top:12px; overflow:hidden; }
+.funnel-bar > div{
+  height:100%; border-radius:999px;
+  background:linear-gradient(90deg,var(--violet-600),var(--violet-500));
+}
+
+/* ---------- Timeline ---------- */
+.timeline{ position:relative; padding-left:26px; }
+.timeline::before{
+  content:""; position:absolute; left:6px; top:6px; bottom:6px; width:2px; background:var(--line);
+}
+.tl-item{ position:relative; padding-bottom:22px; }
+.tl-item:last-child{ padding-bottom:0; }
+.tl-dot{
+  position:absolute; left:-26px; top:2px; width:14px; height:14px; border-radius:50%;
+  background:var(--violet-600); border:3px solid var(--white); box-shadow:0 0 0 1px var(--violet-300);
+}
+.tl-dot.done{ background:var(--green); box-shadow:0 0 0 1px var(--green); }
+.tl-date{ font-size:12px; color:var(--ink-soft); font-weight:600; }
+.tl-title{ font-weight:700; font-size:14.5px; margin-top:2px; }
+.tl-desc{ font-size:13px; color:var(--ink-soft); margin-top:2px; }
+
+/* ---------- Readiness rows ---------- */
+.readiness-label{ flex:1; font-size:13.5px; }
+.readiness-value{ font-weight:700; font-size:13.5px; }
+
+@media (max-width:980px){
+  .funnel{ flex-wrap:wrap; }
+  .funnel-step{ min-width:calc(50% - 6px); }
+}
+@media (max-width:680px){
+  .funnel-step{ min-width:100%; }
+}

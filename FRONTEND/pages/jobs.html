@@ -1,0 +1,84 @@
+<!-- ============================================================
+     jobs.html — Jobs listing page
+     Table rows, dropdown menus and counts are filled by js/pages/jobs.js
+============================================================ -->
+<div class="view" id="view-jobs">
+
+  <div class="jobs-head">
+    <div>
+      <h2>Jobs</h2>
+      <div class="jobs-title-count" id="jobsCount">0 Jobs Listed</div>
+    </div>
+    <div class="jobs-search">
+      <details class="dropdown" id="ddCompany">
+        <summary>Company Name <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
+        <div class="dropdown-menu" id="ddCompanyMenu"></div>
+      </details>
+      <div class="search-input-wrap">
+        <input type="text" id="jobSearch" placeholder="Search here...">
+      </div>
+      <button class="search-btn" aria-label="Search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="filter-row">
+    <details class="dropdown accent" id="ddApplyBy">
+      <summary>Apply By (<span id="applyByLabel">Desc</span>) <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="dropdown-menu">
+        <button data-val="Desc" class="sel">Desc</button>
+        <button data-val="Asc">Asc</button>
+      </div>
+    </details>
+    <details class="dropdown" id="ddType">
+      <summary>Job Type <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="dropdown-menu" id="ddTypeMenu"></div>
+    </details>
+    <details class="dropdown" id="ddStatus">
+      <summary>Job Status <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="dropdown-menu" id="ddStatusMenu"></div>
+    </details>
+    <details class="dropdown" id="ddVisit">
+      <summary>Date of Visit <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <div class="dropdown-menu" id="ddVisitMenu"></div>
+    </details>
+    <div class="filter-spacer"></div>
+    <div class="toggle-wrap">Prev Jobs <div class="switch" id="prevToggle"></div></div>
+  </div>
+
+  <div class="chip-row" id="chipRow">
+    <button class="chip active" data-cat="eligible">Eligible Jobs</button>
+    <button class="chip" data-cat="applied">Applied Jobs</button>
+    <button class="chip" data-cat="eligibleNotApplied">Eligible But Not Applied Jobs</button>
+    <button class="chip" data-cat="rejected">Rejected Jobs</button>
+    <button class="chip" data-cat="offered">Offered Jobs</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="jobs-table">
+      <thead>
+        <tr>
+          <th>Title</th><th>Salary</th><th>Stipend</th><th>Apply Before</th>
+          <th>Date Of Visit</th><th>Status</th><th>Batch</th><th>Job Posted Date</th>
+        </tr>
+      </thead>
+      <tbody id="jobsBody"></tbody>
+    </table>
+  </div>
+
+  <div class="pagination-row">
+    <div class="per-page">Show
+      <select id="perPage"><option>10</option><option selected>20</option><option>50</option></select>
+      Per page
+    </div>
+    <div class="pager">
+      <button aria-label="First">«</button>
+      <button aria-label="Prev">‹</button>
+      <button class="cur">1</button>
+      <button aria-label="Next">›</button>
+      <button aria-label="Last">»</button>
+    </div>
+  </div>
+
+</div>
