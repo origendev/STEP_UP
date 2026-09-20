@@ -97,3 +97,25 @@ table.jobs-table tbody tr:hover{ background:var(--lilac-bg); }
 }
 .pager button.cur{ background:var(--green); border-color:var(--green); color:#fff; font-weight:700; }
 .pager button:hover:not(.cur){ background:var(--violet-100); }
+
+/* Company portal integration — Jobs only */
+.jobs-head{position:relative;}
+.jobs-company-portal{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 14px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--white);
+  color:var(--violet-700);
+  font-size:13px;
+  font-weight:700;
+  white-space:nowrap;
+  box-shadow:var(--shadow-card);
+}
+.jobs-company-portal:hover{background:var(--violet-100);}
+@media (max-width:900px){
+  .jobs-head{gap:12px;}
+  .jobs-company-portal{order:3;}
+}

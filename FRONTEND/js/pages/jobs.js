@@ -5,7 +5,49 @@
 ============================================================ */
 
 import { $, $$, esc, uniq } from '../core/dom.js';
-import { jobs } from '../data/jobs.data.js';
+import { jobs as seedJobs } from '../data/jobs.data.js';
+
+const API_BASE_URL = 'http://localhost:3000/api';
+let jobs = seedJobs;
+
+function normaliseApiJob(j){
+  return {
+    title: j.company_name || j.company || 'Company',
+    sub: j.title || 'Job Opportunity',
+    salary: j.salary || '—',
+    stipend: j.stipend || '—',
+    applyBefore: j.apply_before || '—',
+    applyBeforeVal: j.apply_before || '9999-12-31',
+    visit: j.visit_date || '—',
+    visitTag: j.visit_tag || '',
+    status: j.status || 'Eligible',
+    statusClass: j.status_class || 'status-amber',
+    batch: j.batch || '—',
+    posted: j.created_at ? new Date(j.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '—',
+    type: j.job_type === 'Full-time' ? 'Full-time' : (j.job_type || 'Regular Intern'),
+    cats: ['eligible'],
+    prev: false,
+    companyId: j.company_id,
+    description: j.description || '',
+    location: j.location || '',
+    workMode: j.work_mode || ''
+  };
+}
+
+async function loadLiveJobs(){
+  try{
+    const res = await fetch(`${API_BASE_URL}/jobs`);
+    if(!res.ok) return;
+    const result = await res.json();
+    if(Array.isArray(result.data) && result.data.length){
+      jobs = [...result.data.map(normaliseApiJob), ...seedJobs];
+      renderMenus();
+      render();
+    }
+  }catch(err){
+    console.info('Jobs backend unavailable; using existing Jobs data.', err.message);
+  }
+}
 
 /* Current filter state — reset each time the page mounts */
 let state;
@@ -151,4 +193,5 @@ export function mount(){
   bindEvents();
   renderMenus();
   render();
+  loadLiveJobs();
 }
