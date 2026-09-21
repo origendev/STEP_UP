@@ -5,10 +5,8 @@
 ============================================================ */
 
 import { $, $$, esc, uniq } from '../core/dom.js';
-import { jobs as seedJobs } from '../data/jobs.data.js';
-
 const API_BASE_URL = 'http://localhost:3000/api';
-let jobs = seedJobs;
+let jobs = [];
 
 function normaliseApiJob(j){
   return {
@@ -39,13 +37,16 @@ async function loadLiveJobs(){
     const res = await fetch(`${API_BASE_URL}/jobs`);
     if(!res.ok) return;
     const result = await res.json();
-    if(Array.isArray(result.data) && result.data.length){
-      jobs = [...result.data.map(normaliseApiJob), ...seedJobs];
+    if(Array.isArray(result.data)){
+      jobs = result.data.map(normaliseApiJob);
       renderMenus();
       render();
     }
   }catch(err){
-    console.info('Jobs backend unavailable; using existing Jobs data.', err.message);
+    console.error('Jobs backend unavailable.', err);
+    jobs = [];
+    renderMenus();
+    render();
   }
 }
 
@@ -172,9 +173,9 @@ function bindEvents(){
     state.search = e.target.value.trim().toLowerCase();
     render();
   });
+const prevToggle = $('#prevToggle');
 
-  // Previous jobs toggle
-  const prevToggle = $('#prevToggle');
+if (prevToggle) {
   prevToggle.addEventListener('click', () => {
     state.showPrev = !state.showPrev;
     prevToggle.classList.toggle('on', state.showPrev);
@@ -182,10 +183,14 @@ function bindEvents(){
   });
 }
 
+} // <-- CLOSE bindEvents()
+
 /* Close dropdowns on any outside click. Registered once, not per mount,
    so navigating back and forth doesn't stack duplicate listeners. */
 document.addEventListener('click', e => {
-  $$('.dropdown[open]').forEach(d => { if(!d.contains(e.target)) d.removeAttribute('open'); });
+  $$('.dropdown[open]').forEach(d => {
+    if (!d.contains(e.target)) d.removeAttribute('open');
+  });
 });
 
 export function mount(){
