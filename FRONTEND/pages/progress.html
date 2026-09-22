@@ -11,10 +11,24 @@
     </div>
   </div>
 
-  <div class="funnel" id="funnel"></div>
+  
+  <div class="progress-status" id="progressStatus"></div>
+  <div class="progress-learning-grid" id="learningProgress"></div>
+  <section class="block">
+  <div class="progress-insights-grid">
+
+    <div class="card insight-card" id="codingActivity"></div>
+
+    <div class="card insight-card" id="githubStreak"></div>
+
+    <div class="card insight-card" id="goalsMilestones"></div>
+
+  </div>
+</section>
+
 
   <section class="block">
-    <div class="grid2">
+    <div class="grid2 timeline-layout"></div>
 
       <div class="card">
         <div class="card-head">
@@ -26,28 +40,7 @@
         <div class="timeline" id="timeline"></div>
       </div>
 
-      <div class="card">
-        <div class="card-head">
-          <div class="card-title">
-            <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg></span>
-            Overall Readiness
-          </div>
-        </div>
-        <div class="donut-row" style="justify-content:center;">
-          <svg width="130" height="130" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="50" fill="none" stroke="var(--violet-100)" stroke-width="14"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="url(#g2)" stroke-width="14" stroke-linecap="round"
-              stroke-dasharray="314" stroke-dashoffset="126" transform="rotate(-90 60 60)"/>
-            <defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="var(--violet-700)"/><stop offset="100%" stop-color="var(--violet-500)"/>
-            </linearGradient></defs>
-            <text x="60" y="56" text-anchor="middle" font-family="Sora" font-size="22" font-weight="800" fill="var(--ink)">60%</text>
-            <text x="60" y="74" text-anchor="middle" font-family="Inter" font-size="10.5" fill="var(--ink-soft)">Placement ready</text>
-          </svg>
-        </div>
-        <div class="divider" style="margin-top:16px;"></div>
-        <div id="readinessList"></div>
-      </div>
+      
 
     </div>
   </section>
