@@ -1,8 +1,6 @@
-/* ============================================================
-   base.css — design tokens, theme, reset, typography
-   Loaded first. Every other stylesheet depends on these vars.
-============================================================ */
-
+/* =========================================================
+   BASE — colour tokens, dark mode, reset, fonts
+========================================================= */
 :root{
   --violet-900:#241a4d;
   --violet-700:#4c2fc4;
@@ -27,40 +25,45 @@
   --shadow-card:0 1px 2px rgba(36,26,77,0.04), 0 8px 24px -12px rgba(36,26,77,0.12);
 }
 
-/* Follow the OS setting, unless the user forced light with the toggle */
+/* System dark mode, unless the user has explicitly chosen "light" */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
+    --violet-700:#7ea2ff;
+    --violet-600:#3b6bfa;
+    --violet-500:#8b3ffb;
+    --violet-300:#7ea2ff;
     --ink:#f1eefc;
-    --ink-soft:#a79fc9;
-    --lilac-bg:#15112b;
-    --white:#1e1938;
-    --line:#2f2856;
-    --violet-100:#241f47;
-    --shadow-card:0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+    --ink-soft:#93a0c9;
+    --lilac-bg:#0b1020;
+    --white:#121a33;
+    --line:#232c52;
+    --violet-100:#1a2350;
+    --shadow-card:0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.6);
   }
 }
-
-/* Forced dark with the toggle */
+/* Explicit user choice, saved to localStorage by js/core/theme.js */
 :root[data-theme="dark"]{
+  --violet-700:#7ea2ff;
+  --violet-600:#3b6bfa;
+  --violet-500:#8b3ffb;
+  --violet-300:#7ea2ff;
   --ink:#f1eefc;
-  --ink-soft:#a79fc9;
-  --lilac-bg:#15112b;
-  --white:#1e1938;
-  --line:#2f2856;
-  --violet-100:#241f47;
-  --shadow-card:0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5);
+  --ink-soft:#93a0c9;
+  --lilac-bg:#0b1020;
+  --white:#121a33;
+  --line:#232c52;
+  --violet-100:#1a2350;
+  --shadow-card:0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.6);
 }
 
-*{ box-sizing:border-box; }
-html,body{ margin:0; padding:0; }
-
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
 body{
   font-family:'Inter',sans-serif;
   background:var(--lilac-bg);
   color:var(--ink);
   min-height:100vh;
 }
-
-h1,h2,h3,h4,.brand{ font-family:'Sora',sans-serif; }
-a{ color:inherit; text-decoration:none; }
-button{ font-family:inherit; cursor:pointer; }
+h1,h2,h3,h4,.brand{font-family:'Sora',sans-serif;}
+a{color:inherit;text-decoration:none;}
+button{font-family:inherit;cursor:pointer;}
