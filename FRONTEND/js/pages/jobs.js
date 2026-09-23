@@ -1,202 +1,373 @@
 /* ============================================================
    jobs.js — Jobs page
-   Filtering, search, sorting and table rendering.
-   All job data comes from js/data/jobs.data.js
+   Live job cards from the StepUp backend.
+   One card = one backend job record.
 ============================================================ */
 
-import { $, $$, esc, uniq } from '../core/dom.js';
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = window.STEPUP_API_BASE || 'http://localhost:3000/api';
+
 let jobs = [];
+let state = {
+  search: '',
+  industry: 'All',
+  sort: 'az'
+};
 
-function normaliseApiJob(j){
-  return {
-    title: j.company_name || j.company || 'Company',
-    sub: j.title || 'Job Opportunity',
-    salary: j.salary || '—',
-    stipend: j.stipend || '—',
-    applyBefore: j.apply_before || '—',
-    applyBeforeVal: j.apply_before || '9999-12-31',
-    visit: j.visit_date || '—',
-    visitTag: j.visit_tag || '',
-    status: j.status || 'Eligible',
-    statusClass: j.status_class || 'status-amber',
-    batch: j.batch || '—',
-    posted: j.created_at ? new Date(j.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '—',
-    type: j.job_type === 'Full-time' ? 'Full-time' : (j.job_type || 'Regular Intern'),
-    cats: ['eligible'],
-    prev: false,
-    companyId: j.company_id,
-    description: j.description || '',
-    location: j.location || '',
-    workMode: j.work_mode || ''
-  };
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+function esc(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
 }
 
-async function loadLiveJobs(){
-  try{
-    const res = await fetch(`${API_BASE_URL}/jobs`);
-    if(!res.ok) return;
-    const result = await res.json();
-    if(Array.isArray(result.data)){
-      jobs = result.data.map(normaliseApiJob);
-      renderMenus();
-      render();
-    }
-  }catch(err){
-    console.error('Jobs backend unavailable.', err);
-    jobs = [];
-    renderMenus();
-    render();
-  }
+function initials(name){
+  const words = String(name || 'Company').trim().split(/\s+/).filter(Boolean);
+  if(words.length === 1) return words[0].slice(0,3).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-/* Current filter state — reset each time the page mounts */
-let state;
-
-function resetState(){
-  state = {
-    cat:"eligible",
-    search:"",
-    company:"All Companies",
-    type:"All Types",
-    status:"All Status",
-    visit:"All Dates",
-    applyByDesc:true,
-    showPrev:false,
-  };
-}
-
-/* ---------- Dropdown menus ---------- */
-
-function closeAllDropdowns(){
-  $$('.dropdown[open]').forEach(d => d.removeAttribute('open'));
-}
-
-function buildMenu(container, options, current, onPick){
-  if(!container) return;
-  container.innerHTML = "";
-  options.forEach(opt => {
-    const btn = document.createElement('button');
-    btn.textContent = opt;
-    if(opt === current) btn.classList.add('sel');
-    btn.addEventListener('click', () => {
-      onPick(opt);
-      closeAllDropdowns();
-    });
-    container.appendChild(btn);
+function formatDate(value){
+  if(!value) return '—';
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString('en-GB', {
+    day:'numeric', month:'short', year:'numeric'
   });
 }
 
-function renderMenus(){
-  buildMenu($('#ddCompanyMenu'), ["All Companies", ...uniq(jobs.map(j => j.title))],  state.company, v => { state.company = v; render(); });
-  buildMenu($('#ddTypeMenu'),    ["All Types",     ...uniq(jobs.map(j => j.type))],   state.type,    v => { state.type    = v; render(); });
-  buildMenu($('#ddStatusMenu'),  ["All Status",    ...uniq(jobs.map(j => j.status))], state.status,  v => { state.status  = v; render(); });
-  buildMenu($('#ddVisitMenu'),   ["All Dates",     ...uniq(jobs.map(j => j.visit))],  state.visit,   v => { state.visit   = v; render(); });
+function storageKey(id){
+  return `stepup-saved-job-${id}`;
 }
 
-/* ---------- Filtering ---------- */
-
-function applyFilters(){
-  let list = jobs.filter(j => j.cats.includes(state.cat));
-
-  if(!state.showPrev)                  list = list.filter(j => !j.prev);
-  if(state.company !== "All Companies")list = list.filter(j => j.title  === state.company);
-  if(state.type    !== "All Types")    list = list.filter(j => j.type   === state.type);
-  if(state.status  !== "All Status")   list = list.filter(j => j.status === state.status);
-  if(state.visit   !== "All Dates")    list = list.filter(j => j.visit  === state.visit);
-  if(state.search)                     list = list.filter(j => (j.title + " " + j.sub).toLowerCase().includes(state.search));
-
-  return [...list].sort((a, b) => state.applyByDesc
-    ? new Date(b.applyBeforeVal) - new Date(a.applyBeforeVal)
-    : new Date(a.applyBeforeVal) - new Date(b.applyBeforeVal));
+function companyStorageKey(id){
+  return `stepup-saved-company-${id}`;
 }
 
-/* ---------- Rendering ---------- */
-
-function typeLabel(type){
-  if(type === 'Full-time') return 'Full-time';
-  return type.includes('Summer') ? 'Summer Intern' : 'Regular Intern';
+function isSaved(id){
+  try { return localStorage.getItem(storageKey(id)) === '1'; }
+  catch { return false; }
 }
 
-function rowHTML(j){
+function isCompanySaved(id){
+  try { return localStorage.getItem(companyStorageKey(id)) === '1'; }
+  catch { return false; }
+}
+
+function setSaved(id, saved){
+  try {
+    if(saved) localStorage.setItem(storageKey(id), '1');
+    else localStorage.removeItem(storageKey(id));
+  } catch {}
+}
+
+function setCompanySaved(id, saved){
+  try {
+    if(saved) localStorage.setItem(companyStorageKey(id), '1');
+    else localStorage.removeItem(companyStorageKey(id));
+  } catch {}
+}
+
+function normaliseJob(job){
+  return {
+    id: String(job.id),
+    company_id: String(job.company_id),
+    company_name: job.company_name || 'Company',
+    company_website: job.company_website || job.website || '',
+    title: job.title || 'Job Opportunity',
+    job_type: job.job_type || '—',
+    salary: job.salary || '',
+    stipend: job.stipend || '',
+    apply_before: job.apply_before || '',
+    visit_date: job.visit_date || '',
+    visit_tag: job.visit_tag || '',
+    status: job.status || 'Eligible',
+    status_class: job.status_class || 'status-amber',
+    batch: job.batch || '',
+    location: job.location || '',
+    work_mode: job.work_mode || '',
+    description: job.description || '',
+    category: job.category || 'IT',
+    created_at: job.created_at || ''
+  };
+}
+
+function industryFor(job){
+  const value = String(job.category || '').trim();
+  if(!value || value.toLowerCase() === 'eligible') return 'IT';
+  return value;
+}
+
+function filteredJobs(){
+  const query = state.search.trim().toLowerCase();
+
+  let list = jobs.filter(job => {
+    if(state.industry !== 'All' && industryFor(job).toLowerCase() !== state.industry.toLowerCase()) return false;
+
+    if(!query) return true;
+
+    const haystack = [
+      job.company_name,
+      job.title,
+      job.job_type,
+      job.salary,
+      job.stipend,
+      job.location,
+      job.work_mode,
+      job.description,
+      job.category,
+      job.status,
+      job.batch
+    ].join(' ').toLowerCase();
+
+    return haystack.includes(query);
+  });
+
+  list.sort((a,b) => {
+    if(state.sort === 'za') return b.company_name.localeCompare(a.company_name) || b.title.localeCompare(a.title);
+    if(state.sort === 'newest') return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    if(state.sort === 'roles') return a.title.localeCompare(b.title) || a.company_name.localeCompare(b.company_name);
+    return a.company_name.localeCompare(b.company_name) || a.title.localeCompare(b.title);
+  });
+
+  return list;
+}
+
+function jobCardHTML(job){
+  const saved = isSaved(job.id);
+  const industry = industryFor(job);
+
   return `
-    <tr>
-      <td><div class="job-title">${esc(j.title)}</div><div class="job-sub">${esc(j.sub)}</div></td>
-      <td>${esc(j.salary)}<div class="cell-sub">${typeLabel(j.type)}</div></td>
-      <td>${esc(j.stipend)}</td>
-      <td>${esc(j.applyBefore)}<div class="cell-sub">—</div></td>
-      <td>${esc(j.visit)}<div class="cell-sub">${esc(j.visitTag)}</div></td>
-      <td><span class="status-pill ${j.statusClass}"><span class="sdot"></span>${esc(j.status)}</span></td>
-      <td>${esc(j.batch)}</td>
-      <td>${esc(j.posted)}</td>
-    </tr>`;
+    <article class="company-card job-card">
+      <div class="company-card-top">
+        <div class="company-identity">
+          <div class="company-logo">${esc(initials(job.company_name))}</div>
+          <div>
+            <h3 class="company-name" title="${esc(job.company_name)}">${esc(job.company_name)}</h3>
+            <p class="company-meta">${esc(industry)}${job.location ? ` · ${esc(job.location)}` : ''}</p>
+          </div>
+        </div>
+        <button class="company-save ${saved ? 'saved' : ''}" data-save-job="${esc(job.id)}"
+          aria-label="${saved ? 'Remove saved job' : 'Save job'}"
+          title="${saved ? 'Unsave job' : 'Save job'}">
+          ${saved ? '♥' : '♡'}
+        </button>
+      </div>
+
+      <div class="job-card-role">
+        <h4>${esc(job.title)}</h4>
+        <span class="job-card-type">${esc(job.job_type)}</span>
+      </div>
+
+      <p class="company-description">${esc(job.description || 'No additional description provided.')}</p>
+
+      <div class="company-badges">
+        ${job.salary ? `<span class="company-badge">₹ ${esc(job.salary)}</span>` : ''}
+        ${job.stipend ? `<span class="company-badge">Stipend ₹ ${esc(job.stipend)}</span>` : ''}
+        ${job.work_mode ? `<span class="company-badge">⌂ ${esc(job.work_mode)}</span>` : ''}
+        <span class="company-badge accent">▣ ${esc(job.status)}</span>
+      </div>
+
+      <div class="job-card-meta-row">
+        <span>Apply by <strong>${esc(formatDate(job.apply_before))}</strong></span>
+        ${job.batch ? `<span>Batch <strong>${esc(job.batch)}</strong></span>` : ''}
+      </div>
+
+      <div class="company-card-actions">
+        <button class="company-view-btn" data-view-job="${esc(job.id)}">View Details <span>›</span></button>
+        <button class="company-save-text ${saved ? 'saved' : ''}" data-save-job="${esc(job.id)}">
+          ${saved ? '♥ Saved' : 'Save'}
+        </button>
+      </div>
+    </article>
+  `;
 }
 
 function render(){
-  const list = applyFilters();
-  const body = $('#jobsBody');
-  if(!body) return;
+  const grid = $('#companyGrid');
+  const empty = $('#jobsEmpty');
+  const loading = $('#jobsLoading');
+  if(!grid) return;
 
-  $('#jobsCount').textContent = list.length + (list.length === 1 ? " Job Listed" : " Jobs Listed");
+  const list = filteredJobs();
 
-  body.innerHTML = list.length === 0
-    ? `<tr><td colspan="8" class="empty-row">No jobs match these filters.</td></tr>`
-    : list.map(rowHTML).join("");
+  $('#jobsCount').textContent = `${list.length} ${list.length === 1 ? 'Job' : 'Jobs'} Listed`;
+  $('#jobsShowing').textContent = jobs.length
+    ? `Showing ${list.length} of ${jobs.length} jobs`
+    : '';
+
+  grid.innerHTML = list.map(jobCardHTML).join('');
+  empty.hidden = list.length !== 0 || jobs.length === 0;
+  loading.hidden = true;
+
+  if(jobs.length === 0){
+    grid.innerHTML = '';
+    empty.hidden = false;
+  }
+
+  $$('#companyGrid [data-save-job]').forEach(button => {
+    button.addEventListener('click', () => toggleSaved(button.dataset.saveJob));
+  });
+
+  $$('#companyGrid [data-view-job]').forEach(button => {
+    button.addEventListener('click', () => openDetails(button.dataset.viewJob));
+  });
 }
 
-/* ---------- Events ---------- */
+function toggleSaved(id){
+  setSaved(id, !isSaved(id));
+  render();
+}
+
+function openDetails(id){
+  const job = jobs.find(item => String(item.id) === String(id));
+  if(!job) return;
+
+  const modal = $('#companyModal');
+  const content = $('#companyModalContent');
+  if(!modal || !content) return;
+
+  const companySaved = isCompanySaved(job.company_id);
+  const jobSaved = isSaved(job.id);
+  const website = String(job.company_website || '').trim();
+  const safeWebsite = /^https?:\/\//i.test(website) ? website : '';
+
+  content.innerHTML = `
+    <div class="modal-company-head">
+      <div class="modal-company-logo">${esc(initials(job.company_name))}</div>
+      <div>
+        <h3 id="companyModalTitle">${esc(job.company_name)}</h3>
+        <p>${esc(industryFor(job))}${job.location ? ` · ${esc(job.location)}` : ''}</p>
+      </div>
+    </div>
+
+    <div class="modal-company-description">
+      <h4>${esc(job.title)}</h4>
+      <p>${esc(job.description || 'No additional description provided.')}</p>
+    </div>
+
+    <div class="modal-job">
+      <div class="modal-job-head">
+        <h4>Job Details</h4>
+        <span class="badge badge-violet">${esc(job.job_type)}</span>
+      </div>
+      <div class="modal-job-meta">
+        ${job.salary ? `<span>Salary: ₹ ${esc(job.salary)}</span>` : ''}
+        ${job.stipend ? `<span>Stipend: ₹ ${esc(job.stipend)}</span>` : ''}
+        ${job.location ? `<span>⌖ ${esc(job.location)}</span>` : ''}
+        ${job.work_mode ? `<span>⌂ ${esc(job.work_mode)}</span>` : ''}
+        ${job.apply_before ? `<span>Apply by ${esc(formatDate(job.apply_before))}</span>` : ''}
+        ${job.visit_date ? `<span>Visit ${esc(formatDate(job.visit_date))}${job.visit_tag ? ` · ${esc(job.visit_tag)}` : ''}</span>` : ''}
+        ${job.batch ? `<span>Batch ${esc(job.batch)}</span>` : ''}
+        <span>Status: ${esc(job.status)}</span>
+      </div>
+    </div>
+
+    <div class="modal-company-actions">
+      <button class="modal-primary" id="modalSaveJob">${jobSaved ? '♥ Saved Job' : 'Save Job'}</button>
+      <button class="modal-secondary" id="modalSaveCompany">${companySaved ? '♥ Company Saved' : 'Save Company'}</button>
+      ${safeWebsite ? `<a class="modal-secondary" href="${esc(safeWebsite)}" target="_blank" rel="noopener noreferrer">Company Website</a>` : ''}
+    </div>
+  `;
+
+  modal.hidden = false;
+
+  $('#modalSaveJob')?.addEventListener('click', () => {
+    setSaved(job.id, !isSaved(job.id));
+    openDetails(job.id);
+    render();
+  });
+
+  $('#modalSaveCompany')?.addEventListener('click', () => {
+    setCompanySaved(job.company_id, !isCompanySaved(job.company_id));
+    openDetails(job.id);
+  });
+}
+
+function closeDetails(){
+  const modal = $('#companyModal');
+  if(modal) modal.hidden = true;
+}
+
+function setError(message){
+  const grid = $('#companyGrid');
+  const loading = $('#jobsLoading');
+  const empty = $('#jobsEmpty');
+  if(loading) loading.hidden = true;
+  if(grid) grid.innerHTML = '';
+  if(empty){
+    empty.hidden = false;
+    empty.innerHTML = `
+      <div class="empty-ic">!</div>
+      <h3>Couldn't load jobs</h3>
+      <p>${esc(message)}</p>
+      <button class="btn-outline" id="retryJobs">Try Again</button>
+    `;
+    $('#retryJobs')?.addEventListener('click', loadJobs);
+  }
+}
+
+async function loadJobs(){
+  const loading = $('#jobsLoading');
+  const empty = $('#jobsEmpty');
+  if(loading) loading.hidden = false;
+  if(empty) empty.hidden = true;
+
+  try{
+    const response = await fetch(`${API_BASE_URL}/jobs`, { cache:'no-store' });
+    if(!response.ok) throw new Error(`Jobs API returned HTTP ${response.status}.`);
+
+    const result = await response.json();
+    if(!Array.isArray(result.data)) throw new Error('Jobs API returned an invalid response.');
+
+    jobs = result.data.map(normaliseJob);
+    render();
+  }catch(error){
+    console.error('StepUp Jobs:', error);
+    setError(`Make sure the StepUp backend is running on ${API_BASE_URL.replace('/api','')}.`);
+  }
+}
 
 function bindEvents(){
-  // Apply-by sort direction
-  $$('#ddApplyBy .dropdown-menu button').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.applyByDesc = btn.dataset.val === "Desc";
-      $('#applyByLabel').textContent = btn.dataset.val;
-      $$('#ddApplyBy .dropdown-menu button').forEach(x => x.classList.toggle('sel', x === btn));
-      closeAllDropdowns();
-      render();
-    });
+  $('#jobSearch')?.addEventListener('input', event => {
+    state.search = event.target.value;
+    render();
   });
 
-  // Category chips
-  $$('#chipRow .chip').forEach(chip => {
+  $$('#industryChips .industry-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      $$('#chipRow .chip').forEach(c => c.classList.remove('active'));
+      $$('#industryChips .industry-chip').forEach(item => item.classList.remove('active'));
       chip.classList.add('active');
-      state.cat = chip.dataset.cat;
+      state.industry = chip.dataset.industry || 'All';
       render();
     });
   });
 
-  // Search box
-  $('#jobSearch').addEventListener('input', e => {
-    state.search = e.target.value.trim().toLowerCase();
-    render();
+  $$('#ddSort [data-sort]').forEach(button => {
+    button.addEventListener('click', () => {
+      state.sort = button.dataset.sort || 'az';
+      $('#sortLabel').textContent = button.textContent.trim();
+      $$('#ddSort [data-sort]').forEach(item => item.classList.toggle('sel', item === button));
+      $('#ddSort')?.removeAttribute('open');
+      render();
+    });
   });
-const prevToggle = $('#prevToggle');
 
-if (prevToggle) {
-  prevToggle.addEventListener('click', () => {
-    state.showPrev = !state.showPrev;
-    prevToggle.classList.toggle('on', state.showPrev);
-    render();
+  $('#companyModalClose')?.addEventListener('click', closeDetails);
+  $('#companyModal')?.addEventListener('click', event => {
+    if(event.target.id === 'companyModal') closeDetails();
   });
+
+  document.addEventListener('keydown', handleEscape);
 }
 
-} // <-- CLOSE bindEvents()
-
-/* Close dropdowns on any outside click. Registered once, not per mount,
-   so navigating back and forth doesn't stack duplicate listeners. */
-document.addEventListener('click', e => {
-  $$('.dropdown[open]').forEach(d => {
-    if (!d.contains(e.target)) d.removeAttribute('open');
-  });
-});
+function handleEscape(event){
+  if(event.key === 'Escape') closeDetails();
+}
 
 export function mount(){
-  resetState();
+  state = { search:'', industry:'All', sort:'az' };
   bindEvents();
-  renderMenus();
-  render();
-  loadLiveJobs();
+  loadJobs();
 }

@@ -17,7 +17,22 @@ const pool = new Pool({
 });
 
 const app = express();
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN ? process.env.FRONTEND_ORIGIN.split(',').map(s=>s.trim()) : true }));
+const configuredOrigins = process.env.FRONTEND_ORIGIN
+  ? process.env.FRONTEND_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+  : [];
+
+app.use(cors({
+  origin(origin, callback){
+    if(!origin) return callback(null, true);
+    if(configuredOrigins.length === 0) return callback(null, true);
+    if(configuredOrigins.includes(origin)) return callback(null, true);
+    try {
+      const url = new URL(origin);
+      if(['localhost','127.0.0.1'].includes(url.hostname)) return callback(null, true);
+    } catch {}
+    return callback(new Error('CORS origin not allowed'));
+  }
+}));
 app.use(express.json());
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
@@ -107,9 +122,26 @@ app.delete('/api/company/jobs/:id',requireCompany,async(req,res)=>{
   if(!r.rows[0]) return res.status(404).json({error:'Job not found.'}); res.status(204).end();
 });
 
+
+app.get('/api/companies',async(_req,res)=>{
+  try {
+    const r=await pool.query(`
+      SELECT c.id,c.name,c.website,c.created_at,COUNT(j.id)::int AS open_roles
+      FROM companies c
+      LEFT JOIN jobs j ON j.company_id=c.id
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `);
+    res.json({data:r.rows});
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({error:'Could not load companies.'});
+  }
+});
+
 app.get('/api/jobs',async(_req,res)=>{
   try {
-    const r=await pool.query(`SELECT j.id,j.company_id,c.name AS company_name,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.created_at
+    const r=await pool.query(`SELECT j.id,j.company_id,c.name AS company_name,c.website AS company_website,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.created_at
       FROM jobs j JOIN companies c ON c.id=j.company_id ORDER BY j.created_at DESC`);
     res.json({data:r.rows});
   } catch(e) { console.error(e); res.status(500).json({error:'Could not load jobs.'}); }

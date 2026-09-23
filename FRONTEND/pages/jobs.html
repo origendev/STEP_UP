@@ -1,87 +1,86 @@
 <!-- ============================================================
-     jobs.html — Jobs listing page
-     Table rows, dropdown menus and counts are filled by js/pages/jobs.js
+     jobs.html — Company & Jobs discovery
+     Uses the existing StepUp shell/theme and live company/job data.
 ============================================================ -->
 <div class="view" id="view-jobs">
 
   <div class="jobs-head">
     <div>
-      <h2>Jobs</h2>
-      <div class="jobs-title-count" id="jobsCount">0 Jobs Listed</div>
+      <h2>Explore Companies &amp; Roles</h2>
+      <div class="jobs-title-count" id="jobsCount">Loading jobs...</div>
+      <p class="jobs-subtitle">Discover live opportunities posted by companies through StepUp.</p>
     </div>
-    <div class="jobs-search">
-      <details class="dropdown" id="ddCompany">
-        <summary>Company Name <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
-        <div class="dropdown-menu" id="ddCompanyMenu"></div>
+
+    <div class="jobs-head-actions">
+      <a class="jobs-company-portal" href="company/company-login.html">Company Portal <span>→</span></a>
+    </div>
+  </div>
+
+  <section class="jobs-panel">
+    <div class="jobs-toolbar">
+      <div class="jobs-search-large">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input id="jobSearch" type="search"
+          placeholder="Search companies, skills (e.g. React, Java, Python), or roles..."
+          autocomplete="off">
+      </div>
+
+      <details class="dropdown jobs-sort" id="ddSort">
+        <summary>Sort: <strong id="sortLabel">A–Z</strong>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M6 9l6 6 6-6"></path>
+          </svg>
+        </summary>
+        <div class="dropdown-menu">
+          <button data-sort="az" class="sel">A–Z</button>
+          <button data-sort="za">Z–A</button>
+          <button data-sort="newest">Newest</button>
+          <button data-sort="roles">Most Open Roles</button>
+        </div>
       </details>
-      <div class="search-input-wrap">
-        <input type="text" id="jobSearch" placeholder="Search here...">
+    </div>
+
+    <div class="jobs-filter-line">
+      <span class="filter-label">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 6h16M7 12h10M10 18h4"></path>
+        </svg>
+        Industry:
+      </span>
+      <div class="industry-chips" id="industryChips">
+        <button class="industry-chip active" data-industry="All">All</button>
+        <button class="industry-chip" data-industry="IT">IT</button>
+        <button class="industry-chip" data-industry="Product">Product</button>
+        <button class="industry-chip" data-industry="Finance">Finance</button>
+        <button class="industry-chip" data-industry="Consulting">Consulting</button>
       </div>
-      <button class="search-btn" aria-label="Search">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      </button>
+      <span class="jobs-showing" id="jobsShowing"></span>
     </div>
-    <a class="jobs-company-portal" href="pages/company-login.html">
-    Company Portal →
-</a>
+  </section>
+
+  <div class="company-grid" id="companyGrid"></div>
+
+  <div class="jobs-loading" id="jobsLoading" hidden>
+    <div class="jobs-spinner"></div>
+    <span>Loading jobs from StepUp...</span>
   </div>
 
-  <div class="filter-row">
-    <details class="dropdown accent" id="ddApplyBy">
-      <summary>Apply By (<span id="applyByLabel">Desc</span>) <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
-      <div class="dropdown-menu">
-        <button data-val="Desc" class="sel">Desc</button>
-        <button data-val="Asc">Asc</button>
-      </div>
-    </details>
-    <details class="dropdown" id="ddType">
-      <summary>Job Type <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
-      <div class="dropdown-menu" id="ddTypeMenu"></div>
-    </details>
-    <details class="dropdown" id="ddStatus">
-      <summary>Job Status <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
-      <div class="dropdown-menu" id="ddStatusMenu"></div>
-    </details>
-    <details class="dropdown" id="ddVisit">
-      <summary>Date of Visit <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></summary>
-      <div class="dropdown-menu" id="ddVisitMenu"></div>
-    </details>
-    <div class="filter-spacer"></div>
-    <div class="toggle-wrap">Prev Jobs <div class="switch" id="prevToggle"></div></div>
+  <div class="empty-state jobs-empty" id="jobsEmpty" hidden>
+    <div class="empty-ic">⌕</div>
+    <h3>No jobs found</h3>
+    <p>Try a different search or industry filter. Jobs posted through the Company Portal will appear here.</p>
+    <a class="btn-outline" href="company/company-login.html">Open Company Portal</a>
   </div>
 
-  <div class="chip-row" id="chipRow">
-    <button class="chip active" data-cat="eligible">Eligible Jobs</button>
-    <button class="chip" data-cat="applied">Applied Jobs</button>
-    <button class="chip" data-cat="eligibleNotApplied">Eligible But Not Applied Jobs</button>
-    <button class="chip" data-cat="rejected">Rejected Jobs</button>
-    <button class="chip" data-cat="offered">Offered Jobs</button>
-  </div>
-
-  <div class="table-wrap">
-    <table class="jobs-table">
-      <thead>
-        <tr>
-          <th>Title</th><th>Salary</th><th>Stipend</th><th>Apply Before</th>
-          <th>Date Of Visit</th><th>Status</th><th>Batch</th><th>Job Posted Date</th>
-        </tr>
-      </thead>
-      <tbody id="jobsBody"></tbody>
-    </table>
-  </div>
-
-  <div class="pagination-row">
-    <div class="per-page">Show
-      <select id="perPage"><option>10</option><option selected>20</option><option>50</option></select>
-      Per page
-    </div>
-    <div class="pager">
-      <button aria-label="First">«</button>
-      <button aria-label="Prev">‹</button>
-      <button class="cur">1</button>
-      <button aria-label="Next">›</button>
-      <button aria-label="Last">»</button>
-    </div>
+  <!-- Company details modal -->
+  <div class="company-modal-backdrop" id="companyModal" hidden>
+    <section class="company-modal" role="dialog" aria-modal="true" aria-labelledby="companyModalTitle">
+      <button class="company-modal-close" id="companyModalClose" aria-label="Close">×</button>
+      <div id="companyModalContent"></div>
+    </section>
   </div>
 
 </div>
