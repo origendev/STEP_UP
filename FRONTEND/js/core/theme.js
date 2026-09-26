@@ -32,16 +32,19 @@ function write(mode){
   catch{ /* private mode — not worth failing over */ }
 }
 
-export function init(){
-  apply(read());
-
-  const btn = document.getElementById('themeToggle');
-  if(!btn) return;
-
-  btn.addEventListener('click', () => {
-    const mode = next(read());
-    write(mode);
-    apply(mode);
-    btn.title = `Theme: ${mode}`;
-  });
+function toggle(){
+  const upcoming = next(read());
+  apply(upcoming);
+  write(upcoming);
 }
+
+export const ThemeModule = (() => {
+  function init(){
+    apply(read());
+    document.getElementById('themeToggle')?.addEventListener('click', toggle);
+  }
+  function current(){
+    return document.documentElement.getAttribute('data-theme') || 'system';
+  }
+  return { init, toggle, current };
+})();

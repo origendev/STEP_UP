@@ -59,7 +59,7 @@
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
-  font-family:'Inter',sans-serif;
+  font-family:var(--app-font, 'Inter', sans-serif);
   background:var(--lilac-bg);
   color:var(--ink);
   min-height:100vh;

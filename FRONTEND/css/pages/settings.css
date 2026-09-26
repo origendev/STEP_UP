@@ -1,0 +1,27 @@
+/* =========================================================
+   SETTINGS PAGE — stacked cards, each with labelled rows.
+========================================================= */
+.settings-stack{display:flex;flex-direction:column;gap:20px;}
+
+.settings-row{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px 0;border-bottom:1px solid var(--line);
+}
+.settings-row:last-child{border-bottom:none;}
+.settings-label{font-weight:700;font-size:14px;}
+.settings-desc{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+
+.settings-select{
+  font-family:inherit;font-size:13.5px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);
+  background:var(--lilac-bg);color:var(--ink);min-width:160px;
+}
+
+.session-row{
+  display:flex;align-items:center;gap:12px;padding:10px 0;
+  font-size:13.5px;color:var(--ink);
+}
+.session-row .session-ic{
+  width:32px;height:32px;border-radius:9px;background:var(--violet-100);color:var(--violet-600);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.session-meta{font-size:12px;color:var(--ink-soft);}
