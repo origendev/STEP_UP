@@ -1,0 +1,772 @@
+/* ============================================================
+   progress.css — styles used only by pages/progress.html
+============================================================ */
+
+/* ---------- Funnel ---------- */
+.funnel{ display:flex; gap:12px; }
+.funnel-step{
+  flex:1; background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md);
+  padding:18px 16px; position:relative;
+}
+.funnel-step .num{ font-size:26px; font-weight:800; }
+.funnel-step .lbl{ font-size:13px; color:var(--ink-soft); margin-top:2px; }
+.funnel-bar{ height:6px; border-radius:999px; background:var(--violet-100); margin-top:12px; overflow:hidden; }
+.funnel-bar > div{
+  height:100%; border-radius:999px;
+  background:linear-gradient(90deg,var(--violet-600),var(--violet-500));
+}
+
+/* ---------- Horizontal Journey Timeline ---------- */
+
+.timeline-layout {
+  grid-template-columns: 1fr;
+}
+
+.timeline {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  padding: 32px 8px 10px;
+}
+
+/* Horizontal connecting line */
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 39px;
+  height: 2px;
+  background: var(--line);
+}
+
+.tl-item {
+  position: relative;
+  text-align: center;
+  padding: 0 10px;
+  min-width: 0;
+}
+
+.tl-item:last-child {
+  padding-bottom: 0;
+}
+
+/* Timeline dots */
+.tl-dot {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--violet-600);
+  border: 3px solid var(--white);
+  box-shadow: 0 0 0 1px var(--violet-300);
+  z-index: 2;
+}
+
+.tl-dot.done {
+  background: var(--green);
+  box-shadow: 0 0 0 1px var(--green);
+}
+
+.tl-date {
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  margin-top: 28px;
+}
+
+.tl-title {
+  font-weight: 700;
+  font-size: 14.5px;
+  margin-top: 5px;
+  line-height: 1.35;
+}
+
+.tl-desc {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+/* ---------- Readiness rows ---------- */
+.readiness-label{ flex:1; font-size:13.5px; }
+.readiness-value{ font-weight:700; font-size:13.5px; }
+
+@media (max-width:980px){
+  .funnel{ flex-wrap:wrap; }
+  .funnel-step{ min-width:calc(50% - 6px); }
+}
+@media (max-width:680px){
+  .funnel-step{ min-width:100%; }
+}
+
+.progress-status {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 18px 0 24px;
+}
+
+#learningProgress {
+  width: 100%;
+  max-width: none;
+
+}
+
+.progress-status-card {
+  flex: 1;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 18px 16px;
+  position: relative;
+}
+
+.progress-status-card .status-value {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.progress-status-card .status-label {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+.learning-card {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.learning-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 18px;
+}
+
+.learning-icon {
+  color: var(--violet-500);
+  font-size: 16px;
+}
+
+.course-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.course-check,
+.course-status {
+  color: var(--violet-500);
+  font-weight: 700;
+}
+
+.course-name {
+  flex: 1;
+}
+
+.course-status {
+  color: var(--ink-soft);
+}
+
+.learning-progress-full {
+  width: calc(40% - 7px) !important;
+max-width: calc(40% - 7px) !important;
+  display: block;
+}
+
+.progress-learning-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  
+}
+
+.progress-learning-grid .learning-card {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 0;
+  min-height: 190px;
+  padding: 18px;
+}
+.course-count {
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.course-count span {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.course-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 12px;
+}
+
+.course-name {
+  flex: 1;
+}
+
+.course-status {
+  color: var(--violet-500);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.learning-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.learning-view-all {
+  color: var(--violet-500);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.learning-count {
+  font-size: 27px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.learning-subcount {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+.learning-list {
+  margin-top: 6px;
+}
+
+.learning-list-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.learning-list-item:last-child {
+  border-bottom: none;
+}
+
+.learning-check {
+  margin-left: auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--violet-500);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.certification-item,
+.project-item {
+  align-items: center;
+}
+
+.cert-icon,
+.project-icon {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--violet-100);
+  color: var(--violet-500);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cert-details,
+.project-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cert-details strong,
+.project-details strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cert-details small {
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+
+.project-details small {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.completed-text {
+  color: var(--violet-500);
+}
+
+.progress-text {
+  color: var(--violet-500);
+}
+
+.project-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 4px 0 8px;
+}
+
+.project-counts div {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-counts strong {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.project-counts span {
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 4px;
+}
+
+.progress-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  
+}
+
+
+
+.progress-insights-grid .insight-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   Progress Insights Cards
+   ============================================================ */
+
+.progress-insights-grid .insight-card {
+  min-height: 250px;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+/* Header */
+
+.insight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.insight-header .card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.insight-header .ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--violet-100);
+  color: var(--violet-500);
+  font-size: 15px;
+}
+
+.insight-view-all,
+.insight-add {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--violet-500);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   CODING ACTIVITY
+   ============================================================ */
+
+.coding-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.coding-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.coding-stat strong {
+  font-size: 19px;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.coding-stat span {
+  font-size: 9px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.coding-tip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 11px 10px;
+  border-radius: 10px;
+  background: var(--violet-100);
+}
+
+.coding-tip .tip-icon {
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--violet-500);
+  font-size: 16px;
+}
+
+.coding-tip div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.coding-tip strong {
+  font-size: 10px;
+  color: var(--ink);
+}
+
+.coding-tip span {
+  font-size: 8px;
+  color: var(--ink-soft);
+}
+
+/* ============================================================
+   GITHUB CONTRIBUTION STREAK
+   ============================================================ */
+
+.github-streak-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.github-current {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.github-current div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fire-icon {
+  font-size: 20px;
+}
+
+.github-current strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.github-current > span {
+  font-size: 8px;
+  color: var(--ink-soft);
+  margin-left: 27px;
+}
+
+.github-longest {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--violet-100);
+}
+
+.github-longest span {
+  font-size: 7px;
+  color: var(--ink-soft);
+}
+
+.github-longest strong {
+  font-size: 9px;
+  color: var(--ink);
+  margin-top: 2px;
+}
+
+.contribution-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(6, 10px);
+  gap: 3px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-top: 13px;
+  height: 75px;
+}
+
+.contribution-cell {
+  width: 100%;
+  height: 10px;
+  min-width: 0;
+  border-radius: 2px;
+  background: var(--violet-100);
+}
+.contribution-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--violet-100);
+}
+
+.contribution-cell.active {
+  background: var(--violet-500);
+  opacity: 0.75;
+}
+
+.contribution-cell:nth-child(3n).active {
+  opacity: 0.45;
+}
+
+.contribution-cell:nth-child(5n).active {
+  opacity: 0.9;
+}
+
+.contribution-months {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 7px 0;
+  font-size: 7px;
+  color: var(--ink-soft);
+}
+
+.contribution-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-top: 7px;
+  font-size: 7px;
+  color: var(--ink-soft);
+}
+
+.legend-cell {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--violet-100);
+}
+
+.legend-cell.active {
+  background: var(--violet-500);
+}
+
+/* ============================================================
+   GOALS & MILESTONES
+   ============================================================ */
+
+.goal-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 7px 0 8px;
+}
+
+.goal-tab {
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--ink-soft);
+  border-radius: 10px;
+  padding: 4px 13px;
+  font-size: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.goal-tab.active {
+  background: var(--violet-500);
+  border-color: var(--violet-500);
+  color: white;
+}
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.goal-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 43px;
+  border-bottom: 1px solid var(--line);
+}
+
+.goal-item:last-child {
+  border-bottom: none;
+}
+
+.goal-ring {
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--violet-500) 0deg,
+    var(--violet-500) 70deg,
+    var(--violet-100) 70deg,
+    var(--violet-100) 360deg
+  );
+  position: relative;
+}
+
+.goal-ring::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  background: var(--white);
+  border-radius: 50%;
+}
+
+.goal-item:nth-child(2) .goal-ring {
+  background: conic-gradient(
+    var(--violet-500) 0deg,
+    var(--violet-500) 120deg,
+    var(--violet-100) 120deg,
+    var(--violet-100) 360deg
+  );
+}
+
+.goal-item:nth-child(3) .goal-ring {
+  background: conic-gradient(
+    var(--violet-500) 0deg,
+    var(--violet-500) 25deg,
+    var(--violet-100) 25deg,
+    var(--violet-100) 360deg
+  );
+}
+
+.goal-item:nth-child(4) .goal-ring {
+  background: conic-gradient(
+    var(--violet-500) 0deg,
+    var(--violet-500) 72deg,
+    var(--violet-100) 72deg,
+    var(--violet-100) 360deg
+  );
+}
+
+.goal-content {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.goal-content strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.goal-content span {
+  font-size: 10px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goal-progress {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.goal-progress strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.goal-progress span {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.status-progress {
+  width: 100%;
+  height: 6px;
+  background: var(--violet-100);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.status-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--violet-600), var(--violet-500));
+}

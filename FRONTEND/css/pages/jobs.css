@@ -1,0 +1,43 @@
+/* Jobs/company discovery — uses the existing StepUp theme tokens. */
+.jobs-page{padding-top:18px;}
+.jobs-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:20px 0 24px;}
+.jobs-hero h1{margin:0;font-size:29px;letter-spacing:-.035em;}
+.jobs-hero p{margin:8px 0 0;color:var(--ink-soft);font-size:14px;}
+.jobs-company-portal{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--white);color:var(--violet-700);font-size:13px;font-weight:700;white-space:nowrap;box-shadow:var(--shadow-card);}
+.jobs-company-portal:hover{background:var(--violet-100);}
+.jobs-toolbar{padding:18px 20px;margin-bottom:22px;}
+.jobs-toolbar-top{display:flex;gap:12px;align-items:center;}
+.jobs-search-wide{height:44px;display:flex;align-items:center;gap:9px;flex:1;border:1px solid var(--line);border-radius:11px;background:var(--lilac-bg);padding:0 14px;}
+.search-symbol{font-size:24px;line-height:1;color:var(--ink-soft);transform:rotate(-20deg);}
+.jobs-search-wide input{border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;width:100%;}
+.jobs-search-wide input::placeholder{color:var(--ink-soft);}
+.jobs-sort summary{min-width:145px;justify-content:space-between;border-radius:11px;padding:12px 14px;}
+.jobs-toolbar-bottom{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.industry-label{font-size:12.5px;font-weight:700;color:var(--ink-soft);}
+.industry-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.industry-chips .chip{padding:7px 15px;border-radius:999px;border:1px solid var(--line);background:var(--white);font-weight:600;font-size:12px;color:var(--ink-soft);}
+.industry-chips .chip:hover{background:var(--violet-100);}
+.industry-chips .chip.active{background:var(--violet-600);border-color:var(--violet-600);color:#fff;}
+.jobs-count{margin-left:auto;color:var(--ink-soft);font-size:12.5px;white-space:nowrap;}
+.jobs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;}
+.company-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px 20px 18px;box-shadow:var(--shadow-card);min-height:305px;display:flex;flex-direction:column;}
+.company-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.company-identity{display:flex;align-items:center;gap:11px;min-width:0;}
+.company-logo{width:50px;height:50px;border-radius:12px;background:var(--violet-100);color:var(--violet-700);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 auto;}
+.company-name{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.company-meta{margin-top:3px;color:var(--ink-soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.save-job{width:36px;height:36px;border:1px solid var(--line);border-radius:9px;background:var(--white);color:var(--ink-soft);display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+.save-job:hover,.save-job.saved{background:var(--violet-100);color:var(--violet-700);border-color:var(--violet-300);}
+.company-description{margin:18px 0 16px;color:var(--ink-soft);font-size:13px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:61px;}
+.company-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.company-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;background:var(--lilac-bg);font-size:11.5px;font-weight:700;color:var(--ink-soft);}
+.company-open-roles{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:7px 10px;border-radius:8px;background:var(--green-bg);color:var(--green);font-size:11.5px;font-weight:800;width:max-content;}
+.company-card-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:9px;}
+.view-details-btn{flex:1;border:0;border-radius:9px;padding:11px 12px;background:var(--violet-600);color:#fff;font-size:13px;font-weight:800;}
+.view-details-btn:hover{background:var(--violet-700);}
+.company-save-btn{border:1px solid var(--line);border-radius:9px;padding:10px 14px;background:var(--white);color:var(--ink);font-weight:700;font-size:12.5px;}
+.company-save-btn.saved{background:var(--violet-100);color:var(--violet-700);border-color:var(--violet-300);}
+.jobs-empty{grid-column:1/-1;padding:70px 20px;text-align:center;background:var(--white);border:1px dashed var(--line);border-radius:var(--radius-lg);color:var(--ink-soft);}
+.jobs-error{grid-column:1/-1;padding:16px;border-radius:12px;background:var(--rose-bg);color:var(--rose);font-size:13px;}
+@media(max-width:980px){.jobs-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:680px){.jobs-hero{align-items:flex-start;flex-direction:column;}.jobs-toolbar-top{flex-direction:column;align-items:stretch;}.jobs-sort{width:100%;}.jobs-grid{grid-template-columns:1fr;}.jobs-count{margin-left:0;width:100%;}.company-card{min-height:0;}}

@@ -1,0 +1,39 @@
+<div class="view jobs-page" id="view-jobs">
+  <div class="jobs-hero">
+    <div>
+      <h1>Explore Companies &amp; Roles</h1>
+      <p>Discover top campus recruitment drives and explore open job profiles.</p>
+    </div>
+    <a class="jobs-company-portal" href="company/company-login.html">Company Portal →</a>
+  </div>
+
+  <section class="jobs-toolbar card">
+    <div class="jobs-toolbar-top">
+      <div class="jobs-search-wide">
+        <span class="search-symbol">⌕</span>
+        <input id="jobSearch" type="search" placeholder="Search companies, skills (e.g. React, Java, Python), or roles..." autocomplete="off">
+      </div>
+      <details class="dropdown jobs-sort" id="ddApplyBy">
+        <summary>Sort: <strong id="applyByLabel">Latest</strong> ▾</summary>
+        <div class="dropdown-menu">
+          <button data-val="Latest" class="sel">Latest</button>
+          <button data-val="A-Z">A-Z</button>
+          <button data-val="Deadline">Deadline</button>
+        </div>
+      </details>
+    </div>
+    <div class="jobs-toolbar-bottom">
+      <div class="industry-label">Industry:</div>
+      <div class="industry-chips" id="industryChips">
+        <button class="chip active" data-industry="All">All</button>
+        <button class="chip" data-industry="IT">IT</button>
+        <button class="chip" data-industry="Product">Product</button>
+        <button class="chip" data-industry="Finance">Finance</button>
+        <button class="chip" data-industry="Consulting">Consulting</button>
+      </div>
+      <div class="jobs-count" id="jobsCount">Showing 0 companies</div>
+    </div>
+  </section>
+
+  <div class="jobs-grid" id="jobsGrid"></div>
+</div>
