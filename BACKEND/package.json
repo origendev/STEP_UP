@@ -3,12 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": {"dev": "node --watch server.js", "start": "node server.js"},
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
   "dependencies": {
+    "@extractus/article-extractor": "^9.0.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "fast-xml-parser": "^5.11.2",
+    "google-news-url-decoder": "^1.2.2",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1"
   }

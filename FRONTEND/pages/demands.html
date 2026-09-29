@@ -1,17 +1,56 @@
 <!-- ============================================================
-     demands.html — Demands / requests page
+     demands.html — Trending Roles & Industry Demand page
      Cards are rendered by js/pages/demands.js from js/data/demands.data.js
 ============================================================ -->
 <div class="view" id="view-demands">
 
   <div class="section-heading" style="margin-top:36px;align-items:center;">
     <div>
-      <h2>Demands</h2>
-      <p>Raise a request and track its approval status</p>
+          <h2>Trending Roles</h2>
+          <p>Practical career paths across Indian employers and international hiring markets.</p>
     </div>
-    <button class="btn-solid" id="newDemandBtn">+ New Demand</button>
+    <button class="btn-solid" id="newsBtn">News Feed</button>
   </div>
 
-  <div class="placeholder-list" id="demandList"></div>
+  <div class="insight-banner">
+    <strong>How to read this outlook</strong>
+    <span>These are role families and employer use cases, not live vacancy counts or guaranteed openings. Check current job listings and the linked workforce research before choosing a path.</span>
+  </div>
+
+  <div class="demand-live-bar">
+    <div class="demand-live-status">
+      <span class="live-dot"></span>
+      <span>Market briefing</span>
+    </div>
+    <button class="refresh-news-btn" id="refreshNewsBtn" type="button">Refresh data</button>
+    <span class="last-updated" id="lastUpdatedText">Updating…</span>
+  </div>
+
+  <section class="role-section" aria-labelledby="roleSectionTitle">
+    <div class="role-section-heading">
+      <div>
+        <p class="role-section-kicker">Demand map</p>
+        <h2 id="roleSectionTitle">Career tracks to explore</h2>
+        <p>See what the work involves, where these skills are used, and a practical place to start.</p>
+      </div>
+      <span class="role-count">5 focus areas</span>
+    </div>
+    <div class="role-grid" id="demandList"></div>
+  </section>
+
+  <div class="news-modal hidden" id="newsModal" aria-hidden="true">
+    <div class="news-modal-backdrop" data-close="true"></div>
+    <div class="news-modal-panel" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+      <div class="news-modal-header">
+        <div>
+          <p class="eyebrow">India, placements, overseas roles</p>
+          <h3 id="newsTitle">India & Global Career Briefing</h3>
+        </div>
+        <button class="news-close" id="closeNewsModal" aria-label="Close news">×</button>
+      </div>
+      <div class="news-list" id="newsList"></div>
+      <div class="news-detail hidden" id="newsDetail"></div>
+    </div>
+  </div>
 
 </div>

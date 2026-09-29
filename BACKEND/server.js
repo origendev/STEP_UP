@@ -4,10 +4,16 @@ import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
+import { XMLParser } from 'fast-xml-parser';
+import { extract } from '@extractus/article-extractor';
+import { GoogleDecoder } from 'google-news-url-decoder';
+import { randomUUID } from 'node:crypto';
 
 const { Pool } = pg;
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET;
+const NEWS_API_KEY = process.env.NEWS_API_KEY || '';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 if (!JWT_SECRET) throw new Error('JWT_SECRET is required');
 
@@ -20,6 +26,27 @@ const app = express();
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN ? process.env.FRONTEND_ORIGIN.split(',').map(s=>s.trim()) : true }));
 app.use(express.json({limit:'1mb'}));
 const clean = v => typeof v === 'string' ? v.trim() : v;
+const newsArticleCache = new Map();
+const googleNewsDecoder = new GoogleDecoder();
+
+function cacheNewsArticles(articles) {
+  const now = Date.now();
+  for (const [id, cached] of newsArticleCache) {
+    if (now - cached.cachedAt > 30 * 60 * 1000) newsArticleCache.delete(id);
+  }
+
+  const cachedArticles = articles.map(article => {
+    const id = randomUUID();
+    newsArticleCache.set(id, { ...article, cachedAt: now });
+    return { ...article, id };
+  });
+
+  while (newsArticleCache.size > 300) {
+    newsArticleCache.delete(newsArticleCache.keys().next().value);
+  }
+
+  return cachedArticles;
+}
 
 async function ensureSchema(){
   await pool.query(`
@@ -79,6 +106,191 @@ function validateJob(b){
 }
 
 app.get('/api/health',async(_req,res)=>{try{await pool.query('SELECT 1');res.json({ok:true,database:'postgresql'});}catch{res.status(503).json({ok:false,error:'Database unavailable.'});}});
+
+const NEWS_SECTIONS = [
+  {
+    category: 'India Markets & Economy',
+    query: 'India AND (economy OR markets OR RBI OR inflation OR rupee OR trade)',
+    rssQuery: 'India economy markets RBI inflation rupee business when:7d',
+    locale: { hl: 'en-IN', gl: 'IN', ceid: 'IN:en' }
+  },
+  {
+    category: 'India Placements & Hiring',
+    query: 'India AND ("campus placements" OR "IIT placements" OR "fresher hiring" OR "graduate jobs" OR "campus recruitment")',
+    rssQuery: 'India campus placements hiring fresher graduate jobs recruitment when:7d',
+    locale: { hl: 'en-IN', gl: 'IN', ceid: 'IN:en' }
+  },
+  {
+    category: 'Overseas Roles & Demand',
+    query: '("United States" OR UK OR Canada OR Germany OR Australia OR UAE OR Singapore) AND (hiring OR recruitment OR "skills shortage" OR "in-demand roles" OR vacancies)',
+    rssQuery: '(United States OR UK OR Canada OR Germany OR Australia OR UAE OR Singapore) (hiring OR recruitment OR "in-demand jobs" OR skills shortage) when:7d',
+    locale: { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+  }
+];
+
+const newsXmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: '@_'
+});
+
+async function fetchNewsSection(section) {
+  const url = new URL('https://newsapi.org/v2/everything');
+  url.searchParams.set('q', section.query);
+  url.searchParams.set('language', 'en');
+  url.searchParams.set('sortBy', 'publishedAt');
+  url.searchParams.set('pageSize', '5');
+  url.searchParams.set('apiKey', NEWS_API_KEY);
+
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const payload = await response.json();
+  if (!response.ok || payload.status !== 'ok') {
+    throw new Error(payload.message || `NewsAPI returned ${response.status}`);
+  }
+
+  return (payload.articles || []).map(article => ({
+    category: section.category,
+    title: article.title || 'Business update',
+    source: article.source?.name || 'News source',
+    description: article.description || article.content || '',
+    image: article.urlToImage || '',
+    url: article.url || '',
+    publishedAt: article.publishedAt || ''
+  })).filter(article => article.title && article.url);
+}
+
+async function fetchRssNewsSection(section) {
+  const url = new URL('https://news.google.com/rss/search');
+  url.searchParams.set('q', section.rssQuery);
+  Object.entries(section.locale).forEach(([key, value]) => url.searchParams.set(key, value));
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/rss+xml, application/xml, text/xml',
+      'User-Agent': 'Mozilla/5.0 StepUpNews/1.0'
+    },
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!response.ok) throw new Error(`News RSS returned ${response.status}`);
+
+  const feed = newsXmlParser.parse(await response.text());
+  const entries = feed.rss?.channel?.item || [];
+  const articles = Array.isArray(entries) ? entries : [entries];
+
+  return articles.slice(0, 5).map(article => {
+    const source = article.source?.['#text'] || article.source || 'Google News';
+    const description = String(article.description || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return {
+      category: section.category,
+      title: String(article.title || 'Market update').replace(new RegExp(`\\s+-\\s+${String(source).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}$`), ''),
+      source,
+      description,
+      image: '',
+      url: article.link || '',
+      publishedAt: article.pubDate || ''
+    };
+  }).filter(article => article.title && article.url);
+}
+
+async function getBusinessNews() {
+  const results = await Promise.allSettled(NEWS_SECTIONS.map(async section => {
+    if (NEWS_API_KEY) {
+      try {
+        const articles = await fetchNewsSection(section);
+        if (articles.length) return { articles, provider: 'newsapi' };
+      } catch (error) {
+        console.warn(`NewsAPI search failed for ${section.category}; trying RSS.`, error.message);
+      }
+    }
+
+    const articles = await fetchRssNewsSection(section);
+    return { articles, provider: 'google-news-rss' };
+  }));
+  const data = results.flatMap(result => result.status === 'fulfilled' ? result.value.articles : []);
+  const failedSections = results.filter(result => result.status === 'rejected').length;
+  const usedRss = results.some(result => result.status === 'fulfilled' && result.value.provider === 'google-news-rss');
+
+  if (!data.length) {
+    console.warn('All regional news searches failed:', results.filter(result => result.status === 'rejected').map(result => result.reason.message).join('; '));
+    return {
+      data: [],
+      summary: 'Live news providers are temporarily unavailable. Please refresh later.'
+    };
+  }
+
+  const summary = `Recent headlines are grouped by Indian markets and economy, Indian placements and hiring, and overseas role demand.${usedRss ? ' Some headlines are supplied by Google News RSS because direct NewsAPI access was unavailable.' : ''}${failedSections ? ' Some groups could not be refreshed.' : ''}`;
+
+  return { data, summary, source: usedRss ? 'google-news-rss' : 'newsapi' };
+}
+
+app.get('/api/demand-news', async (req, res) => {
+  try {
+    const result = await getBusinessNews();
+    res.json({
+      data: cacheNewsArticles(result.data),
+      summary: result.summary,
+      source: result.source || 'unavailable'
+    });
+  } catch (error) {
+    console.error('Demand news failed:', error);
+    res.status(503).json({
+      error: 'Business news could not be loaded right now. Add a valid NEWS_API_KEY to enable live market data.',
+      data: []
+    });
+  }
+});
+
+app.get('/api/demand-news/article/:id', async (req, res) => {
+  const article = newsArticleCache.get(req.params.id);
+  if (!article) {
+    return res.status(404).json({ error: 'This headline expired. Return to the news feed and open it again.' });
+  }
+
+  try {
+    let publisherUrl = article.url;
+    if (new URL(publisherUrl).hostname === 'news.google.com') {
+      const decoded = await googleNewsDecoder.decode(publisherUrl);
+      if (!decoded.status || !decoded.decoded_url) throw new Error('Could not resolve the publisher URL.');
+      publisherUrl = decoded.decoded_url;
+    }
+
+    const parsedPublisherUrl = new URL(publisherUrl);
+    if (parsedPublisherUrl.protocol !== 'https:') throw new Error('The publisher URL is not secure.');
+
+    let publisherArticle = null;
+    let timeoutId;
+    try {
+      publisherArticle = await Promise.race([
+        extract(publisherUrl).catch(() => null),
+        new Promise(resolve => { timeoutId = setTimeout(() => resolve(null), 12000); })
+      ]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    res.json({
+      data: {
+        ...article,
+        url: publisherUrl,
+        publisher: parsedPublisherUrl.hostname,
+        description: publisherArticle?.description || article.description,
+        image: publisherArticle?.image || article.image
+      }
+    });
+  } catch (error) {
+    console.warn('Could not enrich news article:', error.message);
+    res.json({
+      data: {
+        ...article,
+        publisher: article.source,
+        description: article.description
+      }
+    });
+  }
+});
 
 app.post('/api/auth/register',async(req,res)=>{
   const name=clean(req.body.companyName), email=clean(req.body.email)?.toLowerCase(), password=req.body.password;
