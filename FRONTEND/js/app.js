@@ -15,7 +15,7 @@ import { mount as mountJobs } from './pages/jobs.js';
 import { mount as mountDemands } from './pages/demands.js';
 import { mount as mountSkills } from './pages/skills.js';
 import { mount as mountProgress } from './pages/progress.js';
-import { mount as mountSettings } from './pages/settings.js';
+import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 
 /* Route name -> pages/<name>.html + its mount function */
