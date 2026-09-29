@@ -1,48 +1,170 @@
 <!-- ============================================================
-     progress.html — Placement progress page
-     Funnel and timeline are rendered by js/pages/progress.js
+     progress.html — Placement Progress page
 ============================================================ -->
+
 <div class="view" id="view-progress">
 
+  <!-- Page heading -->
   <div class="section-heading" style="margin-top:36px;">
     <div>
       <h2>Progress</h2>
-      <p>Your placement journey, end to end</p>
+      <p>Track your placement journey, rounds and results</p>
     </div>
   </div>
 
-  
-  <div class="progress-status" id="progressStatus"></div>
-  <div class="progress-learning-grid" id="learningProgress"></div>
-  <section class="block">
-  <div class="progress-insights-grid">
 
-    <div class="card insight-card" id="codingActivity"></div>
+  <!-- Placement Information -->
+  <section class="progress-placement-info">
 
-    <div class="card insight-card" id="githubStreak"></div>
+    <div class="progress-info-item">
+      <span class="progress-info-label">COMPANY</span>
+<strong>ORIGEN</strong>
+<small>Placement Drive</small>
+    </div>
 
-    <div class="card insight-card" id="goalsMilestones"></div>
+    <div class="progress-info-item">
+      <span class="progress-info-label">PLACEMENT DATE</span>
+      <strong>24 September 2026</strong>
+    </div>
 
+    <div class="progress-info-item">
+      <span class="progress-info-label">REGISTRATION</span>
+      <strong>Completed</strong>
+      <small>05 Sep 2026, 10:46 PM</small>
+    </div>
+
+  </section>
+
+  <!-- Round 1 Result Update -->
+
+<div
+  class="round1-result-update"
+  id="round1ResultUpdate"
+  style="display: none;"
+>
+
+  <div class="round1-result-left">
+    <span>RESULT UPDATE</span>
+    <strong>Check your email</strong>
   </div>
-</section>
+
+  <div class="round1-result-right">
+    <strong>Round 1 result awaited</strong>
+    <p>
+      Your Round 1 result and next steps will be communicated by official email.
+    </p>
+  </div>
+
+</div>
 
 
-  <section class="block">
-    <div class="grid2 timeline-layout"></div>
+  <!-- Placement Rounds -->
+  <section class="progress-rounds">
 
-      <div class="card">
-        <div class="card-head">
-          <div class="card-title">
-            <span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
-            Journey Timeline
-          </div>
-        </div>
-        <div class="timeline" id="timeline"></div>
+    
+
+    <!-- Round 1 -->
+    <div class="card progress-round-card">
+
+      <div class="progress-round-status completed">
+        <span>✓</span>
+        Submitted successfully
       </div>
 
-      
+      <h3>Round 1 — ORIGEN Assessment</h3>
+
+      <div class="progress-round-details">
+        <p>
+          <strong>Date:</strong>
+          24 September 2026
+        </p>
+
+        <p>
+          <strong>Time:</strong>
+          11:00 AM–12:00 PM IST
+        </p>
+      </div>
+
+      <p class="progress-round-description">
+        Your assessment has been submitted. The official result and
+        next steps will be communicated by email.
+      </p>
+
+      <button class="progress-round-button" id="startRound1" data-goto="round1">
+  Start Round 1
+  <span>›</span>
+</button>
 
     </div>
+
+
+    <!-- Round 2 -->
+    <div class="card progress-round-card">
+
+      <div class="progress-round-status waiting">
+        Round 1 result awaited
+      </div>
+
+      <h3>Round 2 — HyperWorks Assessment</h3>
+
+      <div class="progress-round-details">
+        <p>
+          <strong>Date:</strong>
+          24 September 2026
+        </p>
+
+        <p>
+          <strong>Time:</strong>
+          1:00 PM–2:00 PM IST
+        </p>
+      </div>
+
+      <p class="progress-round-description">
+        Your Round 1 result and Round 2 eligibility will be
+        communicated by official email.
+      </p>
+
+      <button class="progress-round-button" id="startRound2" disabled>
+  Start Round 2
+  <span>›</span>
+</button>
+
+    </div>
+
+
+    <!-- Round 3 -->
+    <div class="card progress-round-card">
+
+      <div class="progress-round-status waiting">
+        Available after Round 2
+      </div>
+
+      <h3>Round 3 — Technical Interview</h3>
+
+      <div class="progress-round-details">
+        <p>
+          <strong>Schedule:</strong>
+          From 3:00 PM onward
+        </p>
+
+        <p>
+          <strong>Mode:</strong>
+          Online technical interview
+        </p>
+      </div>
+
+      <p class="progress-round-description">
+        Students who score 80 or more marks in Round 2 will receive
+        the interview date, time and meeting link by official email.
+      </p>
+
+      <button class="progress-round-button" id="startRound3" disabled>
+  Start Round 3
+  <span>›</span>
+</button>
+
+    </div>
+
   </section>
 
 </div>
