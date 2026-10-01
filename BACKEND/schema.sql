@@ -38,3 +38,52 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS description TEXT;
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_apply_before ON jobs(apply_before);
 CREATE INDEX IF NOT EXISTS idx_jobs_category ON jobs(category);
+
+-- Student portal and OTP verification tables (additive integration).
+CREATE TABLE IF NOT EXISTS students (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  reg_no TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  must_change_password BOOLEAN NOT NULL DEFAULT TRUE,
+  profile_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  phone TEXT,
+  dob DATE,
+  gender TEXT,
+  address TEXT,
+  college TEXT,
+  degree TEXT,
+  department TEXT,
+  graduation_year INTEGER,
+  cgpa NUMERIC(4,2),
+  education JSONB NOT NULL DEFAULT '[]'::jsonb,
+  skills TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  languages TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  experience JSONB NOT NULL DEFAULT '[]'::jsonb,
+  achievements TEXT,
+  certifications JSONB NOT NULL DEFAULT '[]'::jsonb,
+  projects JSONB NOT NULL DEFAULT '[]'::jsonb,
+  summary TEXT,
+  linkedin TEXT,
+  github TEXT,
+  portfolio TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_students_reg_no ON students(reg_no);
+CREATE INDEX IF NOT EXISTS idx_students_email ON students(email);
+
+CREATE TABLE IF NOT EXISTS password_reset_otps (
+  id BIGSERIAL PRIMARY KEY,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  otp_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  used BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_otps_student
+  ON password_reset_otps(student_id, created_at DESC);

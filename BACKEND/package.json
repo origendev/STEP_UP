@@ -16,6 +16,7 @@
     "fast-xml-parser": "^5.11.2",
     "google-news-url-decoder": "^1.2.2",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "nodemailer": "^6.10.1"
   }
 }

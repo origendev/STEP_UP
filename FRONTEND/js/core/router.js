@@ -47,10 +47,13 @@ export async function navigate(name, { updateHash = true } = {}){
   if(!(name in routes)) name = defaultRoute;
   if(name === currentRoute) return;
 
+  setActiveLink(name);   // highlight the tab that was touched straight away
+
   try{
     appEl.innerHTML = await loadHTML(name);
   }catch(err){
     console.error(err);
+    setActiveLink(currentRoute);
     appEl.innerHTML = `
       <div class="empty-state">
         <h3>Couldn't load this page</h3>

@@ -1,30 +1,281 @@
 /* ============================================================
-   home.css — styles used only by pages/home.html
+   home.css — Home / Dashboard
 ============================================================ */
 
-.hero{
-  display:flex; align-items:center; justify-content:space-between; gap:24px;
-  padding:44px 4px 34px;
-}
-.hero h1{ font-size:38px; line-height:1.1; margin:0 0 12px; letter-spacing:-0.02em; }
-.hero p{ max-width:520px; color:var(--ink-soft); font-size:15.5px; line-height:1.6; margin:0; }
-.hero-visual{
-  width:170px; height:170px; border-radius:28px; flex-shrink:0;
-  background:linear-gradient(150deg,var(--violet-500),var(--violet-700));
-  display:flex; align-items:center; justify-content:center;
+
+/* ============================================================
+   HERO
+============================================================ */
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+
+  padding: 44px 4px 34px;
 }
 
-/* progress rows inside the Skills Snapshot card */
-.snapshot-row{
-  display:flex; flex-direction:column; align-items:stretch; gap:6px;
-  padding:0 0 12px; border:none;
+.hero-content {
+  min-width: 0;
 }
-.snapshot-row:last-child{ padding-bottom:0; }
 
-.milestone-title{ font-weight:600; font-size:13.5px; }
-.milestone-meta{ font-size:12px; color:var(--ink-soft); }
+.hero h1 {
+  font-size: 38px;
+  line-height: 1.1;
 
-@media (max-width:680px){
-  .hero{ flex-direction:column; align-items:flex-start; }
-  .hero-visual{ width:100%; height:110px; }
+  margin: 0 0 12px;
+
+  letter-spacing: -0.02em;
+}
+
+.hero p {
+  max-width: 520px;
+
+  color: var(--ink-soft);
+
+  font-size: 15.5px;
+  line-height: 1.6;
+
+  margin: 0;
+}
+
+
+/* ============================================================
+   HERO VISUAL
+============================================================ */
+
+.hero-visual {
+  width: 170px;
+  height: 170px;
+
+  border-radius: 28px;
+
+  flex-shrink: 0;
+
+  background:
+    linear-gradient(
+      150deg,
+      var(--violet-500),
+      var(--violet-700)
+    );
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ============================================================
+   PLACEMENT PROGRESS CARD
+============================================================ */
+
+.placement-card {
+  min-height: 280px;
+}
+
+
+/* ============================================================
+   PLACEMENT PROGRESS CONTAINER
+============================================================ */
+
+.placement-progress {
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding-top: 10px;
+
+  width: 100%;
+}
+
+
+/* ============================================================
+   RING
+============================================================ */
+
+.placement-ring {
+
+  width: 104px;
+  height: 104px;
+
+  display: block;
+
+  overflow: visible;
+}
+
+
+/* ============================================================
+   RING BACKGROUND
+============================================================ */
+
+.placement-ring-track {
+
+  fill: none;
+
+  stroke: var(--violet-100);
+
+  stroke-width: 10;
+}
+
+
+/* ============================================================
+   RING PROGRESS
+============================================================ */
+
+.placement-ring-fill {
+
+  fill: none;
+
+  stroke: url(#placementRingGradient);
+
+  stroke: var(--violet-500);
+
+  stroke-width: 10;
+
+  stroke-linecap: round;
+
+  /*
+     pathLength="100" in HTML means:
+
+     0   = empty
+     25  = 25%
+     50  = 50%
+     75  = 75%
+     100 = full
+  */
+
+  stroke-dasharray: 100 100;
+
+  /*
+     JavaScript changes this value.
+
+     42%:
+     100 - 42 = 58
+
+     70%:
+     100 - 70 = 30
+  */
+
+  stroke-dashoffset: 58;
+
+  transform: rotate(-90deg);
+
+  transform-origin: 50% 50%;
+
+  transition:
+    stroke-dashoffset 0.5s ease;
+}
+
+
+/* ============================================================
+   PERCENTAGE TEXT
+============================================================ */
+
+.placement-ring text {
+
+  font-family: Sora, sans-serif;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+  fill: var(--ink);
+
+  dominant-baseline: middle;
+}
+
+
+/* ============================================================
+   COMPLETED TEXT
+============================================================ */
+
+.placement-completed {
+
+  margin-top: 8px;
+
+  color: var(--ink-soft);
+
+  font-size: 13px;
+
+  line-height: 1.4;
+
+  text-align: center;
+}
+
+
+/* ============================================================
+   SKILLS SNAPSHOT
+============================================================ */
+
+.snapshot-row {
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: stretch;
+
+  gap: 6px;
+
+  padding: 0 0 12px;
+
+  border: none;
+}
+
+.snapshot-row:last-child {
+
+  padding-bottom: 0;
+}
+
+
+/* ============================================================
+   MILESTONES
+============================================================ */
+
+.milestone-title {
+
+  font-weight: 600;
+
+  font-size: 13.5px;
+}
+
+.milestone-meta {
+
+  font-size: 12px;
+
+  color: var(--ink-soft);
+}
+
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 680px) {
+
+  .hero {
+
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .hero-visual {
+
+    width: 100%;
+
+    height: 110px;
+  }
+
+  .placement-card {
+
+    min-height: 250px;
+  }
+
 }
