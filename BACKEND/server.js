@@ -9,6 +9,7 @@ import { XMLParser } from 'fast-xml-parser';
 import { extract } from '@extractus/article-extractor';
 import { GoogleDecoder } from 'google-news-url-decoder';
 import { randomUUID } from 'node:crypto';
+import { getLaborMarket } from './labor-market.js';
 
 const { Pool } = pg;
 const PORT = Number(process.env.PORT || 3000);
@@ -16,6 +17,14 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
 const NEWS_API_KEY = process.env.NEWS_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash';
+const DEMAND_AI_PROVIDER = (process.env.DEMAND_AI_PROVIDER || 'gemini').toLowerCase();
+const MAX_NEWS_PER_SECTION = 10;
+const RECENT_NEWS_DAYS = 7;
+const ROLE_OUTLOOK_CACHE_MS = 60 * 60 * 1000;
+const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required');
@@ -45,6 +54,9 @@ app.use(express.json({ limit: '1mb' }));
 const clean = v => typeof v === 'string' ? v.trim() : v;
 const newsArticleCache = new Map();
 const googleNewsDecoder = new GoogleDecoder();
+let demandRolesCache = null;
+let demandRolesCacheAt = 0;
+let demandRolesInFlight = null;
 
 /* =========================================================
    STUDENT AUTHENTICATION AND HELPERS
@@ -450,7 +462,7 @@ async function fetchNewsSection(section) {
   url.searchParams.set('q', section.query);
   url.searchParams.set('language', 'en');
   url.searchParams.set('sortBy', 'publishedAt');
-  url.searchParams.set('pageSize', '5');
+  url.searchParams.set('pageSize', String(MAX_NEWS_PER_SECTION));
   url.searchParams.set('apiKey', NEWS_API_KEY);
 
   const response = await fetch(url, {
@@ -517,15 +529,9 @@ async function fetchRssNewsSection(section) {
     ? entries
     : [entries];
 
-  return articles.slice(0, 5).map(article => {
-    const source =
-      article.source?.['#text'] ||
-      article.source ||
-      'Google News';
-
-    const description = String(
-      article.description || ''
-    )
+  return articles.slice(0, MAX_NEWS_PER_SECTION).map(article => {
+    const source = article.source?.['#text'] || article.source || 'Google News';
+    const description = String(article.description || '')
       .replace(/<[^>]*>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -579,7 +585,7 @@ async function getBusinessNews() {
     })
   );
 
-  const data = results.flatMap(
+  const fetchedData = results.flatMap(
     result =>
       result.status === 'fulfilled'
         ? result.value.articles
@@ -595,6 +601,13 @@ async function getBusinessNews() {
       result.status === 'fulfilled' &&
       result.value.provider === 'google-news-rss'
   );
+  const cutoff = Date.now() - RECENT_NEWS_DAYS * 24 * 60 * 60 * 1000;
+  const data = fetchedData
+    .filter(article => {
+      const publishedAt = Date.parse(article.publishedAt || '');
+      return !Number.isFinite(publishedAt) || publishedAt >= cutoff;
+    })
+    .sort((a, b) => Date.parse(b.publishedAt || '') - Date.parse(a.publishedAt || ''));
 
   if (!data.length) {
     console.warn(
@@ -613,6 +626,7 @@ async function getBusinessNews() {
   }
 
   const summary =
+    `Showing up to ${MAX_NEWS_PER_SECTION} headlines per topic from the past ${RECENT_NEWS_DAYS} days, sorted newest first. ` +
     `Recent headlines are grouped by Indian markets and economy, Indian placements and hiring, and overseas role demand.` +
     `${usedRss ? ' Some headlines are supplied by Google News RSS because direct NewsAPI access was unavailable.' : ''}` +
     `${failedSections ? ' Some groups could not be refreshed.' : ''}`;
@@ -629,6 +643,281 @@ async function getBusinessNews() {
 /* =========================================================
    NEWS ROUTES
 ========================================================= */
+const ROLE_OUTLOOK_AREAS = [
+  { code: '01', name: 'AI, data & automation' },
+  { code: '02', name: 'Cybersecurity & digital trust' },
+  { code: '03', name: 'Healthcare & health technology' },
+  { code: '04', name: 'Commerce, supply chain & logistics' },
+  { code: '05', name: 'Clean energy & sustainability' }
+];
+
+const ROLE_BASELINE_SOURCE = {
+  label: 'World Economic Forum · Future of Jobs 2025',
+  url: 'https://www.weforum.org/publications/the-future-of-jobs-report-2025/'
+};
+
+function generatedText(value, maxLength) {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+}
+
+function generatedList(value, maxItems, maxLength) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(item => typeof item === 'string' && item.trim())
+    .slice(0, maxItems)
+    .map(item => item.trim().slice(0, maxLength));
+}
+
+const ROLE_OUTLOOK_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    summary: { type: 'STRING' },
+    roles: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          code: { type: 'STRING' },
+          name: { type: 'STRING' },
+          signal: { type: 'STRING' },
+          twoMonthOutlook: { type: 'STRING' },
+          roles: { type: 'ARRAY', items: { type: 'STRING' } },
+          india: { type: 'STRING' },
+          international: { type: 'STRING' },
+          skills: { type: 'ARRAY', items: { type: 'STRING' } },
+          evidenceIndexes: { type: 'ARRAY', items: { type: 'INTEGER' } }
+        },
+        required: ['code', 'name', 'signal', 'twoMonthOutlook', 'roles', 'india', 'international', 'skills', 'evidenceIndexes']
+      }
+    }
+  },
+  required: ['summary', 'roles']
+};
+
+async function requestGeminiOutlook(prompt, model) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: 'You produce careful, evidence-led career outlooks. Never fabricate data.' }]
+        },
+        contents: [{ parts: [{ text: JSON.stringify(prompt) }] }],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+          responseSchema: ROLE_OUTLOOK_RESPONSE_SCHEMA,
+          maxOutputTokens: 4096
+        }
+      }),
+      signal: AbortSignal.timeout(30000)
+    }
+  );
+  const payload = await response.json();
+  if (!response.ok) {
+    const error = new Error(payload.error?.message || `Gemini returned ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const text = payload.candidates?.[0]?.content?.parts
+    ?.map(part => part.text || '')
+    .join('')
+    .trim();
+  if (!text) throw new Error('Gemini returned no role outlook content.');
+  return { text, model };
+}
+
+async function generateDemandRoles() {
+  const news = await getBusinessNews();
+  if (!news.data.length) throw new Error('No recent news is available to ground the role outlook.');
+
+  const evidenceArticles = NEWS_SECTIONS.flatMap(section =>
+    news.data.filter(article => article.category === section.category).slice(0, 5)
+  );
+  const evidenceContext = evidenceArticles.map((article, index) => ({
+    index,
+    category: article.category,
+    title: article.title,
+    publisher: article.source,
+    publishedAt: article.publishedAt,
+    description: String(article.description || '').slice(0, 450)
+  }));
+
+  const prompt = {
+    task: 'Create a student-facing current demand overview and two-month career outlook for India and international markets.',
+    asOf: new Date().toISOString(),
+    rules: [
+      'Return JSON only with keys summary and roles.',
+      'Return exactly one role object for each supplied area, keeping its code and name unchanged.',
+      'Each role object needs code, name, signal, twoMonthOutlook, roles, india, international, skills, and evidenceIndexes.',
+      'Use recent headlines as evidence, not as proof of hiring volume. Do not invent statistics, salaries, vacancies, or guarantees.',
+      'Write twoMonthOutlook as a cautious qualitative forecast for the next two months from the asOf date. Focus on near-term hiring signals supported by the supplied recent headlines; state uncertainty and do not present long-term trends as short-term evidence.',
+      'If evidence does not support a role-specific two-month prediction, say that the signal is too limited instead of inventing one.',
+      'Explain concrete employer use cases and entry-level or early-career job titles. Keep each field concise and understandable to a student.',
+      'Use only evidenceIndexes that refer to supplied headlines and are relevant to that role. Use an empty array when the headlines do not support a specific claim; the app will show its baseline research source.',
+      'Distinguish India-specific signals from overseas signals. Do not imply a country-wide shortage based on one story.'
+    ],
+    areas: ROLE_OUTLOOK_AREAS,
+    baseline: ROLE_BASELINE_SOURCE,
+    evidence: evidenceContext
+  };
+
+  let generatedJsonText;
+  let provider;
+  let providerModel;
+  if (DEMAND_AI_PROVIDER === 'gemini' && GEMINI_API_KEY) {
+    let geminiResult;
+    try {
+      geminiResult = await requestGeminiOutlook(prompt, GEMINI_MODEL);
+    } catch (error) {
+      const temporaryFailure = error.status >= 500 || /high demand|overload|temporarily/i.test(error.message);
+      if (!temporaryFailure || GEMINI_MODEL === GEMINI_FALLBACK_MODEL) throw error;
+      console.warn(`Gemini model ${GEMINI_MODEL} is busy; retrying ${GEMINI_FALLBACK_MODEL}.`);
+      geminiResult = await requestGeminiOutlook(prompt, GEMINI_FALLBACK_MODEL);
+    }
+    generatedJsonText = geminiResult.text;
+    provider = 'gemini-free-tier';
+    providerModel = geminiResult.model;
+  } else if (DEMAND_AI_PROVIDER === 'openai' && OPENAI_API_KEY) {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: ROLE_OUTLOOK_MODEL,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: 'You produce careful, evidence-led career outlooks. Never fabricate data.' },
+          { role: 'user', content: JSON.stringify(prompt) }
+        ]
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error?.message || `OpenAI returned ${response.status}`);
+    generatedJsonText = payload.choices?.[0]?.message?.content || '';
+    provider = 'openai';
+    providerModel = ROLE_OUTLOOK_MODEL;
+  } else if (DEMAND_AI_PROVIDER === 'openai') {
+    throw new Error('OPENAI_API_KEY is not configured for the selected AI provider.');
+  } else {
+    throw new Error('Configure GEMINI_API_KEY for the free Gemini tier to enable AI role outlooks.');
+  }
+
+  let generated;
+  try {
+    generated = JSON.parse(generatedJsonText);
+  } catch {
+    throw new Error('OpenAI returned invalid role outlook JSON.');
+  }
+
+  if (!Array.isArray(generated.roles) || generated.roles.length !== ROLE_OUTLOOK_AREAS.length) {
+    throw new Error('OpenAI returned an incomplete role outlook.');
+  }
+
+  const generatedByCode = new Map(generated.roles.map(role => [String(role.code), role]));
+  const roles = ROLE_OUTLOOK_AREAS.map(area => {
+    const role = generatedByCode.get(area.code);
+    const signal = generatedText(role?.signal, 360);
+    const twoMonthOutlook = generatedText(role?.twoMonthOutlook, 420);
+    const india = generatedText(role?.india, 360);
+    const international = generatedText(role?.international, 360);
+    const titles = generatedList(role?.roles, 5, 80);
+    const skills = generatedList(role?.skills, 6, 50);
+    if (!signal || !twoMonthOutlook || !india || !international || titles.length < 2 || skills.length < 2) {
+      throw new Error(`OpenAI returned incomplete details for ${area.name}.`);
+    }
+
+    const evidenceIndexes = [...new Set(Array.isArray(role.evidenceIndexes) ? role.evidenceIndexes : [])]
+      .filter(index => Number.isInteger(index) && index >= 0 && index < evidenceArticles.length)
+      .slice(0, 2);
+    const evidence = evidenceIndexes.map(index => {
+      const article = evidenceArticles[index];
+      return {
+        title: article.title,
+        source: article.source,
+        url: article.url,
+        publishedAt: article.publishedAt
+      };
+    });
+
+    return {
+      ...area,
+      signal,
+      twoMonthOutlook,
+      roles: titles,
+      india,
+      international,
+      skills,
+      evidence: evidence.length ? evidence : [ROLE_BASELINE_SOURCE]
+    };
+  });
+
+  return {
+    data: roles,
+    summary: generatedText(generated.summary, 320) || 'AI-generated outlook grounded in recent headlines and workforce research.',
+    forecastHorizon: '2 months',
+    source: provider,
+    model: providerModel,
+    generatedAt: new Date().toISOString()
+  };
+}
+
+app.get('/api/demand-roles', async (req, res) => {
+  const forceRefresh = req.query.refresh === 'true';
+  const providerConfigured = DEMAND_AI_PROVIDER === 'openai'
+    ? Boolean(OPENAI_API_KEY)
+    : Boolean(GEMINI_API_KEY);
+  if (!providerConfigured) {
+    return res.status(503).json({
+      code: 'ai_provider_unconfigured',
+      error: DEMAND_AI_PROVIDER === 'openai'
+        ? 'OPENAI_API_KEY is missing for the selected provider.'
+        : 'Add a free Gemini API key as GEMINI_API_KEY to enable AI role outlooks.'
+    });
+  }
+
+  if (!forceRefresh && demandRolesCache && Date.now() - demandRolesCacheAt < ROLE_OUTLOOK_CACHE_MS) {
+    return res.json(demandRolesCache);
+  }
+
+  try {
+    if (!demandRolesInFlight) demandRolesInFlight = generateDemandRoles();
+    const result = await demandRolesInFlight;
+    demandRolesCache = result;
+    demandRolesCacheAt = Date.now();
+    res.json(result);
+  } catch (error) {
+    console.error('AI role outlook failed:', error.message);
+    if (demandRolesCache) return res.json({ ...demandRolesCache, stale: true });
+    const quotaLimited = /credit|billing|quota|rate limit|resource_exhausted/i.test(error.message);
+    const temporarilyBusy = error.status >= 500 || /high demand|overload|temporarily/i.test(error.message);
+    const provider = DEMAND_AI_PROVIDER;
+    res.status(503).json({
+      code: quotaLimited
+        ? 'ai_provider_quota_limited'
+        : temporarilyBusy ? 'ai_provider_temporarily_busy' : 'ai_role_outlook_unavailable',
+      provider,
+      error: quotaLimited && provider === 'openai'
+        ? 'OpenAI credits are unavailable. Add a free Gemini API key to continue with the no-cost tier.'
+        : quotaLimited
+          ? 'The Gemini free-tier limit was reached. The saved research baseline remains available; try again after the limit resets.'
+          : temporarilyBusy
+            ? 'Gemini is temporarily busy. The research baseline remains available while the app retries later.'
+            : 'AI role outlook could not be generated. The research baseline remains available.'
+    });
+  } finally {
+    demandRolesInFlight = null;
+  }
+});
 
 app.get('/api/demand-news', async (req, res) => {
   try {
@@ -647,6 +936,16 @@ app.get('/api/demand-news', async (req, res) => {
         'Business news could not be loaded right now. Add a valid NEWS_API_KEY to enable live market data.',
       data: []
     });
+  }
+});
+
+app.get('/api/labor-market', async (req, res) => {
+  try {
+    const data = await getLaborMarket({ refresh: req.query.refresh === 'true' });
+    res.json(data);
+  } catch (error) {
+    console.error('Labor-market dashboard failed:', error.message);
+    res.status(503).json({ error: 'Labor-market data is temporarily unavailable.' });
   }
 });
 
