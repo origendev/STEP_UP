@@ -1,210 +1,413 @@
-/* profile.js — student profile: Details, Academics, Skills, More */
-import { $, $$, esc } from '../core/dom.js';
-import { api, getToken } from '../core/api.js';
-import { profileMeta } from '../data/profile.data.js';
+/* =========================================================
+   PROFILE PAGE — header card + tabs (Details, Academics,
+   Skills, More, Documents). Everything the student edits is
+   kept in localStorage ('stepup-profile') until a backend exists.
+========================================================= */
+import { $, esc } from '../core/dom.js';
 import { navigate } from '../core/router.js';
+import { defaults, moreSections, platforms, languageList, skillLevels } from '../data/profile.data.js';
 
-const TABS = ['Details','Academics','Skills','More'];
-const PROF = ['Beginner','Intermediate','Advance','Professional'];
-const SOCIAL = ['GitHub','LeetCode','CodeChef','HackerRank','Codeforces','HackerEarth','CodePen','Stack Overflow','Codecademy','Codewars','Exercism','SPOJ','Topcoder','GitLab','Bitbucket','Dev.to','SourceForge','Slashdot','Hacker News','Designer News','Dribbble','Behance','Portfolio Website','YouTube','Reddit','Twitter','Facebook','Instagram','Snapchat','TikTok','Pinterest','Product Hunt','Indie Hackers','AngelList','LinkedIn','Other'];
-const LANGS = ['Telugu','Hindi','English','Tamil','Kannada','Malayalam','Marathi','Bengali','Gujarati','Punjabi','Urdu','Odia','Sanskrit','Other'];
-const adr = p => [['City',p+'City'],['District',p+'Dist'],['State',p+'State'],['Country',p+'Country'],['Pin Code',p+'Pin'],['Address',p+'Addr']];
-const par = (w,p) => [[w+"'s Name",p+'Name'],[w+"'s Email",p+'Email'],[w+"'s Contact",p+'Phone'],[w+"'s Occupation",p+'Job'],[w+"'s Company",p+'Co'],[w+"'s Office Address",p+'Off']];
-/* [title, editable, fields]; a field ['#','Heading'] is a sub-heading */
-const DET = [
-  ['Student Overview',1,[['Full Name','name'],['First Name','first'],['Last Name','last'],['Roll Number','regNo'],['Branch','branch'],['Course','course'],['College','college'],['Passed Out Year','passOut'],['Placement Cycle','cycle'],['Student Status','status'],['Career Path','career'],['Gender','gender'],['Birthday','dob'],['Person With Disability','pwd'],['Differently Abled Person','da'],['Academics Attendance','acAtt'],['T&P Attendance','tpAtt'],['RFID','rfid']]],
-  ['Point of Contact',0,[['Mentor','mentor'],['Advisor','advisor'],['Coordinator','coord']]],
-  ['TAGS'],
-  ['Student Details',1,[['Admission Through','admit'],['Rank','rank'],['Religion','religion'],['Category','category'],['Registered On','regOn'],['Verified On','verOn'],['Registered','registered'],['Verified By','verBy']]],
-  ['Student Identity',1,[['Day Scholar','dayScholar'],['Nationality','nation'],['Aadhaar Number','aadhaar'],['Driving Licence','dl'],['Passport Number','passNo'],['Passport Issue Date','passIssue'],['Passport Expiry','passExp']]],
-  ['Contact Details',1,[['Communication Email','email'],['Phone Number','phone'],['Personal Email','pemail'],['Alt. Phone Number','phone2'],['WhatsApp Number','wa'],['Alternative Email','email2'],['Parent / Guardian WhatsApp','pwa'],['Institute Email','iemail'],['LinkedIn Profile','linkedin']]],
-  ['Address Details',1,[['#','Current Address'],...adr('c'),['#','Permanent Address'],...adr('p')]],
-  ['Parent Information',1,[['#','Father'],...par('Father','f'),['#','Mother'],...par('Mother','m')]],
-];
-const RO = new Set(['name','first','last','regNo','email','regOn','verOn','registered','verBy']);
-const MORE = [
-  ['work','Work Experience','Add Experience',[['title','Role'],['org','Company'],['period','Duration'],['desc','Description','area']]],
-  ['projects','Projects','Add Project',[['title','Project name'],['org','Technologies'],['link','Link'],['desc','Description','area']]],
-  ['certs','Certifications','Add Certification',[['title','Certification'],['org','Issuer'],['period','Year'],['link','Credential link']]],
-  ['pubs','Publications','Add Publication',[['title','Title'],['org','Publisher'],['period','Year'],['link','Link']]],
-  ['confs','Conferences & Workshops','Add Conference',[['title','Name'],['org','Organiser'],['period','Date'],['desc','Description','area']]],
-  ['awards','Awards','Add Award',[['title','Award'],['org','Awarded by'],['period','Year'],['desc','Description','area']]],
-  ['comps','Competitions','Add Competition',[['title','Competition'],['org','Organiser'],['period','Year'],['desc','Result / role']]],
-  ['tests','Test Scores','Add Test Score',[['title','Test'],['org','Score'],['period','Year']]],
-  ['patents','Patents','Add Patent',[['title','Title'],['org','Patent number'],['period','Year'],['link','Link']]],
-  ['vol','Volunteering','Add Volunteering',[['title','Role'],['org','Organisation'],['period','Duration'],['desc','Description','area']]],
-  ['eca','Extra Curricular Activities','Add Activity',[['title','Activity'],['org','Club / Body'],['period','Year'],['desc','Description','area']]],
-  ['writes','Write Ups','Add Write Up',[['title','Title'],['org','Platform'],['link','Link'],['desc','Summary','area']]],
-  ['breaks','Career Breaks','Add Career Break',[['title','Reason'],['period','Duration'],['desc','Details','area']]],
-];
-const ACAD = [['level','Level (Current / 12th / 10th / Diploma)'],['inst','Institution / School'],['course','Course'],['branch','Branch / Stream'],['cgpa','CGPA or %'],['year','Year'],['status','Status (e.g. Out Going)'],['arrears','Current arrears'],['arrHist','Arrears history'],['sems','Semester scores (comma separated, e.g. 8.18, 7.91, 8.61)']];
+const KEY = 'stepup-profile';
+const TABS = [['details', 'Details'], ['academics', 'Academics'], ['skills', 'Skills'], ['more', 'More'], ['documents', 'Documents']];
+const ICON = {
+  cam: '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+};
 
-let P, S, tab = 'Details', editing = null, view = 'grid', q = '';
-const key = () => 'stepupProfile:' + (P.d.regNo || 'guest');
-const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} };
-const val = k => (P.d[k] ?? '') === '' ? '-' : P.d[k];
+let S, tab = 'details', ui = {}, root;
 
-async function load(){
-  let me = null, st = null;
-  try{ st = JSON.parse(localStorage.getItem('stepupStudent') || 'null'); }catch{}
-  if(getToken()){ try{ me = (await api('/student/me')).data; }catch{} }
-  const b = me || st || {};
-  const d = { name:b.name || profileMeta.name, regNo:b.reg_no || profileMeta.regNo, email:b.email || '', phone:b.phone || '',
-    dob:(b.dob || '').slice(0,10), gender:b.gender || '', nation:'Indian', cCountry:'India', pCountry:'India', cAddr:b.address || '',
-    registered:me ? 'True' : '', regOn:me && b.created_at ? new Date(b.created_at).toLocaleDateString() : '' };
-  d.first = d.name.split(' ')[0]; d.last = d.name.split(' ').slice(1).join(' ');
-  P = { d, base:b, logged:!!me };
-  let ext = {};
-  try{ ext = JSON.parse(localStorage.getItem(key()) || '{}'); }catch{}
-  S = Object.assign({ d:{}, acad:[], skills:null, more:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false }, ext);
-  if(!S.acad.length && (b.college || b.department)) S.acad = [{ level:'Current', inst:b.college || '', course:b.degree || '', branch:b.department || '', cgpa:b.cgpa || '', year:b.graduation_year || '', status:'', arrears:'0', arrHist:'0', sems:'' }];
-  if(!S.skills) S.skills = (b.skills || []).map(n => ({ name:n, prof:'Intermediate' }));
-  [['linkedin','LinkedIn'],['github','GitHub'],['portfolio','Portfolio Website']].forEach(([k,n]) => { if(b[k] && !S.social[n]) S.social[n] = b[k]; });
-  (b.languages || []).forEach(l => { if(!S.langs[l]) S.langs[l] = 'Intermediate'; });
-  Object.assign(P.d, S.d);
-  const c = S.acad[0];
-  if(c){ [['branch','branch'],['course','course'],['college','inst'],['passOut','year']].forEach(([k,f]) => { if(!P.d[k]) P.d[k] = c[f] || ''; }); }
+function load(){
+  const base = structuredClone(defaults);
+  try{ return { ...base, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }catch{ return base; }
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch{ toast('Could not save. Browser storage is full.'); }
+}
+function toast(msg){
+  document.querySelector('.st-toast')?.remove();
+  const t = Object.assign(document.createElement('div'), { className: 'st-toast', textContent: msg });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+const today = () => new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+const field = (sec, k) => S.sections[sec].fields.find(x => x.k === k)?.value || '';
+const val = sel => (root.querySelector(sel)?.value || '').trim();
+const fixUrl = u => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
+const host = u => { try{ return new URL(fixUrl(u)).hostname.replace(/^www\./, ''); }catch{ return u; } };
+
+const INC = [['education', 'Education'], ['skills', 'Skills'], ['projects', 'Projects'], ['experience', 'Work experience'], ['certifications', 'Certifications'], ['awards', 'Patents, scholarships and volunteering'], ['languages', 'Languages'], ['links', 'Links']];
+const RES_CSS = 'body{font-family:Calibri,Arial,sans-serif;color:#111;line-height:1.4;margin:32px}h1{font-size:24px;margin:0}.c{margin:2px 0 10px;color:#444}h2{font-size:14px;border-bottom:1px solid #999;margin:14px 0 6px;text-transform:uppercase}ul{margin:0;padding-left:18px}p{margin:0}';
+
+/* files that are too big for localStorage (the uploaded resume) go to IndexedDB */
+const idb = () => new Promise((ok, no) => { const r = indexedDB.open('stepup-files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+const idbDo = async (mode, fn) => { const d = await idb(); return new Promise((ok, no) => { const t = d.transaction('f', mode), q = fn(t.objectStore('f')); t.oncomplete = () => ok(q?.result); t.onerror = () => no(t.error); }); };
+const idbPut = (k, v) => idbDo('readwrite', st => st.put(v, k));
+const idbGet = k => idbDo('readonly', st => st.get(k));
+const idbDel = k => idbDo('readwrite', st => st.delete(k));
+
+function download(name, blob){
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const shrink = (file, max, q) => new Promise((ok, no) => {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const r = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', q));
+  };
+  img.onerror = () => no(new Error('bad image')); img.src = url;
+});
+const join = (...a) => a.filter(Boolean).join(', ');
+
+/* resume built from the profile (used for the preview, Word download and print) */
+function resumeBody(){
+  const inc = S.resume.include, e = esc, out = [];
+  const name = field('overview', 'fullName') || 'Your name';
+  const contact = [field('contact', 'email'), field('contact', 'phone'), join(field('address', 'city'), field('address', 'state'))].filter(Boolean).join(' | ');
+  const sec = (t, html) => html ? `<h2>${t}</h2>${html}` : '';
+  const items = id => S.more[id].map(it => `<li><b>${e(it.a)}</b>${join(it.b, it.c) ? ' - ' + e(join(it.b, it.c)) : ''}</li>`).join('');
+  out.push(`<h1>${e(name)}</h1><p class="c">${e(contact)}</p>`);
+  if(S.resume.objective.trim()) out.push(sec('Objective', `<p>${e(S.resume.objective.trim())}</p>`));
+  if(inc.education) out.push(sec('Education', S.colleges.length ? `<ul>${S.colleges.map(c => `<li><b>${e(c.name)}</b>${join(c.course, c.branch) ? ' - ' + e(join(c.course, c.branch)) : ''}${c.years ? ' (' + e(c.years) + ')' : ''}${c.score ? ' | ' + e(c.score) : ''}</li>`).join('')}</ul>` : ''));
+  if(inc.skills) out.push(sec('Skills', S.skills.length ? `<p>${S.skills.map(x => e(x.name)).join(', ')}</p>` : ''));
+  if(inc.projects) out.push(sec('Projects', items('projects') && `<ul>${items('projects')}</ul>`));
+  if(inc.experience) out.push(sec('Work experience', items('experience') && `<ul>${items('experience')}</ul>`));
+  if(inc.certifications) out.push(sec('Certifications', items('certifications') && `<ul>${items('certifications')}</ul>`));
+  if(inc.awards) [['patents', 'Patents'], ['scholarships', 'Scholarships'], ['volunteering', 'Volunteering']].forEach(([id, t]) => out.push(sec(t, items(id) && `<ul>${items(id)}</ul>`)));
+  if(inc.languages) out.push(sec('Languages', S.languages.length ? `<p>${S.languages.map(e).join(', ')}</p>` : ''));
+  if(inc.links){
+    const ls = [...Object.entries(S.socials).map(([p, u]) => `${p}: ${u}`), ...S.links.map(l => l.url)];
+    out.push(sec('Links', ls.length ? `<ul>${ls.map(l => `<li>${e(l)}</li>`).join('')}</ul>` : ''));
+  }
+  return out.join('');
+}
+const resumeDoc = () => `<html><head><meta charset="utf-8"><title>Resume</title><style>${RES_CSS}</style></head><body>${resumeBody()}</body></html>`;
+const fileBase = () => (field('overview', 'fullName') || 'Resume').replace(/[^\w-]+/g, '_');
+
+function completeness(){
+  const checks = Object.values(S.sections).flatMap(s => s.fields.map(x => !!x.value.trim()));
+  checks.push(!!S.photo, S.skills.length > 0, S.languages.length > 0, S.more.projects.length > 0,
+    Object.keys(S.socials).length > 0, S.documents.some(d => d.status === 'uploaded') || !!S.resumeFile);
+  return Math.round(100 * checks.filter(Boolean).length / checks.length);
 }
 
-export async function mount(){ await load(); tab = 'Details'; editing = null; q = ''; render(); }
-
-function render(){
-  head();
-  $('#pfTabs').innerHTML = TABS.map(t => `<button class="${t===tab?'on':''}" data-t="${t}">${t}</button>`).join('');
-  $$('#pfTabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; editing = null; q = ''; render(); });
-  $('#pfBody').innerHTML = ({Details:details,Academics:academics,Skills:skills,More:more})[tab]();
-  bind();
+/* ---------------- header ---------------- */
+function renderHeader(){
+  const name = field('overview', 'fullName') || 'Student', pct = completeness();
+  const sub = [field('overview', 'dept'), field('overview', 'degree'), field('overview', 'batch')].filter(Boolean).join(' · ');
+  const v = S.verification;
+  $('#pfHeader').innerHTML = `
+    <div class="pf-photo">
+      ${S.photo ? `<img src="${esc(S.photo)}" alt="Profile photo">` : `<span>${esc(name[0].toUpperCase())}</span>`}
+      <button class="pf-cam" data-act="photo" aria-label="Change photo">${ICON.cam}</button>
+    </div>
+    <div class="pf-info">
+      <h1>${esc(name)}</h1>
+      <div class="pf-line"><span>${esc(field('overview', 'regNo'))}</span>
+        <span class="badge ${v === 'verified' ? 'badge-green' : 'badge-amber'}">${v === 'verified' ? 'Verified' : 'Unverified'}</span></div>
+      ${v === 'unverified' ? `<p class="pf-note">Your profile is not verified yet. <button class="pf-linkbtn" data-act="verify">Request profile verification</button></p>`
+        : v === 'requested' ? `<p class="pf-note">Verification requested. Your college placement team will review it.</p>` : ''}
+      <p class="pf-sub">${esc(sub)}</p>
+      <div class="pf-meta"><span><b>${S.applied}</b> applied</span>
+        <span>${esc(field('contact', 'email'))}</span><span>${esc(field('contact', 'phone'))}</span></div>
+      <div class="pf-links">
+        ${S.links.map((l, i) => `<span class="pf-chip"><a href="${esc(fixUrl(l.url))}" target="_blank" rel="noopener noreferrer">${esc(host(l.url))}</a><button data-act="link-del" data-i="${i}" aria-label="Remove link">${ICON.x}</button></span>`).join('')}
+        ${ui.addLink ? `<input class="pf-in pf-in-sm" id="pfLinkIn" placeholder="Paste a link" aria-label="Link"><button class="btn-tiny" data-act="link-save">Add</button><button class="btn-tiny" data-act="link-cancel">Cancel</button>`
+          : `<button class="pf-add" data-act="link-add">${ICON.plus}Add link</button>`}
+      </div>
+      <div class="pf-complete"><div class="pf-ctop"><span>Profile completeness</span><b>${pct}%</b></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div></div>
+    </div>
+    <div class="pf-short">
+      <button class="btn-outline" data-act="go" data-to="jobs">Browse jobs</button>
+      <button class="btn-outline" data-act="go" data-to="progress">My progress</button>
+      <button class="btn-outline" data-act="tab" data-t="documents">Resume</button>
+    </div>`;
+}
+function renderTabs(){
+  $('#pfTabs').innerHTML = TABS.map(([id, label]) =>
+    `<button role="tab" aria-selected="${id === tab}" class="${id === tab ? 'on' : ''}" data-act="tab" data-t="${id}">${label}</button>`).join('');
 }
 
-function head(){
-  const a = S.acad[0] || {}, d = P.d;
-  $('#pfHead').innerHTML = `<div class="pf-top">
-    <label class="pf-photo" title="Change photo">${S.photo ? `<img src="${S.photo}" alt="">` : `<span>${esc(d.name[0] || 'S')}</span>`}<i>&#128247;</i><input type="file" id="pfPhoto" accept="image/*" hidden></label>
-    <div class="pf-id"><h1>${esc(d.name)}</h1>
-      <div class="pf-reg">${esc(d.regNo)} <span class="pf-badge ${S.verified?'ok':'warn'}">${S.verified?'Verified':'Unverified'}</span></div>
-      ${S.verified ? '' : `<p class="pf-note">${S.requested ? 'Verification requested. Your placement team will review your profile.' : 'Your profile is not verified yet. <a href="#" id="pfReq">Request profile verification</a>.'}</p>`}
-      <p class="pf-sub">${esc([a.branch, a.course, a.year].filter(Boolean).join(' · ') || 'Add your academics')}</p>
-      <p class="pf-contact"><b>0</b> applied ${d.email ? ` &nbsp;&#9993; <b>${esc(d.email)}</b>` : ''} ${d.phone ? ` &nbsp;&#9742; <b>${esc(d.phone)}</b>` : ''}</p></div></div>
-    <div class="pf-actions"><div class="pf-links">${S.links.map((l,i) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a><button data-rl="${i}" title="Remove">&times;</button>`).join('')}<button class="pf-ghost" id="pfLink">+ Add Link</button></div>
-    <div class="pf-btns"><button class="pf-pill" id="bOffers">0 Offers</button><button class="pf-pill pri" id="pfTrack">Job Tracker</button><button class="pf-pill" id="bSurveys">Surveys</button><button class="pf-pill" id="bResume">Resumes</button><button class="pf-pill" id="bReport">Reports</button></div></div>`;
+/* ---------------- Details ---------------- */
+function secCard(id){
+  const sec = S.sections[id], edit = ui.edit === id;
+  return `<section class="card pf-card" data-sec="${id}">
+    <div class="card-head"><div class="card-title">${sec.title}</div>
+      ${edit ? `<div class="pf-btns"><button class="btn-solid pf-sm" data-act="sec-save" data-id="${id}">Save</button><button class="btn-cancel pf-sm" data-act="sec-cancel">Cancel</button></div>`
+             : `<button class="btn-tiny" data-act="sec-edit" data-id="${id}">Edit</button>`}</div>
+    <div class="pf-grid">${sec.fields.map(x => edit
+      ? `<label class="pf-f${x.full ? ' full' : ''}"><span>${esc(x.label)}</span><input class="pf-in" data-k="${x.k}" value="${esc(x.value)}"></label>`
+      : `<div class="pf-kv${x.full ? ' full' : ''}" data-hay="${esc((x.label + ' ' + x.value).toLowerCase())}"><span>${esc(x.label)}</span><b>${esc(x.value) || '<i>Not added</i>'}</b></div>`).join('')}</div>
+  </section>`;
 }
-
-const row = (l,v) => `<div class="pf-row"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
 function details(){
-  const ql = q.toLowerCase();
-  return `<div class="pf-search"><input id="pfQ" placeholder="Search any field or value..." value="${esc(q)}"></div>` + DET.map(([t,ed,f]) => {
-    if(t === 'TAGS') return (ql && !S.tags.join(' ').toLowerCase().includes(ql)) ? '' : `<section class="pf-sec"><div class="pf-sh"><h2>Student Tags</h2><button class="pf-edit" id="tagAdd">+ Add tag</button></div>${S.tags.length ? `<div class="pf-chips">${S.tags.map((x,i) => `<button class="on" data-rt="${i}" title="Remove">${esc(x)} &times;</button>`).join('')}</div>` : '<p class="pf-hint">-</p>'}</section>`;
-    if(editing === t) return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2></div><div class="pf-form">${f.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : `<label>${esc(l)}<input data-k="${k}" value="${esc(P.d[k] || '')}" ${RO.has(k)?'disabled':''}></label>`).join('')}</div><div class="pf-fa"><button class="pf-pill" id="dCancel">Cancel</button><button class="pf-pill pri" id="dSave">Save</button></div></section>`;
-    const rows = f.filter(([l,k]) => l==='#' || !ql || (l + ' ' + val(k)).toLowerCase().includes(ql));
-    if(!rows.some(r => r[0] !== '#')) return '';
-    return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2>${ed ? `<button class="pf-edit" data-ed="${t}">Edit</button>` : ''}</div><div class="pf-grid">${rows.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : row(l, k==='aadhaar' && P.d[k] ? 'XXXX XXXX ' + String(P.d[k]).slice(-4) : val(k))).join('')}</div></section>`;
-  }).join('');
+  return `<div class="pf-search"><input class="pf-in" id="pfSearch" type="search" placeholder="Search any field or value…" value="${esc(ui.q || '')}" aria-label="Search fields"></div>
+    ${['overview', 'contact', 'address', 'parents'].map(secCard).join('')}
+    <div class="empty-state" id="pfNone" hidden><h3>No matching field</h3><p>Try another word.</p></div>`;
+}
+function applySearch(){
+  const q = (ui.q || '').toLowerCase().trim(); let any = false;
+  root.querySelectorAll('.pf-card[data-sec]').forEach(card => {
+    let n = 0;
+    card.querySelectorAll('.pf-kv').forEach(kv => { const hit = !q || kv.dataset.hay.includes(q); kv.hidden = !hit; if(hit) n++; });
+    card.hidden = !!q && n === 0; if(!card.hidden) any = true;
+  });
+  const none = $('#pfNone'); if(none) none.hidden = any;
 }
 
+/* ---------------- Academics ---------------- */
+const CF = [['name', 'Institution'], ['course', 'Course'], ['branch', 'Branch'], ['years', 'Years'], ['score', 'CGPA / percentage'], ['backlogs', 'Current backlogs'], ['history', 'History of backlogs']];
 function academics(){
-  const i = Math.min(S.acadSel || 0, S.acad.length - 1), a = S.acad[i];
-  const sems = a ? String(a.sems || '').split(',').map(x => x.trim()).filter(Boolean) : [];
-  return `<section class="pf-card"><div class="pf-sh"><h2>Academics</h2><button class="pf-pill pri" id="acAdd">+ Add</button></div>` + (!a ? '<p class="pf-empty">No academic records yet. Add your college, 12th and 10th details.</p>' :
-    `<div class="pf-ac"><div class="pf-aside">${S.acad.map((x,n) => `<button class="${n===i?'on':''}" data-a="${n}"><em class="${/current/i.test(x.level)?'cur':''}">${esc(x.level)}</em>${esc(x.inst)}<small>${esc(x.cgpa || '-')} CGPA</small></button>`).join('')}</div>
-    <div class="pf-adet"><h3>${esc(a.branch || a.course || a.inst)}</h3><p class="pf-sub">${esc([a.year, a.status].filter(Boolean).join(' · '))}</p><div class="pf-big">${esc(a.cgpa || '-')}<small> CGPA</small></div>
-    <div class="pf-grid">${row('College',a.inst||'-')}${row('Course',a.course||'-')}${row('Branch',a.branch||'-')}${row('Current Arrears',a.arrears||'0')}${row('Arrears History',a.arrHist||'0')}</div>
-    ${sems.length ? `<h4 class="pf-semh">Semester scores</h4><div class="pf-scroll"><table class="pf-mx"><tr>${sems.map((_,n) => `<th>SEM ${n+1}</th>`).join('')}</tr><tr>${sems.map(s => `<td>${esc(s)}</td>`).join('')}</tr></table></div>` : ''}
-    <div class="pf-fa"><button class="pf-pill" id="acEdit">Edit</button><button class="pf-pill" id="acDel">Remove</button></div></div></div>`) + '</section>';
+  const list = S.colleges, i = Math.min(ui.col || 0, list.length - 1), c = list[i], edit = ui.editCol;
+  const side = `<div class="pf-side">${list.map((x, n) => `<button class="${n === i ? 'on' : ''}" data-act="col" data-i="${n}"><b>${esc(x.name) || 'Untitled'}</b><small>${esc(x.score)}</small></button>`).join('')}
+    <button class="pf-add" data-act="col-add">${ICON.plus}Add education</button></div>`;
+  if(!c) return `<div class="pf-two">${side}<div class="empty-state"><h3>No education added</h3></div></div>`;
+  const body = `<section class="card pf-card">
+    <div class="card-head"><div class="card-title">${esc(c.name) || 'Education'}</div>
+      ${edit ? `<div class="pf-btns"><button class="btn-solid pf-sm" data-act="col-save">Save</button><button class="btn-cancel pf-sm" data-act="col-cancel">Cancel</button><button class="btn-cancel pf-sm pf-danger" data-act="col-del">Delete</button></div>`
+             : `<button class="btn-tiny" data-act="col-edit">Edit</button>`}</div>
+    <div class="pf-grid">${CF.map(([k, label]) => edit
+      ? `<label class="pf-f"><span>${label}</span><input class="pf-in" data-c="${k}" value="${esc(c[k])}"></label>`
+      : `<div class="pf-kv"><span>${label}</span><b>${esc(c[k]) || '<i>Not added</i>'}</b></div>`).join('')}</div>
+    ${(c.semesters.length || edit) ? `<h4 class="pf-h4">Semester scores</h4>
+      <div class="pf-sems">${c.semesters.map((s, n) => edit
+        ? `<label class="pf-f"><span>${esc(s.label)}</span><input class="pf-in" data-s="${n}" value="${esc(s.gpa)}"></label>`
+        : `<div class="pf-sem"><span>${esc(s.label)}</span><b>${esc(s.gpa) || '—'}</b></div>`).join('')}
+        ${edit ? `<button class="pf-add" data-act="sem-add">${ICON.plus}Add semester</button>` : ''}</div>` : ''}
+  </section>`;
+  return `<div class="pf-two">${side}${body}</div>`;
 }
 
+/* ---------------- Skills ---------------- */
 function skills(){
-  return `<section class="pf-card"><div class="pf-sh"><h2>Skills (${S.skills.length})</h2><div><button class="pf-pill ${view==='grid'?'on':''}" data-v="grid">Grid</button><button class="pf-pill ${view==='list'?'on':''}" data-v="list">List</button><button class="pf-pill pri" id="skAdd">+ Add Skill</button></div></div>` +
-    (S.skills.length ? `<div class="pf-skills ${view}">${S.skills.map((s,i) => `<div class="pf-skill" data-es="${i}" title="Click to edit"><b>${esc(s.name)}</b><span>${esc(s.prof)}</span><button data-rs="${i}" title="Remove">&times;</button></div>`).join('')}</div>` : '<p class="pf-empty">No skills added yet.</p>') + '</section>';
+  return `<section class="card pf-card">
+    <div class="card-head"><div class="card-title">Skills (${S.skills.length})</div>
+      <div class="pf-toggle" role="group" aria-label="Layout"><button class="${S.view === 'grid' ? 'on' : ''}" data-act="view" data-v="grid">Grid</button><button class="${S.view === 'list' ? 'on' : ''}" data-act="view" data-v="list">List</button></div></div>
+    <div class="pf-addrow"><input class="pf-in" id="skName" placeholder="Skill, e.g. Python" aria-label="Skill name" maxlength="40">
+      <select class="pf-in" id="skLevel" aria-label="Level">${skillLevels.map(l => `<option>${l}</option>`).join('')}</select>
+      <button class="btn-solid pf-sm" data-act="sk-add">Add skill</button></div>
+    ${S.skills.length ? `<div class="pf-skills ${S.view}">${S.skills.map((s, i) => `<div class="pf-skill"><div><b>${esc(s.name)}</b><span class="badge badge-violet">${esc(s.level)}</span></div><button data-act="sk-del" data-i="${i}" aria-label="Remove ${esc(s.name)}">${ICON.x}</button></div>`).join('')}</div>`
+      : `<p class="pf-empty">No skills added yet.</p>`}
+  </section>`;
 }
 
+/* ---------------- More ---------------- */
 function more(){
-  const chips = (title, list, store, hint) => `<section class="pf-card"><div class="pf-sh"><h2>${title} (${Object.keys(S[store]).length})</h2></div><p class="pf-hint">${hint}</p><div class="pf-chips">${list.map(n => `<button class="${S[store][n]?'on':''}" data-c="${store}|${esc(n)}">${esc(n)}</button>`).join('')}</div></section>`;
-  return MORE.map(([k,t,add]) => { const it = S.more[k] || [];
-    return `<section class="pf-card"><div class="pf-sh"><h2>${t} (${it.length})</h2><button class="pf-pill pri" data-m="${k}">+ ${add}</button></div>` +
-      (it.length ? it.map((x,i) => `<div class="pf-item"><div><b>${esc(x.title || '')}</b> <small>${esc([x.org, x.period].filter(Boolean).join(' · '))}</small><p>${esc(x.desc || '')}</p>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.link)}</a>` : ''}</div><span class="pf-ia"><button data-me="${k}|${i}" title="Edit">Edit</button><button data-mr="${k}|${i}" title="Remove">&times;</button></span></div>`).join('') : `<p class="pf-empty">No ${t.toLowerCase()} added yet.</p>`) + '</section>'; }).join('') +
-    chips('Social Media', SOCIAL, 'social', 'Click a platform to add or edit your link.') + chips('Languages', LANGS, 'langs', 'Click a language to add or edit proficiency.');
+  const cards = moreSections.map(m => {
+    const items = S.more[m.id] || [], open = ui.add === m.id;
+    return `<section class="card pf-card"><div class="card-head"><div class="card-title">${m.title} (${items.length})</div>
+      <button class="btn-solid pf-sm" data-act="more-open" data-id="${m.id}">${open ? 'Close' : '+ ' + m.add.replace(/^Add /, 'Add ')}</button></div>
+      ${open ? `<div class="pf-addrow">${m.ph.map((p, n) => `<input class="pf-in" data-m="${n}" placeholder="${p}" aria-label="${p}" maxlength="80" value="${esc((ui.draft || [])[n] || '')}">`).join('')}</div>
+        <div class="pf-proofrow"><button class="btn-outline pf-sm" data-act="proof-pick" data-id="${m.id}" data-i="new">${ui.pending ? 'Change photo proof' : 'Attach photo proof'}</button>
+          ${ui.pending ? `<img class="pf-thumb" src="${esc(ui.pending)}" alt="Proof preview"><button class="pf-linkbtn" data-act="proof-new-clear">Remove</button>` : '<small>Optional: certificate, offer letter, award photo…</small>'}
+          <button class="btn-solid pf-sm pf-right" data-act="more-save" data-id="${m.id}">Save</button></div>` : ''}
+      ${items.length ? `<ul class="pf-items">${items.map((it, i) => `<li>${it.proof ? `<button class="pf-thumbbtn" data-act="proof-view" data-id="${m.id}" data-i="${i}" aria-label="View photo proof"><img class="pf-thumb" src="${esc(it.proof)}" alt="Photo proof"></button>` : ''}
+          <div class="pf-grow"><b>${esc(it.a)}</b><small>${esc([it.b, it.c].filter(Boolean).join(' · '))}</small></div>
+          ${it.proof ? '' : `<button class="pf-linkbtn" data-act="proof-pick" data-id="${m.id}" data-i="${i}">+ Add photo proof</button>`}
+          <button data-act="more-del" data-id="${m.id}" data-i="${i}" aria-label="Remove">${ICON.x}</button></li>`).join('')}</ul>` : `<p class="pf-empty">Nothing added yet.</p>`}</section>`;
+  }).join('');
+  const soc = `<section class="card pf-card"><div class="card-head"><div class="card-title">Social media (${Object.keys(S.socials).length})</div></div>
+    <p class="pf-hint">Click a platform to add or edit your link.</p>
+    <div class="pf-chips">${platforms.map(p => `<button class="pf-pick ${S.socials[p] ? 'on' : ''}" data-act="soc-open" data-p="${esc(p)}">${esc(p)}</button>`).join('')}</div>
+    ${ui.soc ? `<div class="pf-addrow"><input class="pf-in" id="socIn" placeholder="${esc(ui.soc)} link" value="${esc(S.socials[ui.soc] || '')}" aria-label="${esc(ui.soc)} link"><button class="btn-solid pf-sm" data-act="soc-save">Save</button>${S.socials[ui.soc] ? `<button class="btn-cancel pf-sm" data-act="soc-del">Remove</button>` : ''}</div>` : ''}
+  </section>`;
+  const lang = `<section class="card pf-card"><div class="card-head"><div class="card-title">Languages (${S.languages.length})</div></div>
+    <p class="pf-hint">Click the languages you know.</p>
+    <div class="pf-chips">${languageList.map(l => `<button class="pf-pick ${S.languages.includes(l) ? 'on' : ''}" data-act="lang" data-l="${l}">${l}</button>`).join('')}</div></section>`;
+  return cards + soc + lang;
 }
 
-/* ---------- helpers ---------- */
-function toast(m){ const t = document.createElement('div'); t.className = 'pf-toast'; t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
-function overlay(html){ const o = document.createElement('div'); o.className = 'pf-modal'; o.innerHTML = html; document.body.appendChild(o);
-  o.addEventListener('click', e => { if(e.target === o || e.target.hasAttribute('data-x')) o.remove(); }); return o; }
-function modal(title, fields, v, onSave){
-  const o = overlay(`<form><h3>${esc(title)}</h3>${fields.map(([k,l,t]) => `<label>${esc(l)}${t==='area' ? `<textarea name="${k}">${esc(v[k] || '')}</textarea>` : `<input name="${k}" value="${esc(v[k] || '')}">`}</label>`).join('')}<div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button><button class="pf-pill pri">Save</button></div></form>`);
-  o.querySelector('form').onsubmit = e => { e.preventDefault(); const r = Object.fromEntries(new FormData(e.target)); if(!String(r[fields[0][0]]).trim()) return; onSave(r); o.remove(); save(); render(); };
-  o.querySelector('input,textarea').focus();
+/* ---------------- Documents ---------------- */
+function resumeCard(){
+  const f = S.resumeFile, ed = ui.editResume;
+  const editor = ed ? `<div class="pf-editor"><div>
+      <label class="pf-f"><span>Career objective / summary</span><textarea class="pf-in" id="resObj" rows="4" maxlength="500" placeholder="One or two lines about what you are looking for">${esc(S.resume.objective)}</textarea></label>
+      <div class="pf-inc"><span>Include sections</span>${INC.map(([k, l]) => `<label class="pf-chk"><input type="checkbox" data-inc="${k}" ${S.resume.include[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+      <p class="pf-hint">Name and contact come from the Details tab, education from Academics, and the rest from Skills and More. Change those tabs and the resume updates.</p></div>
+      <div class="pf-paper" id="resPaper">${resumeBody()}</div></div>` : '';
+  return `<section class="card pf-card"><div class="card-head"><div class="card-title">Resume</div></div>
+    <div class="pf-rrow"><div class="pf-grow"><b>Uploaded resume</b><small>${f ? esc(f.name) + ' · ' + Math.max(1, Math.round(f.size / 1024)) + ' KB · ' + esc(f.date) : 'No file uploaded yet'}</small></div>
+      <div class="pf-btns"><button class="btn-outline" data-act="res-up">${f ? 'Replace' : 'Upload'}</button>
+      ${f ? `<button class="btn-solid pf-sm" data-act="res-dl">Download</button><button class="pf-xbtn" data-act="res-del" aria-label="Remove uploaded resume">${ICON.x}</button>` : ''}</div></div>
+    <div class="pf-rrow"><div class="pf-grow"><b>Resume from your profile</b><small>Built from your details, skills and projects. Edit it, then download.</small></div>
+      <div class="pf-btns"><button class="btn-outline" data-act="res-edit">${ed ? 'Close editor' : 'Edit resume'}</button>
+      <button class="btn-solid pf-sm" data-act="res-doc">Download (Word)</button><button class="btn-outline" data-act="res-pdf">Print / PDF</button></div></div>
+    ${editor}</section>`;
 }
-function skillModal(i){
-  const cur = i == null ? { name:'', prof:'' } : S.skills[i]; let prof = cur.prof;
-  const o = overlay(`<form><h3>${i == null ? 'Add skill' : 'Edit skill'}</h3><label>Skill name<input name="name" placeholder="e.g. Python, React, Communication" value="${esc(cur.name)}"></label><label>Proficiency</label><div class="pf-chips">${PROF.map(p => `<button type="button" class="${p===prof?'on':''}" data-p="${p}">${p}</button>`).join('')}</div><div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button><button class="pf-pill pri">Save</button></div></form>`);
-  o.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { prof = b.dataset.p; o.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
-  o.querySelector('form').onsubmit = e => { e.preventDefault(); const name = o.querySelector('[name=name]').value.trim(); if(!name){ toast('Enter a skill name'); return; } if(!prof){ toast('Pick a proficiency'); return; }
-    if(i == null) S.skills.push({ name, prof }); else S.skills[i] = { name, prof }; o.remove(); save(); syncCore(); render(); };
-  o.querySelector('input').focus();
-}
-function pick(title, opts, onPick){
-  const o = overlay(`<form><h3>${esc(title)}</h3><div class="pf-chips">${opts.map(x => `<button type="button" data-p="${esc(x)}">${esc(x)}</button>`).join('')}</div><div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button></div></form>`);
-  o.addEventListener('click', e => { const p = e.target.dataset.p; if(p){ o.remove(); onPick(p); } });
-}
-function info(title, msg){ const o = overlay(`<form><h3>${esc(title)}</h3><p class="pf-empty">${esc(msg)}</p><div class="pf-fa"><button type="button" class="pf-pill pri" data-x>Close</button></div></form>`); return o; }
-const dl = (name, text) => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], {type:'text/csv'})); a.download = name; a.click(); };
-const csv = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-
-function report(){
-  const rows = [['Section','Field','Value']];
-  DET.forEach(([t,,f]) => { if(!f) return; f.forEach(([l,k]) => { if(l !== '#') rows.push([t, l, P.d[k] || '']); }); });
-  S.acad.forEach(a => rows.push(['Academics', a.level + ' - ' + a.inst, a.cgpa]));
-  S.skills.forEach(s => rows.push(['Skills', s.name, s.prof]));
-  dl('profile-report.csv', rows.map(r => r.map(csv).join(',')).join('\n'));
-}
-function resume(){
-  const w = window.open('', '_blank'); if(!w){ toast('Allow pop-ups to open the resume'); return; }
-  const d = P.d, sec = (t, h) => h ? `<h2>${t}</h2>${h}` : '';
-  const items = k => (S.more[k] || []).map(x => `<p><b>${esc(x.title || '')}</b> ${esc([x.org, x.period].filter(Boolean).join(' · '))}<br>${esc(x.desc || '')}</p>`).join('');
-  w.document.write(`<!doctype html><title>${esc(d.name)} - Resume</title><style>body{font:14px Arial,sans-serif;max-width:760px;margin:30px auto;color:#111}h1{margin:0}h2{border-bottom:1px solid #999;margin:20px 0 6px;font-size:15px;text-transform:uppercase}p{margin:4px 0}</style>
-    <h1>${esc(d.name)}</h1><p>${esc([d.regNo, d.email, d.phone].filter(Boolean).join(' | '))}</p>
-    ${sec('Education', S.acad.map(a => `<p><b>${esc(a.inst)}</b> — ${esc([a.course, a.branch].filter(Boolean).join(', '))} ${esc(a.year || '')} · ${esc(a.cgpa || '')}</p>`).join(''))}
-    ${sec('Skills', S.skills.length ? `<p>${S.skills.map(s => esc(s.name) + ' (' + esc(s.prof) + ')').join(', ')}</p>` : '')}
-    ${sec('Experience', items('work'))}${sec('Projects', items('projects'))}${sec('Certifications', items('certs'))}${sec('Awards', items('awards'))}
-    ${sec('Languages', Object.keys(S.langs).length ? `<p>${Object.entries(S.langs).map(([l,p]) => esc(l) + ' (' + esc(p) + ')').join(', ')}</p>` : '')}
-    <script>window.onload=()=>window.print()<\/script>`);
-  w.document.close();
-}
-function syncCore(){
-  if(!P.logged) return;
-  const b = P.base, d = P.d;
-  api('/student/profile', { method:'PUT', body:JSON.stringify({ name:d.name, regNo:d.regNo, email:d.email, phone:d.phone, dob:d.dob, gender:d.gender, address:d.cAddr || b.address, college:b.college, degree:b.degree || 'B.Tech', department:b.department || 'N/A', graduationYear:b.graduation_year, cgpa:b.cgpa, education:b.education, skills:S.skills.map(s => s.name), languages:Object.keys(S.langs), experience:b.experience, achievements:b.achievements, certifications:b.certifications, projects:b.projects, summary:b.summary, linkedin:S.social.LinkedIn, github:S.social.GitHub, portfolio:S.social['Portfolio Website'] }) }).catch(() => {});
+function documents(){
+  return resumeCard() + `<section class="card pf-card"><div class="card-head"><div class="card-title">Other documents</div>
+    <button class="btn-solid pf-sm" data-act="doc-new">+ Add new</button></div>
+    ${ui.newDoc ? `<div class="pf-addrow"><input class="pf-in" id="docName" placeholder="Document name" aria-label="Document name" maxlength="60"><button class="btn-solid pf-sm" data-act="doc-create">Add</button></div>` : ''}
+    <ul class="pf-items">${S.documents.map((d, i) => d.name === 'Resume' ? '' : `<li><div><b>${esc(d.name)}</b><small>${esc(d.meta)}</small></div>
+      <div class="pf-btns"><span class="badge ${d.status === 'uploaded' ? 'badge-green' : 'badge-amber'}">${d.status === 'uploaded' ? 'Uploaded' : 'Missing'}</span>
+      <button class="btn-outline" data-act="doc-up" data-i="${i}">${d.status === 'uploaded' ? 'Replace' : 'Upload'}</button>
+      <button data-act="doc-del" data-i="${i}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div></li>`).join('')}</ul>
+    <p class="pf-hint">For now only the file name is saved on this device. Real uploads need the backend.</p></section>`;
 }
 
-function bind(){
-  const on = (sel, fn) => $$(sel).forEach(el => el.addEventListener('click', e => fn(el, e)));
-  $('#pfPhoto')?.addEventListener('change', e => { const f = e.target.files[0]; if(!f) return; const im = new Image(); im.onload = () => { const c = document.createElement('canvas'), r = 240 / Math.max(im.width, im.height, 240); c.width = im.width * r; c.height = im.height * r; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); S.photo = c.toDataURL('image/jpeg', .8); save(); render(); }; im.src = URL.createObjectURL(f); });
-  $('#pfReq')?.addEventListener('click', e => { e.preventDefault(); S.requested = true; save(); render(); });
-  $('#pfLink')?.addEventListener('click', () => modal('Add link', [['name','Label'],['url','URL']], {}, r => S.links.push(r)));
-  on('[data-rl]', b => { S.links.splice(+b.dataset.rl, 1); save(); render(); });
-  $('#pfTrack')?.addEventListener('click', () => navigate('progress'));
-  $('#bOffers')?.addEventListener('click', () => info("Student's Offers", 'No offers found.'));
-  $('#bSurveys')?.addEventListener('click', () => info('Surveys', 'No surveys available right now.'));
-  $('#bResume')?.addEventListener('click', resume);
-  $('#bReport')?.addEventListener('click', report);
-  const qi = $('#pfQ'); if(qi) qi.oninput = () => { q = qi.value; const p = qi.selectionStart; render(); const n = $('#pfQ'); n.focus(); n.setSelectionRange(p, p); };
-  on('[data-ed]', b => { editing = b.dataset.ed; render(); });
-  $('#dCancel')?.addEventListener('click', () => { editing = null; render(); });
-  $('#dSave')?.addEventListener('click', () => { $$('.pf-form [data-k]:not(:disabled)').forEach(i => { P.d[i.dataset.k] = i.value.trim(); S.d[i.dataset.k] = i.value.trim(); }); editing = null; save(); syncCore(); render(); toast('Saved'); });
-  $('#tagAdd')?.addEventListener('click', () => modal('Add tag', [['t','Tag']], {}, r => S.tags.push(r.t.trim())));
-  on('[data-rt]', b => { S.tags.splice(+b.dataset.rt, 1); save(); render(); });
-  on('[data-a]', b => { S.acadSel = +b.dataset.a; render(); });
-  $('#acAdd')?.addEventListener('click', () => modal('Add academic record', ACAD, {}, r => { S.acad.push(r); S.acadSel = S.acad.length - 1; }));
-  $('#acEdit')?.addEventListener('click', () => { const i = S.acadSel || 0; modal('Edit academic record', ACAD, S.acad[i], r => S.acad[i] = r); });
-  $('#acDel')?.addEventListener('click', () => { S.acad.splice(S.acadSel || 0, 1); S.acadSel = 0; save(); render(); });
-  on('[data-v]', b => { view = b.dataset.v; render(); });
-  $('#skAdd')?.addEventListener('click', () => skillModal());
-  on('[data-es]', (el, e) => { if(e.target.closest('[data-rs]')) return; skillModal(+el.dataset.es); });
-  on('[data-rs]', (b, e) => { e.stopPropagation(); S.skills.splice(+b.dataset.rs, 1); save(); syncCore(); render(); });
-  on('[data-m]', b => { const m = MORE.find(x => x[0] === b.dataset.m); modal(m[2], m[3], {}, r => (S.more[m[0]] = S.more[m[0]] || []).push(r)); });
-  on('[data-me]', b => { const [k,i] = b.dataset.me.split('|'), m = MORE.find(x => x[0] === k); modal('Edit', m[3], S.more[k][+i], r => S.more[k][+i] = r); });
-  on('[data-mr]', b => { const [k,i] = b.dataset.mr.split('|'); S.more[k].splice(+i, 1); save(); render(); });
-  on('[data-c]', b => { const [st,n] = b.dataset.c.split('|');
-    if(st === 'social') modal(n + ' link', [['u','Profile URL']], { u:S.social[n] || '' }, r => { S.social[n] = r.u.trim(); if(!S.social[n]) delete S.social[n]; syncCore(); });
-    else pick(n + ' proficiency', ['Beginner','Intermediate','Fluent','Native'].concat(S.langs[n] ? ['Remove'] : []), p => { p === 'Remove' ? delete S.langs[n] : S.langs[n] = p; save(); syncCore(); render(); }); });
+const PANELS = { details, academics, skills, more, documents };
+function renderPanel(){
+  $('#pfPanel').innerHTML = PANELS[tab]();
+  if(tab === 'details') applySearch();
+}
+function render(){ renderHeader(); renderTabs(); renderPanel(); }
+const commit = () => { save(); render(); };
+
+/* ---------------- actions ---------------- */
+function photo(file){
+  if(!file || !file.type.startsWith('image/')) return toast('Please choose an image file.');
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+    const r = Math.max(s / img.width, s / img.height), w = img.width * r, h = img.height * r;
+    c.getContext('2d').drawImage(img, (s - w) / 2, (s - h) / 2, w, h);
+    S.photo = c.toDataURL('image/jpeg', 0.82); URL.revokeObjectURL(url); commit();
+  };
+  img.onerror = () => toast('Could not read that image.');
+  img.src = url;
+}
+
+function closeProof(){ root.querySelector('#pfLb')?.remove(); ui.lb = null; }
+function showProof(id, i){
+  const it = S.more[id][i]; if(!it?.proof) return;
+  closeProof(); ui.lb = { id, i };
+  root.insertAdjacentHTML('beforeend', `<div class="pf-lb" id="pfLb"><div class="pf-lbbox" role="dialog" aria-label="Photo proof">
+    <img src="${esc(it.proof)}" alt="Photo proof for ${esc(it.a)}"><p>${esc(it.a)}</p>
+    <div class="pf-btns"><button class="btn-outline" data-act="proof-pick" data-id="${id}" data-i="${i}">Replace</button>
+    <button class="btn-cancel pf-danger" data-act="proof-del">Remove</button><button class="btn-solid pf-sm" data-act="lb-close">Close</button></div></div></div>`);
+}
+
+/* keeps what was typed in the add form while the page re-draws */
+const keepDraft = () => { ui.draft = [0, 1, 2].map(n => val(`[data-m="${n}"]`)); };
+
+const A = {
+  tab: d => { closeProof(); tab = d.t; ui = {}; render(); window.scrollTo({ top: 0 }); },
+  go: d => navigate(d.to),
+  photo: () => $('#pfPhotoIn').click(),
+  verify: () => { S.verification = 'requested'; commit(); toast('Verification requested.'); },
+  'link-add': () => { ui.addLink = true; renderHeader(); $('#pfLinkIn')?.focus(); },
+  'link-cancel': () => { ui.addLink = false; renderHeader(); },
+  'link-save': () => { const u = val('#pfLinkIn'); if(!u) return; S.links.push({ url: u }); ui.addLink = false; commit(); },
+  'link-del': d => { S.links.splice(+d.i, 1); commit(); },
+
+  'sec-edit': d => { ui.edit = d.id; renderPanel(); },
+  'sec-cancel': () => { ui.edit = null; renderPanel(); },
+  'sec-save': d => {
+    const sec = S.sections[d.id];
+    for(const x of sec.fields){
+      const v = (root.querySelector(`[data-k="${x.k}"]`)?.value ?? x.value).trim();
+      if((x.k === 'email' || x.k === 'altEmail' || x.k === 'fEmail' || x.k === 'mEmail') && v && !/^\S+@\S+\.\S+$/.test(v)) return toast(`"${x.label}" is not a valid email.`);
+      x.value = v;
+    }
+    ui.edit = null; commit(); toast('Saved.');
+  },
+
+  col: d => { ui.col = +d.i; ui.editCol = false; renderPanel(); },
+  'col-add': () => { S.colleges.push({ name: 'New institution', course: '', branch: '', years: '', score: '', backlogs: '', history: '', semesters: [] }); ui.col = S.colleges.length - 1; ui.editCol = true; commit(); },
+  'col-edit': () => { ui.editCol = true; renderPanel(); },
+  'col-cancel': () => { ui.editCol = false; renderPanel(); },
+  'col-save': () => {
+    const c = S.colleges[ui.col || 0];
+    CF.forEach(([k]) => { c[k] = val(`[data-c="${k}"]`); });
+    c.semesters.forEach((s, n) => { s.gpa = val(`[data-s="${n}"]`); });
+    ui.editCol = false; commit(); toast('Saved.');
+  },
+  'col-del': () => { if(!confirm('Delete this education entry?')) return; S.colleges.splice(ui.col || 0, 1); ui.col = 0; ui.editCol = false; commit(); },
+  'sem-add': () => { const c = S.colleges[ui.col || 0]; c.semesters.forEach((s, n) => { s.gpa = val(`[data-s="${n}"]`); }); c.semesters.push({ label: 'SEM ' + (c.semesters.length + 1), gpa: '' }); renderPanel(); },
+
+  'sk-add': () => {
+    const name = val('#skName'); if(!name) return toast('Type a skill name first.');
+    if(S.skills.some(s => s.name.toLowerCase() === name.toLowerCase())) return toast('You already added that skill.');
+    S.skills.push({ name, level: val('#skLevel') }); commit();
+  },
+  'sk-del': d => { S.skills.splice(+d.i, 1); commit(); },
+  view: d => { S.view = d.v; commit(); },
+
+  'more-open': d => { ui.add = ui.add === d.id ? null : d.id; ui.pending = null; ui.draft = null; renderPanel(); },
+  'more-save': d => {
+    const [a, b, c] = [0, 1, 2].map(n => val(`[data-m="${n}"]`));
+    if(!a) return toast('Please fill in the first box.');
+    S.more[d.id].push({ a, b, c, proof: ui.pending || '' }); ui.add = null; ui.pending = null; ui.draft = null; commit();
+  },
+  'more-del': d => { S.more[d.id].splice(+d.i, 1); commit(); },
+  'soc-open': d => { ui.soc = ui.soc === d.p ? null : d.p; renderPanel(); $('#socIn')?.focus(); },
+  'soc-save': () => { const u = val('#socIn'); if(!u) return; S.socials[ui.soc] = fixUrl(u); ui.soc = null; commit(); },
+  'soc-del': () => { delete S.socials[ui.soc]; ui.soc = null; commit(); },
+  lang: d => { const i = S.languages.indexOf(d.l); i < 0 ? S.languages.push(d.l) : S.languages.splice(i, 1); commit(); },
+
+  'proof-pick': d => { ui.proofTo = { id: d.id, i: d.i }; if(d.i === 'new') keepDraft(); $('#pfProofIn').click(); },
+  'proof-new-clear': () => { keepDraft(); ui.pending = null; renderPanel(); },
+  'proof-view': d => showProof(d.id, +d.i),
+  'proof-del': () => { const { id, i } = ui.lb; delete S.more[id][i].proof; closeProof(); commit(); },
+  'lb-close': () => closeProof(),
+
+  'res-up': () => $('#pfResumeIn').click(),
+  'res-dl': async () => {
+    try{ const b = await idbGet('resume'); if(!b) return toast('The file is not on this device any more. Please upload it again.'); download(S.resumeFile.name, b); }
+    catch{ toast('Could not read the saved file.'); }
+  },
+  'res-del': async () => { if(!confirm('Remove the uploaded resume file?')) return; try{ await idbDel('resume'); }catch{} S.resumeFile = null; commit(); },
+  'res-edit': () => { ui.editResume = !ui.editResume; renderPanel(); },
+  'res-doc': () => download(fileBase() + '_Resume.doc', new Blob(['\ufeff' + resumeDoc()], { type: 'application/msword' })),
+  'res-pdf': () => {
+    const fr = Object.assign(document.createElement('iframe'), { className: 'pf-print' });
+    document.body.appendChild(fr); const d = fr.contentDocument; d.open(); d.write(resumeDoc()); d.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); setTimeout(() => fr.remove(), 2000); }, 250);
+  },
+
+  'doc-up': d => { ui.upDoc = +d.i; $('#pfDocIn').click(); },
+  'doc-del': d => { const doc = S.documents[+d.i]; if(!confirm(`Remove "${doc.name}"?`)) return; S.documents.splice(+d.i, 1); commit(); },
+  'doc-new': () => { ui.newDoc = !ui.newDoc; renderPanel(); $('#docName')?.focus(); },
+  'doc-create': () => { const n = val('#docName'); if(!n) return; S.documents.push({ name: n, meta: 'Not uploaded yet', status: 'missing' }); ui.newDoc = false; commit(); },
+};
+
+export function mount(){
+  S = load(); tab = 'details'; ui = {};
+  root = $('#view-profile');
+  render();
+
+  root.addEventListener('click', e => {
+    const el = e.target.closest('[data-act]');
+    if(el) A[el.dataset.act]?.(el.dataset);
+  });
+  const refreshPaper = () => { const p = $('#resPaper'); if(p) p.innerHTML = resumeBody(); };
+  root.addEventListener('input', e => {
+    if(e.target.id === 'pfSearch'){ ui.q = e.target.value; applySearch(); }
+    if(e.target.id === 'resObj'){ S.resume.objective = e.target.value; save(); refreshPaper(); }
+  });
+  root.addEventListener('change', e => {
+    if(e.target.dataset.inc){ S.resume.include[e.target.dataset.inc] = e.target.checked; save(); refreshPaper(); }
+  });
+  root.addEventListener('click', e => { if(e.target.id === 'pfLb') closeProof(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && ui.lb) closeProof(); });
+  $('#pfProofIn').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+    if(!f.type.startsWith('image/')) return toast('Please choose an image file.');
+    let url; try{ url = await shrink(f, 900, 0.72); }catch{ return toast('Could not read that image.'); }
+    const t = ui.proofTo; if(!t) return;
+    if(t.i === 'new'){ ui.pending = url; renderPanel(); return; }
+    closeProof(); S.more[t.id][+t.i].proof = url; commit(); toast('Photo proof saved.');
+  });
+  $('#pfResumeIn').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+    if(f.size > 5 * 1024 * 1024) return toast('Please choose a file under 5 MB.');
+    try{ await idbPut('resume', f); }catch{ return toast('Could not store the file in this browser.'); }
+    S.resumeFile = { name: f.name, size: f.size, date: today() }; commit(); toast('Resume uploaded.');
+  });
+  root.addEventListener('keydown', e => {
+    if(e.key !== 'Enter') return;
+    const map = { skName: 'sk-add', socIn: 'soc-save', docName: 'doc-create', pfLinkIn: 'link-save' };
+    const act = map[e.target.id]; if(act) A[act]();
+  });
+  $('#pfPhotoIn').addEventListener('change', e => { photo(e.target.files[0]); e.target.value = ''; });
+  $('#pfDocIn').addEventListener('change', e => {
+    const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+    if(f.size > 5 * 1024 * 1024) return toast('Please choose a file under 5 MB.');
+    const d = S.documents[ui.upDoc]; if(!d) return;
+    d.meta = `${f.name} · ${Math.max(1, Math.round(f.size / 1024))} KB · ${today()}`; d.status = 'uploaded'; commit();
+  });
 }

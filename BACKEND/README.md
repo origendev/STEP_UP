@@ -20,12 +20,6 @@ Express + PostgreSQL API for the StepUp Company Portal and public Jobs page.
 4. `npm start`
 5. Serve the `FRONTEND` folder with Live Server or `python -m http.server 5500`.
 
-## AI demand outlook
-
-The role outlook uses the Gemini Developer API free tier by default. Create a key in [Google AI Studio](https://aistudio.google.com/apikey), then set `GEMINI_API_KEY` in `BACKEND/.env`. Keep `DEMAND_AI_PROVIDER=gemini`; the default model is `gemini-3.8-flash`. If that model is temporarily busy, the backend retries with `gemini-2.5-flash`. No billing-enabled account is required to start on the free tier. Free-tier rate limits apply, and the app keeps its cited research baseline visible when the limit is reached.
-
-OpenAI is disabled unless you explicitly set `DEMAND_AI_PROVIDER=openai` and configure `OPENAI_API_KEY`.
-
 The frontend API address is kept in `FRONTEND/js/config.js`. Keep it as `http://localhost:3000/api` for local work.
 
 ## Team-wide / universal data sync

@@ -1,120 +1,56 @@
+<!-- ============================================================
+     demands.html — Trending Roles & Industry Demand page
+     Cards are rendered by js/pages/demands.js from js/data/demands.data.js
+============================================================ -->
 <div class="view" id="view-demands">
-  <section class="labor-dashboard" aria-labelledby="laborTitle">
-    <header class="labor-header market-hero">
+
+  <div class="section-heading" style="margin-top:36px;align-items:center;">
+    <div>
+          <h2>Trending Roles</h2>
+          <p>Practical career paths across Indian employers and international hiring markets.</p>
+    </div>
+    <button class="btn-solid" id="newsBtn">News Feed</button>
+  </div>
+
+  <div class="insight-banner">
+    <strong>How to read this outlook</strong>
+    <span>These are role families and employer use cases, not live vacancy counts or guaranteed openings. Check current job listings and the linked workforce research before choosing a path.</span>
+  </div>
+
+  <div class="demand-live-bar">
+    <div class="demand-live-status">
+      <span class="live-dot"></span>
+      <span>Market briefing</span>
+    </div>
+    <button class="refresh-news-btn" id="refreshNewsBtn" type="button">Refresh data</button>
+    <span class="last-updated" id="lastUpdatedText">Updating…</span>
+  </div>
+
+  <section class="role-section" aria-labelledby="roleSectionTitle">
+    <div class="role-section-heading">
       <div>
-        <p class="labor-eyebrow">AI CAREER INTELLIGENCE</p>
-        <h1 id="laborTitle">Where careers are growing</h1>
-        <p>Current demand signals and a research-backed outlook for the years ahead.</p>
+        <p class="role-section-kicker">Demand map</p>
+        <h2 id="roleSectionTitle">Career tracks to explore</h2>
+        <p>See what the work involves, where these skills are used, and a practical place to start.</p>
       </div>
-      <div class="labor-actions">
-        <button class="news-feed-trigger" id="openNewsFeed" type="button">Latest news</button>
-        <button class="labor-refresh" id="refreshLaborBtn" type="button" title="Refresh labor-market data">
-          <span aria-hidden="true">↻</span> Refresh outlook
-        </button>
-      </div>
-    </header>
-
-    <div class="labor-toolbar">
-      <div class="market-tabs" role="tablist" aria-label="Labor market">
-        <button class="market-tab active" id="indiaTab" type="button" role="tab" aria-selected="true" data-market="india">India</button>
-        <button class="market-tab" id="overseasTab" type="button" role="tab" aria-selected="false" data-market="overseas">Global</button>
-      </div>
-      <p class="labor-updated" id="laborUpdated">Loading current data…</p>
+      <span class="role-count">5 focus areas</span>
     </div>
-
-    <section class="market-view" id="marketView" role="tabpanel" aria-live="polite">
-      <div class="market-heading">
-        <div>
-          <p class="labor-eyebrow" id="marketEyebrow">INDIA · LAST 30 DAYS</p>
-          <h2 id="marketTitle">Hiring and layoffs in India</h2>
-          <p id="marketDescription">Recent company news reports.</p>
-        </div>
-        <a class="source-link" id="marketSource" href="https://www.epfo.gov.in/" target="_blank" rel="noopener noreferrer">View source ↗</a>
-      </div>
-
-      <section class="ai-outlook-section" aria-labelledby="roleOutlookTitle" aria-busy="true">
-        <header class="ai-outlook-heading">
-          <div>
-            <p class="section-kicker"><span id="outlookModeLabel">AI OUTLOOK</span> · <span id="forecastHorizonLabel">NEXT 2 MONTHS</span></p>
-            <h2 id="roleOutlookTitle">In-demand roles and future outlook</h2>
-            <p id="roleOutlookSummary">Building a career outlook from recent reporting and workforce research…</p>
-          </div>
-          <div class="ai-outlook-status">
-            <span class="ai-status-indicator" aria-hidden="true"></span>
-            <span id="roleOutlookUpdated">Analyzing current signals</span>
-          </div>
-        </header>
-        <div id="roleOutlookContent" class="outlook-grid" aria-live="polite">
-          <p class="outlook-loading">Building an evidence-led career outlook…</p>
-        </div>
-        <p class="outlook-disclaimer" id="roleOutlookDisclaimer">AI-generated directional guidance, not a guarantee of vacancies or employment.</p>
-        <a id="geminiSetupLink" class="gemini-setup-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" hidden>Set up a free Gemini API key <span aria-hidden="true">↗</span></a>
-      </section>
-
-      <div class="metric-strip" id="marketMetrics" aria-label="Labor market report totals"></div>
-
-      <div class="market-analysis-grid">
-        <section class="chart-section" aria-labelledby="chartTitle">
-          <div class="chart-heading">
-            <div>
-              <p class="section-kicker">WEEKLY TREND · 30 DAYS</p>
-              <h3 id="chartTitle">Hiring and layoff reports by week</h3>
-              <p id="chartCaption">Hiring and layoff coverage by week.</p>
-            </div>
-          </div>
-          <div class="labor-chart" id="laborChart" role="img" aria-label="Labor market chart"></div>
-        </section>
-
-        <section class="coverage-section" aria-labelledby="coverageTitle">
-          <div class="coverage-heading">
-            <div>
-              <p class="section-kicker">MARKET READOUT</p>
-              <h3 id="coverageTitle">Key takeaway</h3>
-            </div>
-          </div>
-          <div id="coverageSummary" class="coverage-summary"></div>
-        </section>
-      </div>
-
-      <section class="news-feed-teaser" aria-labelledby="reportsTitle">
-        <div class="reports-heading">
-          <div>
-            <p class="section-kicker">NEWS COVERAGE</p>
-            <h3 id="reportsTitle">Latest reports</h3>
-            <p id="reportsCaption">Recent company news.</p>
-          </div>
-          <button class="open-feed-inline" id="openNewsFeedInline" type="button">See all</button>
-        </div>
-        <div class="report-preview-list" id="reportPreviewList" aria-live="polite"></div>
-      </section>
-
-      <footer class="labor-footnote" id="marketDefinition"></footer>
-    </section>
-
-    <div class="news-feed-modal hidden" id="newsFeedModal" aria-hidden="true">
-      <button class="news-feed-backdrop" type="button" data-close-feed="true" aria-label="Close news feed"></button>
-      <section class="news-feed-dialog" role="dialog" aria-modal="true" aria-labelledby="newsFeedTitle">
-        <header class="news-feed-header">
-          <div>
-            <p class="labor-eyebrow">LABOR MARKET</p>
-            <h2 id="newsFeedTitle">Recent company reports</h2>
-            <p id="newsFeedUpdated">Reports from the last 30 days</p>
-          </div>
-          <div class="news-feed-actions">
-            <button class="feed-refresh" id="refreshNewsFeed" type="button" title="Refresh recent reports">↻</button>
-            <button class="feed-close" id="closeNewsFeed" type="button" aria-label="Close news feed">×</button>
-          </div>
-        </header>
-        <div class="feed-toolbar">
-          <div class="feed-tabs" role="tablist" aria-label="News feed market">
-            <button class="feed-tab active" type="button" role="tab" aria-selected="true" data-feed-market="india">India</button>
-            <button class="feed-tab" type="button" role="tab" aria-selected="false" data-feed-market="overseas">Global</button>
-          </div>
-          <span id="newsFeedCount" class="report-count">Loading reports…</span>
-        </div>
-        <p class="feed-caption" id="newsFeedCaption"></p>
-        <div class="report-list news-feed-list" id="newsFeedList"></div>
-      </section>
-    </div>
+    <div class="role-grid" id="demandList"></div>
   </section>
+
+  <div class="news-modal hidden" id="newsModal" aria-hidden="true">
+    <div class="news-modal-backdrop" data-close="true"></div>
+    <div class="news-modal-panel" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+      <div class="news-modal-header">
+        <div>
+          <p class="eyebrow">India, placements, overseas roles</p>
+          <h3 id="newsTitle">India & Global Career Briefing</h3>
+        </div>
+        <button class="news-close" id="closeNewsModal" aria-label="Close news">×</button>
+      </div>
+      <div class="news-list" id="newsList"></div>
+      <div class="news-detail hidden" id="newsDetail"></div>
+    </div>
+  </div>
+
 </div>

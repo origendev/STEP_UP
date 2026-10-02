@@ -1,4 +1,4 @@
-export const API_BASE = window.STEPUP_API_BASE_URL || window.STEPUP_API_URL || 'http://localhost:3000/api';
+export const API_BASE = window.STEPUP_API_URL || 'http://localhost:3000/api';
 
 export function getToken(){ return localStorage.getItem('stepupStudentToken'); }
 export function setSession(data){

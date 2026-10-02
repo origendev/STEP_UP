@@ -6,16 +6,14 @@
    This is the only script index.html loads.
 ============================================================ */
 
-import * as router from './core/router.js?v=20260930d';
+import * as router from './core/router.js';
 import * as theme  from './core/theme.js';
-import { clearSession } from './core/api.js';
-import { esc } from './core/dom.js';
-import { profileMeta } from './data/profile.data.js';
+import * as notifications from './core/notifications.js';
 
 import { mount as mountHome } from './pages/home.js';
 import { mount as mountProfile } from './pages/profile.js';
 import { mount as mountJobs } from './pages/jobs.js';
-import { mount as mountDemands } from './pages/demands-dashboard.js?v=20260930d';
+import { mount as mountDemands } from './pages/demands.js';
 import { mount as mountSkills } from './pages/skills.js';
 import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
@@ -33,46 +31,10 @@ router.register('profile',      mountProfile);   // reached via the avatar, not 
 
 /* Shell-level behaviour */
 theme.init();
+notifications.init();
 
-/* Avatar dropdown: name + register number, Profile, Settings, Logout */
-const avatar = document.getElementById('avatarBtn');
-const menu = document.createElement('div');
-menu.className = 'user-menu';
-avatar.parentElement.appendChild(menu);
-
-function who(){
-  try{ const s = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
-       if(s && s.name) return { name:s.name, reg:s.reg_no || '-' }; }catch{}
-  return { name:profileMeta.name, reg:profileMeta.regNo };
-}
-function openProfile(tab){
-  if(tab) sessionStorage.setItem('pfTab', tab); else sessionStorage.removeItem('pfTab');
-  menu.classList.remove('open');
-  router.navigate('profile');
-  window.dispatchEvent(new CustomEvent('pf-tab', { detail: tab || 'Details' }));
-}
-function fillAvatar(){ avatar.textContent = (who().name[0] || 'S').toUpperCase(); }
-fillAvatar();
-
-avatar.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const u = who();
-  menu.innerHTML = `
-    <div class="um-id"><div class="um-name">${esc(u.name)}</div><div class="um-reg">Reg No: ${esc(u.reg)}</div></div>
-    <button data-act="profile">Profile</button>
-    <button data-act="settings">Settings</button>
-    <button data-act="logout" class="danger">Logout</button>`;
-  menu.classList.toggle('open');
-});
-menu.addEventListener('click', (e) => {
-  const act = e.target.dataset.act;
-  if(act === 'profile')  openProfile();
-  if(act === 'settings') openProfile('Settings');
-  if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
-});
-document.addEventListener('click', () => menu.classList.remove('open'));
-document.addEventListener('keydown', (e) => { if(e.key === 'Escape') menu.classList.remove('open'); });
-window.addEventListener('storage', fillAvatar);
+document.getElementById('avatarBtn')
+  .addEventListener('click', () => router.navigate('profile'));
 
 /* Go */
 router.start({ mountSelector:'#app', fallback:'home' });
