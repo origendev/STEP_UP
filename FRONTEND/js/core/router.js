@@ -12,7 +12,6 @@
 ============================================================ */
 
 const routes = {};     // name -> mount function (may be undefined for static pages)
-const htmlCache = {};  // name -> partial HTML, so we only fetch each page once
 
 let appEl = null;
 let currentRoute = null;
@@ -23,16 +22,12 @@ export function register(name, mount){
   routes[name] = mount || null;
 }
 
-/** Fetch a page partial (cached after the first load). */
+/** Fetch the current page partial. */
 async function loadHTML(name){
-  if(htmlCache[name]) return htmlCache[name];
-
-  const res = await fetch(`pages/${name}.html`);
+  const res = await fetch(`pages/${name}.html`, { cache: 'no-store' });
   if(!res.ok) throw new Error(`Could not load pages/${name}.html (${res.status})`);
 
-  const html = await res.text();
-  htmlCache[name] = html;
-  return html;
+  return res.text();
 }
 
 /** Highlight the matching nav link. */

@@ -39,6 +39,12 @@ body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat;
   font-weight:800; font-size:23px; letter-spacing:-0.02em;
   white-space:nowrap;
 }
+.brand-logo{ height:44px; width:auto; display:block; }
+/* the logo has dark navy letters, so give it a light backing in dark mode */
+:root[data-theme="dark"] .brand-logo{ background:#fff; padding:4px 10px; border-radius:12px; height:46px; }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .brand-logo{ background:#fff; padding:4px 10px; border-radius:12px; height:46px; }
+}
 .brand-mark{
   width:38px; height:38px; border-radius:12px;
   background:linear-gradient(145deg,#8a6bff,#5b34e6);
@@ -132,6 +138,7 @@ body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat;
   .topbar{ padding:10px 14px; }
   .brand{ font-size:0; gap:0; }               /* logo mark only */
   .brand-mark{ width:36px; height:36px; font-size:17px; border-radius:11px; }
+  .brand-logo{ height:34px !important; }
   .navlink{ min-width:66px; height:52px; font-size:11px; border-radius:26px; }
   .navlink svg{ width:19px; height:19px; }
   .top-actions{ gap:8px; }
@@ -146,6 +153,7 @@ body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat;
 @media (max-width:480px){
   .topbar{ padding:8px 10px; gap:8px; }
   .brand-mark{ width:32px; height:32px; font-size:15px; border-radius:10px; }
+  .brand-logo{ height:26px !important; padding:3px 6px !important; }
   .top-actions .icon-btn{ display:none; }
   .avatar{ width:32px; height:32px; font-size:13px; }
   .navlinks{ padding:2px; }
@@ -178,3 +186,23 @@ section.block{ margin-top:26px; }
   main{ padding:0 16px 48px; }
   .grid3{ grid-template-columns:1fr; }
 }
+
+
+/* ---------- avatar dropdown ---------- */
+.top-actions{ position:relative; }
+.avatar{ cursor:pointer; }
+.user-menu{
+  position:absolute; top:calc(100% + 10px); right:0; z-index:80; min-width:230px;
+  background:var(--white); color:var(--ink); border:1px solid var(--line); border-radius:16px;
+  box-shadow:0 18px 40px -12px rgba(36,26,77,.35); padding:8px; display:none;
+}
+.user-menu.open{ display:block; }
+.um-id{ padding:10px 12px 12px; border-bottom:1px solid var(--line); margin-bottom:6px; }
+.um-name{ font:700 15px Sora,sans-serif; }
+.um-reg{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+.user-menu button{
+  display:block; width:100%; text-align:left; background:none; border:0; color:inherit; cursor:pointer;
+  padding:10px 12px; border-radius:10px; font:600 14px Inter,sans-serif;
+}
+.user-menu button:hover{ background:var(--violet-100); }
+.user-menu button.danger{ color:var(--rose); }

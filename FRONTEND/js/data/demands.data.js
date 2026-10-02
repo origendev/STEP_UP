@@ -1,7 +1,3 @@
-/* ============================================================
-   demands.data.js — role paths and practical market context
-============================================================ */
-
 const workforceReport = {
   label: 'World Economic Forum · Future of Jobs 2025',
   url: 'https://www.weforum.org/publications/the-future-of-jobs-report-2025/'
