@@ -41,7 +41,7 @@ const ACAD = [['level','Level (Current / 12th / 10th / Diploma)'],['inst','Insti
 
 let P, S, tab = 'Details', editing = null, view = 'grid', q = '';
 const key = () => 'stepupProfile:' + (P.d.regNo || 'guest');
-const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} };
+const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} if(P?.logged) syncCore(); };
 const val = k => (P.d[k] ?? '') === '' ? '-' : P.d[k];
 
 async function load(){
@@ -56,7 +56,21 @@ async function load(){
   P = { d, base:b, logged:!!me };
   let ext = {};
   try{ ext = JSON.parse(localStorage.getItem(key()) || '{}'); }catch{}
-  S = Object.assign({ d:{}, acad:[], skills:null, more:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false }, ext);
+  const remoteProfile = me && me.profile_details && typeof me.profile_details === 'object' ? me.profile_details : {};
+  const remoteState = {
+    d: remoteProfile.details || {},
+    acad: Array.isArray(remoteProfile.academics) ? remoteProfile.academics : [],
+    skills: Array.isArray(remoteProfile.skills) ? remoteProfile.skills : null,
+    more: remoteProfile.more && typeof remoteProfile.more === 'object' ? remoteProfile.more : {},
+    social: remoteProfile.social && typeof remoteProfile.social === 'object' ? remoteProfile.social : {},
+    langs: remoteProfile.languages && typeof remoteProfile.languages === 'object' ? remoteProfile.languages : {},
+    links: Array.isArray(remoteProfile.links) ? remoteProfile.links : [],
+    tags: Array.isArray(remoteProfile.tags) ? remoteProfile.tags : [],
+    photo: remoteProfile.photo || '',
+    verified: !!remoteProfile.verified,
+    requested: !!remoteProfile.requested
+  };
+  S = Object.assign({ d:{}, acad:[], skills:null, more:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false }, remoteState, ext);
   if(!S.acad.length && (b.college || b.department)) S.acad = [{ level:'Current', inst:b.college || '', course:b.degree || '', branch:b.department || '', cgpa:b.cgpa || '', year:b.graduation_year || '', status:'', arrears:'0', arrHist:'0', sems:'' }];
   if(!S.skills) S.skills = (b.skills || []).map(n => ({ name:n, prof:'Intermediate' }));
   [['linkedin','LinkedIn'],['github','GitHub'],['portfolio','Portfolio Website']].forEach(([k,n]) => { if(b[k] && !S.social[n]) S.social[n] = b[k]; });
@@ -66,7 +80,7 @@ async function load(){
   if(c){ [['branch','branch'],['course','course'],['college','inst'],['passOut','year']].forEach(([k,f]) => { if(!P.d[k]) P.d[k] = c[f] || ''; }); }
 }
 
-export async function mount(){ await load(); tab = 'Details'; editing = null; q = ''; render(); }
+export async function mount(){ await load(); tab = 'Details'; editing = null; q = ''; render(); if(P.logged) syncCore(); }
 
 function render(){
   head();
@@ -157,24 +171,74 @@ function report(){
   S.skills.forEach(s => rows.push(['Skills', s.name, s.prof]));
   dl('profile-report.csv', rows.map(r => r.map(csv).join(',')).join('\n'));
 }
-function resume(){
-  const w = window.open('', '_blank'); if(!w){ toast('Allow pop-ups to open the resume'); return; }
-  const d = P.d, sec = (t, h) => h ? `<h2>${t}</h2>${h}` : '';
-  const items = k => (S.more[k] || []).map(x => `<p><b>${esc(x.title || '')}</b> ${esc([x.org, x.period].filter(Boolean).join(' · '))}<br>${esc(x.desc || '')}</p>`).join('');
-  w.document.write(`<!doctype html><title>${esc(d.name)} - Resume</title><style>body{font:14px Arial,sans-serif;max-width:760px;margin:30px auto;color:#111}h1{margin:0}h2{border-bottom:1px solid #999;margin:20px 0 6px;font-size:15px;text-transform:uppercase}p{margin:4px 0}</style>
-    <h1>${esc(d.name)}</h1><p>${esc([d.regNo, d.email, d.phone].filter(Boolean).join(' | '))}</p>
-    ${sec('Education', S.acad.map(a => `<p><b>${esc(a.inst)}</b> — ${esc([a.course, a.branch].filter(Boolean).join(', '))} ${esc(a.year || '')} · ${esc(a.cgpa || '')}</p>`).join(''))}
-    ${sec('Skills', S.skills.length ? `<p>${S.skills.map(s => esc(s.name) + ' (' + esc(s.prof) + ')').join(', ')}</p>` : '')}
-    ${sec('Experience', items('work'))}${sec('Projects', items('projects'))}${sec('Certifications', items('certs'))}${sec('Awards', items('awards'))}
-    ${sec('Languages', Object.keys(S.langs).length ? `<p>${Object.entries(S.langs).map(([l,p]) => esc(l) + ' (' + esc(p) + ')').join(', ')}</p>` : '')}
-    <script>window.onload=()=>window.print()<\/script>`);
-  w.document.close();
+async function resume(){
+  const current = await api('/student/resume').catch(() => null);
+  const existing = current?.data || null;
+  const o = overlay(`<form id="resumeForm">
+    <h3>Student Resume</h3>
+    <p class="pf-empty">${existing ? `Current resume: <b>${esc(existing.file_name)}</b>` : 'Upload the PDF resume that companies will receive when you apply.'}</p>
+    <label class="pf-file-label">PDF resume
+      <input id="resumeFile" type="file" accept="application/pdf,.pdf">
+    </label>
+    <p class="pf-hint">PDF only • Maximum 10 MB. This is the exact file companies can view/download.</p>
+    <div class="pf-fa">
+      <button type="button" class="pf-pill" data-x>Close</button>
+      ${existing ? '<button type="button" class="pf-pill" id="resumeDownload">Download Current</button>' : ''}
+      <button type="submit" class="pf-pill pri" id="resumeUpload">Upload PDF</button>
+    </div>
+    <div id="resumeMsg" class="pf-hint"></div>
+  </form>`);
+  const form=o.querySelector('#resumeForm');
+  const msgEl=o.querySelector('#resumeMsg');
+  const setMsg=(m,ok=false)=>{msgEl.textContent=m;msgEl.style.color=ok?'var(--green)':'var(--rose)';};
+  o.querySelector('#resumeDownload')?.addEventListener('click',async()=>{
+    try{
+      const base=window.STEPUP_API_BASE_URL||'http://localhost:3000/api';
+      const r=await fetch(base+'/student/resume/download',{headers:{Authorization:'Bearer '+getToken()}});
+      if(!r.ok) throw Error('Could not download the resume.');
+      const blob=await r.blob(), url=URL.createObjectURL(blob), a=document.createElement('a');
+      a.href=url; a.download=existing.file_name; a.click(); URL.revokeObjectURL(url);
+    }catch(e){setMsg(e.message);}
+  });
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const file=o.querySelector('#resumeFile').files[0];
+    if(!file){setMsg('Choose a PDF resume first.');return;}
+    if(file.type!=='application/pdf' && !/\.pdf$/i.test(file.name)){setMsg('Only PDF resumes are allowed.');return;}
+    if(file.size>10*1024*1024){setMsg('Resume PDF must be smaller than 10 MB.');return;}
+    const reader=new FileReader();
+    reader.onload=async()=>{
+      const button=o.querySelector('#resumeUpload'); button.disabled=true; setMsg('Uploading…',true);
+      try{
+        await api('/student/resume',{method:'POST',body:JSON.stringify({fileName:file.name,mimeType:'application/pdf',data:reader.result})});
+        setMsg('Resume uploaded successfully. Companies will receive this exact PDF.',true);
+        setTimeout(()=>{o.remove(); render();},700);
+      }catch(err){button.disabled=false;setMsg(err.message);}
+    };
+    reader.onerror=()=>setMsg('Could not read the selected PDF.');
+    reader.readAsDataURL(file);
+  });
 }
+
 function syncCore(){
   if(!P.logged) return;
   const b = P.base, d = P.d;
-  api('/student/profile', { method:'PUT', body:JSON.stringify({ name:d.name, regNo:d.regNo, email:d.email, phone:d.phone, dob:d.dob, gender:d.gender, address:d.cAddr || b.address, college:b.college, degree:b.degree || 'B.Tech', department:b.department || 'N/A', graduationYear:b.graduation_year, cgpa:b.cgpa, education:b.education, skills:S.skills.map(s => s.name), languages:Object.keys(S.langs), experience:b.experience, achievements:b.achievements, certifications:b.certifications, projects:b.projects, summary:b.summary, linkedin:S.social.LinkedIn, github:S.social.GitHub, portfolio:S.social['Portfolio Website'] }) }).catch(() => {});
+  const profileDetails = {
+    details: { ...d },
+    academics: Array.isArray(S.acad) ? S.acad : [],
+    skills: Array.isArray(S.skills) ? S.skills : [],
+    more: S.more || {},
+    social: S.social || {},
+    languages: S.langs || {},
+    links: Array.isArray(S.links) ? S.links : [],
+    tags: Array.isArray(S.tags) ? S.tags : [],
+    photo: S.photo || '',
+    verified: !!S.verified,
+    requested: !!S.requested
+  };
+  api('/student/profile', { method:'PUT', body:JSON.stringify({ name:d.name, regNo:d.regNo, email:d.email, phone:d.phone, dob:d.dob, gender:d.gender, address:d.cAddr || b.address, college:b.college || d.college, degree:b.degree || d.degree || 'B.Tech', department:b.department || d.department || 'N/A', graduationYear:b.graduation_year || d.passOut, cgpa:b.cgpa || d.cgpa, education:b.education || S.acad || [], skills:Array.isArray(S.skills) ? S.skills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean) : [], languages:Object.keys(S.langs || {}), experience:b.experience || S.more?.work || [], achievements:b.achievements, certifications:b.certifications || S.more?.certs || [], projects:b.projects || S.more?.projects || [], summary:b.summary, linkedin:S.social?.LinkedIn, github:S.social?.GitHub, portfolio:S.social?.['Portfolio Website'], profileDetails }) }).catch(() => {});
 }
+
 
 function bind(){
   const on = (sel, fn) => $$(sel).forEach(el => el.addEventListener('click', e => fn(el, e)));

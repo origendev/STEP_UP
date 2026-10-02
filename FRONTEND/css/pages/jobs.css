@@ -33,7 +33,7 @@
 .company-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;background:var(--lilac-bg);font-size:11.5px;font-weight:700;color:var(--ink-soft);}
 .company-open-roles{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:7px 10px;border-radius:8px;background:var(--green-bg);color:var(--green);font-size:11.5px;font-weight:800;width:max-content;}
 .company-card-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:9px;}
-.view-details-btn{flex:1;border:0;border-radius:9px;padding:11px 12px;background:var(--violet-600);color:#fff;font-size:13px;font-weight:800;}
+.view-details-btn{flex:1;border:0;border-radius:9px;padding:11px 12px;background:var(--violet-600);color:#fff;font-size:13px;font-weight:800;}.apply-job-btn{border:1px solid var(--violet-300);border-radius:9px;padding:10px 12px;background:var(--white);color:var(--violet-700);font-size:12px;font-weight:800;white-space:nowrap}.apply-job-btn:hover{background:var(--violet-100)}.apply-job-btn.applied{background:var(--green-bg);border-color:#bfe9d3;color:var(--green)}.apply-job-btn:disabled{opacity:.65;cursor:wait;}
 .view-details-btn:hover{background:var(--violet-700);}
 .company-save-btn{border:1px solid var(--line);border-radius:9px;padding:10px 14px;background:var(--white);color:var(--ink);font-weight:700;font-size:12.5px;}
 .company-save-btn.saved{background:var(--violet-100);color:var(--violet-700);border-color:var(--violet-300);}
@@ -41,3 +41,6 @@
 .jobs-error{grid-column:1/-1;padding:16px;border-radius:12px;background:var(--rose-bg);color:var(--rose);font-size:13px;}
 @media(max-width:980px){.jobs-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:680px){.jobs-hero{align-items:flex-start;flex-direction:column;}.jobs-toolbar-top{flex-direction:column;align-items:stretch;}.jobs-sort{width:100%;}.jobs-grid{grid-template-columns:1fr;}.jobs-count{margin-left:0;width:100%;}.company-card{min-height:0;}}
+
+
+.jobs-apply-toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,18px);opacity:0;z-index:9999;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 12px 30px rgba(24,20,54,.16);pointer-events:none;transition:opacity .2s ease,transform .2s ease}.jobs-apply-toast.show{opacity:1;transform:translate(-50%,0)}.jobs-apply-toast.ok{background:var(--green-bg);color:var(--green);border:1px solid #bfe9d3}.jobs-apply-toast.error{background:var(--rose-bg);color:var(--rose);border:1px solid #f0c5d2}

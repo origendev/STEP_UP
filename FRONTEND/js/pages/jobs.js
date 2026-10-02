@@ -1,16 +1,28 @@
 /* Jobs discovery page. Public job data is read from the shared backend. */
 import { $, $$, esc } from '../core/dom.js';
+import { getToken } from '../core/api.js';
 
 const API_BASE_URL = window.STEPUP_API_BASE_URL || 'http://localhost:3000/api';
 let allJobs = [];
+let appliedJobIds = new Set();
 let state = { search:'', industry:'All', sort:'Latest' };
-const SAVED_KEY = 'stepupSavedListings';
+const SAVED_KEY = 'stepupSavedJobs';
 
 function savedIds(){
   try{return new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || '[]').map(String));}
   catch{return new Set();}
 }
 function persistSaved(set){ localStorage.setItem(SAVED_KEY, JSON.stringify([...set])); }
+
+function showApplyToast(message, ok=true){
+  document.querySelector('.jobs-apply-toast')?.remove();
+  const t=document.createElement('div');
+  t.className=`jobs-apply-toast ${ok?'ok':'error'}`;
+  t.textContent=message;
+  document.body.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),220); },2600);
+}
 function initials(name){
   return String(name||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase() || 'S';
 }
@@ -30,6 +42,21 @@ function normalise(j){
     posted: j.created_at ? new Date(j.created_at).getTime() : 0,
     deadline: j.apply_before || ''
   };
+}
+
+async function loadApplications(){
+  appliedJobIds = new Set();
+  const token = getToken();
+  if(!token) return;
+  try{
+    const res = await fetch(`${API_BASE_URL}/student/applications`, {
+      headers:{Accept:'application/json', Authorization:`Bearer ${token}`}
+    });
+    if(!res.ok) return;
+    const result = await res.json();
+    (Array.isArray(result.data) ? result.data : []).forEach(a => appliedJobIds.add(String(a.job_id)));
+    if(allJobs.length) render();
+  }catch{}
 }
 
 async function loadJobs(){
@@ -58,7 +85,10 @@ async function loadJobs(){
 function filtered(){
   const q=state.search.toLowerCase();
   let list=allJobs.filter(j=>{
-const text=[j.companyName,j.jobTitle,j.description,j.industry,j.location,j.workMode].join(' ').toLowerCase();    return (!q || text.includes(q)) && (state.industry==='All' || j.industry===state.industry);
+const text=[j.companyName,j.jobTitle,j.description,j.industry,j.location,j.workMode].join(' ').toLowerCase();
+    const matchesSaved = state.industry==='Saved' ? savedIds().has(String(j.id)) : true;
+    const matchesIndustry = state.industry==='All' || state.industry==='Saved' || j.industry===state.industry;
+    return (!q || text.includes(q)) && matchesIndustry && matchesSaved;
   });
   if(state.sort==='A-Z') list.sort((a,b)=>a.companyName.localeCompare(b.companyName));
   else if(state.sort==='Deadline') list.sort((a,b)=>String(a.deadline).localeCompare(String(b.deadline)));
@@ -84,7 +114,7 @@ function groupByCompany(list){
 }
 
 function cardHTML(group){
-  const j=group.primary, count=group.jobs.length, saved=savedIds().has(String(group.companyId));
+  const j=group.primary, count=group.jobs.length, saved=savedIds().has(String(j.id));
   const desc=group.jobs.length===1 ? j.description : `${j.companyName} currently has ${count} open role${count===1?'':'s'} listed on StepUp. ${j.description}`;
   return `<article class="company-card">
     <div class="company-card-head">
@@ -92,7 +122,7 @@ function cardHTML(group){
         <div class="company-logo">${esc(initials(j.companyName))}</div>
         <div><div class="company-name">${esc(j.companyName)}</div><div class="company-meta">${esc(j.industry)} • ${esc(j.location)}</div></div>
       </div>
-      <button class="save-job ${saved?'saved':''}" data-save="${esc(String(group.companyId))}" aria-label="${saved?'Remove saved company':'Save company'}">${saved?'★':'☆'}</button>
+      <button class="save-job ${saved?'saved':''}" data-save="${esc(String(j.id))}" aria-label="${saved?'Remove saved job':'Save job'}">${saved?'★':'☆'}</button>
     </div>
     <p class="company-description">${esc(desc)}</p>
     <div class="company-pills">
@@ -102,7 +132,8 @@ function cardHTML(group){
     <div class="company-open-roles">▣ ${count} Open Role${count===1?'':'s'}</div>
     <div class="company-card-footer">
       <button class="view-details-btn" data-details="${esc(String(j.id))}">View Details ›</button>
-      <button class="company-save-btn ${saved?'saved':''}" data-save="${esc(String(group.companyId))}">${saved?'Saved':'Save'}</button>
+      <button class="apply-job-btn ${appliedJobIds.has(String(j.id))?'applied':''}" data-apply="${esc(String(j.id))}">${appliedJobIds.has(String(j.id))?'Applied':'Apply'}</button>
+      <button class="company-save-btn ${saved?'saved':''}" data-save="${esc(String(j.id))}">${saved?'Saved':'Save'}</button>
     </div>
   </article>`;
 }
@@ -113,6 +144,29 @@ function render(){
   grid.innerHTML=groups.length ? groups.map(cardHTML).join('') : '<div class="jobs-empty">No companies or roles match your search.</div>';
   grid.querySelectorAll('[data-details]').forEach(btn=>btn.addEventListener('click',()=>{
     window.location.href=`job-details.html?id=${encodeURIComponent(btn.dataset.details)}`;
+  }));
+  grid.querySelectorAll('[data-apply]').forEach(btn=>btn.addEventListener('click',async()=>{
+    const jobId=String(btn.dataset.apply);
+    const token=getToken();
+    if(!token){ window.location.href='student-login.html'; return; }
+    btn.disabled=true;
+    try{
+      const isApplied=appliedJobIds.has(jobId);
+      const res=await fetch(`${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/apply`,{
+        method:isApplied?'DELETE':'POST',
+        headers:{Accept:'application/json',Authorization:`Bearer ${token}`}
+      });
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.error || (isApplied?'Could not withdraw application.':'Could not apply.'));
+      if(isApplied){
+        appliedJobIds.delete(jobId);
+        showApplyToast('Application withdrawn successfully.', true);
+      }else{
+        appliedJobIds.add(jobId);
+        showApplyToast('Application submitted successfully!', true);
+      }
+      render();
+    }catch(err){ btn.disabled=false; showApplyToast(err.message, false); }
   }));
   grid.querySelectorAll('[data-save]').forEach(btn=>btn.addEventListener('click',()=>{
     const set=savedIds(), id=String(btn.dataset.save);
@@ -140,5 +194,5 @@ export function mount(){
   state={search:'',industry:'All',sort:'Latest'};
   bindEvents();
   $('#jobsGrid').innerHTML='<div class="jobs-empty">Loading companies…</div>';
-  loadJobs();
+  Promise.all([loadApplications(), loadJobs()]);
 }

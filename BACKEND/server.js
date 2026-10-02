@@ -49,7 +49,7 @@ app.use(cors({
     : true
 }));
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
 const newsArticleCache = new Map();
@@ -216,7 +216,8 @@ function validateJob(b) {
     'title',
     'jobType',
     'applyBefore',
-    'description'
+    'description',
+    'interviewRounds'
   ]) {
     if (!clean(b[k])) {
       return `${k} is required.`;
@@ -364,6 +365,7 @@ async function ensureSchema() {
       linkedin TEXT,
       github TEXT,
       portfolio TEXT,
+      profile_details JSONB NOT NULL DEFAULT '{}'::jsonb,
 
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -383,6 +385,36 @@ async function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_student_reset_otps
       ON password_reset_otps(student_id, used);
+
+    ALTER TABLE jobs
+      ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
+
+    ALTER TABLE students
+      ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+    CREATE TABLE IF NOT EXISTS job_applications (
+      id BIGSERIAL PRIMARY KEY,
+      job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'Applied',
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(job_id, student_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_job_applications_job_id
+      ON job_applications(job_id);
+
+    CREATE INDEX IF NOT EXISTS idx_job_applications_student_id
+      ON job_applications(student_id);
+
+    CREATE TABLE IF NOT EXISTS student_resumes (
+      student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'application/pdf',
+      file_data BYTEA NOT NULL,
+      uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 }
 
@@ -1249,10 +1281,11 @@ app.get(
   requireCompany,
   async (req, res) => {
     const r = await pool.query(
-      `SELECT *
-       FROM jobs
-       WHERE company_id=$1
-       ORDER BY created_at DESC`,
+      `SELECT j.*,
+               (SELECT COUNT(*)::int FROM job_applications a WHERE a.job_id=j.id) AS applicant_count
+        FROM jobs j
+        WHERE j.company_id=$1
+        ORDER BY j.created_at DESC`,
       [req.company.companyId]
     );
 
@@ -1278,8 +1311,8 @@ app.post(
     try {
       const r = await pool.query(
         `INSERT INTO jobs
-         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *`,
         [
           req.company.companyId,
@@ -1296,7 +1329,8 @@ app.post(
           clean(b.location) || null,
           clean(b.workMode) || null,
           clean(b.description),
-          clean(b.category) || 'eligible'
+          clean(b.category) || 'eligible',
+          clean(b.interviewRounds)
         ]
       );
 
@@ -1343,8 +1377,9 @@ app.patch(
              work_mode=$12,
              description=$13,
              category=$14,
+             interview_rounds=$15,
              updated_at=NOW()
-         WHERE id=$15 AND company_id=$16
+         WHERE id=$16 AND company_id=$17
          RETURNING *`,
         [
           clean(b.title),
@@ -1361,6 +1396,7 @@ app.patch(
           clean(b.workMode) || null,
           clean(b.description),
           clean(b.category) || 'eligible',
+          clean(b.interviewRounds),
           req.params.id,
           req.company.companyId
         ]
@@ -1438,6 +1474,7 @@ const publicJobSelect = `
     j.work_mode,
     j.description,
     j.category,
+    j.interview_rounds,
     j.created_at,
     j.updated_at
   FROM jobs j
@@ -1581,7 +1618,7 @@ app.get(
           education,skills,languages,experience,
           achievements,certifications,projects,
           summary,linkedin,github,portfolio,
-          created_at,updated_at
+          profile_details,created_at,updated_at
          FROM students
          WHERE id=$1`,
         [req.student.studentId]
@@ -1655,9 +1692,10 @@ app.put(
           linkedin=$21,
           github=$22,
           portfolio=$23,
+          profile_details=$24::jsonb,
           profile_completed=TRUE,
           updated_at=NOW()
-         WHERE id=$24
+         WHERE id=$25
          RETURNING id,name,reg_no,email,must_change_password,profile_completed`,
         [
           clean(b.name),
@@ -1707,6 +1745,7 @@ app.put(
           clean(b.linkedin) || null,
           clean(b.github) || null,
           clean(b.portfolio) || null,
+          JSON.stringify(b.profileDetails && typeof b.profileDetails === 'object' ? b.profileDetails : {}),
           req.student.studentId
         ]
       );
@@ -1999,6 +2038,225 @@ app.post(
     }
   }
 );
+
+/* =========================================================
+   STUDENT JOB APPLICATIONS
+========================================================= */
+
+app.get('/api/student/applications', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT a.id,a.job_id,a.status,a.applied_at,a.updated_at,
+              j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.location,j.work_mode,j.interview_rounds,
+              c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location
+       FROM job_applications a
+       JOIN jobs j ON j.id=a.job_id
+       JOIN companies c ON c.id=j.company_id
+       WHERE a.student_id=$1
+       ORDER BY a.applied_at DESC`,
+      [req.student.studentId]
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load your applications.' });
+  }
+});
+
+app.post('/api/jobs/:id/apply', requireStudent, async (req, res) => {
+  try {
+    const job = await pool.query(
+      `SELECT id,title,apply_before FROM jobs WHERE id=$1`,
+      [req.params.id]
+    );
+    if (!job.rows[0]) return res.status(404).json({ error: 'Job listing not found.' });
+
+    const deadline = job.rows[0].apply_before;
+    const today = new Date().toISOString().slice(0, 10);
+    if (deadline && String(deadline).slice(0, 10) < today) {
+      return res.status(400).json({ error: 'The application deadline has passed.' });
+    }
+
+    const resume = await pool.query(
+      `SELECT 1 FROM student_resumes WHERE student_id=$1`,
+      [req.student.studentId]
+    );
+    if (!resume.rows[0]) {
+      return res.status(400).json({
+        error: 'Please upload your PDF resume from your Student Profile before applying.'
+      });
+    }
+
+    const r = await pool.query(
+      `INSERT INTO job_applications (job_id,student_id,status)
+       VALUES($1,$2,'Applied')
+       ON CONFLICT(job_id,student_id) DO NOTHING
+       RETURNING id,job_id,student_id,status,applied_at`,
+      [req.params.id, req.student.studentId]
+    );
+    if (!r.rows[0]) return res.status(409).json({ error: 'You have already applied to this job.' });
+    res.status(201).json({ data: r.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not submit your application.' });
+  }
+});
+
+app.delete('/api/jobs/:id/apply', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `DELETE FROM job_applications
+       WHERE job_id=$1 AND student_id=$2
+       RETURNING id,job_id,student_id`,
+      [req.params.id, req.student.studentId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'You have not applied to this job.' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not withdraw your application.' });
+  }
+});
+
+app.get('/api/student/resume', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT file_name,mime_type,uploaded_at FROM student_resumes WHERE student_id=$1`,
+      [req.student.studentId]
+    );
+    res.json({ data: r.rows[0] || null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load resume information.' });
+  }
+});
+
+app.post('/api/student/resume', requireStudent, async (req, res) => {
+  const fileName = clean(req.body.fileName);
+  const mimeType = clean(req.body.mimeType);
+  let encoded = clean(req.body.data);
+
+  if (!fileName || !encoded) return res.status(400).json({ error: 'A PDF resume is required.' });
+  if (mimeType !== 'application/pdf' || !/\.pdf$/i.test(fileName)) {
+    return res.status(400).json({ error: 'Resume must be a PDF file.' });
+  }
+
+  encoded = encoded.replace(/^data:application\/pdf;base64,/i, '');
+  let fileData;
+  try { fileData = Buffer.from(encoded, 'base64'); }
+  catch { return res.status(400).json({ error: 'The uploaded PDF could not be read.' }); }
+
+  if (!fileData.length || fileData.length > 10 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Resume PDF must be smaller than 10 MB.' });
+  }
+
+  if (fileData.subarray(0, 5).toString() !== '%PDF-') {
+    return res.status(400).json({ error: 'The selected file is not a valid PDF.' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO student_resumes(student_id,file_name,mime_type,file_data,uploaded_at)
+       VALUES($1,$2,$3,$4,NOW())
+       ON CONFLICT(student_id)
+       DO UPDATE SET file_name=EXCLUDED.file_name,mime_type=EXCLUDED.mime_type,
+                     file_data=EXCLUDED.file_data,uploaded_at=NOW()`,
+      [req.student.studentId, fileName, mimeType, fileData]
+    );
+    res.json({ data: { file_name: fileName, mime_type: mimeType, size: fileData.length } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not save the uploaded resume.' });
+  }
+});
+
+app.get('/api/student/resume/download', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT file_name,mime_type,file_data FROM student_resumes WHERE student_id=$1`,
+      [req.student.studentId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'No resume has been uploaded.' });
+    const row = r.rows[0];
+    res.setHeader('Content-Type', row.mime_type);
+    res.setHeader('Content-Disposition', `attachment; filename="${String(row.file_name).replace(/["\r\n]/g, '_')}"`);
+    res.send(row.file_data);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not download your resume.' });
+  }
+});
+
+/* =========================================================
+   COMPANY APPLICANT MANAGEMENT
+========================================================= */
+
+app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT a.id AS application_id,a.job_id,a.status,a.applied_at,a.updated_at,
+              j.title AS job_title,
+              s.id AS student_id,s.name,s.reg_no,s.email,s.phone,s.college,s.degree,s.department,
+              s.graduation_year,s.cgpa,s.education,s.skills,s.languages,s.experience,
+              s.achievements,s.certifications,s.projects,s.summary,s.linkedin,s.github,s.portfolio,s.profile_details,
+              sr.file_name AS resume_file_name,sr.mime_type AS resume_mime_type,sr.uploaded_at AS resume_uploaded_at
+       FROM job_applications a
+       JOIN jobs j ON j.id=a.job_id
+       JOIN students s ON s.id=a.student_id
+       LEFT JOIN student_resumes sr ON sr.student_id=s.id
+       WHERE a.job_id=$1 AND j.company_id=$2
+       ORDER BY a.applied_at DESC`,
+      [req.params.id, req.company.companyId]
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load applicants for this job.' });
+  }
+});
+
+app.patch('/api/company/applications/:id', requireCompany, async (req, res) => {
+  const status = clean(req.body.status);
+  if (!['Applied','Selected','Rejected','Waitlisted'].includes(status)) {
+    return res.status(400).json({ error: 'Application status must be Applied, Selected, Rejected or Waitlisted.' });
+  }
+  try {
+    const r = await pool.query(
+      `UPDATE job_applications a
+       SET status=$1,updated_at=NOW()
+       FROM jobs j
+       WHERE a.id=$2 AND a.job_id=j.id AND j.company_id=$3
+       RETURNING a.id,a.job_id,a.student_id,a.status,a.updated_at`,
+      [status, req.params.id, req.company.companyId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found for your company.' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not update the application status.' });
+  }
+});
+
+app.get('/api/company/applications/:id/resume', requireCompany, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT sr.file_name,sr.mime_type,sr.file_data
+       FROM student_resumes sr
+       JOIN job_applications a ON a.student_id=sr.student_id
+       JOIN jobs j ON j.id=a.job_id
+       WHERE a.id=$1 AND j.company_id=$2`,
+      [req.params.id, req.company.companyId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'No uploaded PDF resume is available for this applicant.' });
+    const row = r.rows[0];
+    res.setHeader('Content-Type', row.mime_type);
+    res.setHeader('Content-Disposition', `attachment; filename="${String(row.file_name).replace(/["\r\n]/g, '_')}"`);
+    res.send(row.file_data);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not download the student resume.' });
+  }
+});
 
 /* =========================================================
    PUBLIC JOB LIST

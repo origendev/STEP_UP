@@ -67,3 +67,5 @@
 .pf-modal h3{margin:0;}
 .pf-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--white);padding:10px 18px;border-radius:99px;font-size:13px;z-index:300;}
 @media(max-width:720px){.pf{padding:14px 14px 50px;}.pf-grid,.pf-form,.pf-ac{grid-template-columns:1fr;}.pf-row span{width:120px;}}
+
+.pf-file-label{display:block;margin:14px 0;font-size:12px;font-weight:700}.pf-file-label input{display:block;margin-top:7px;width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--lilac-bg);color:var(--ink)}
