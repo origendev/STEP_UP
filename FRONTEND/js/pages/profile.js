@@ -37,10 +37,60 @@ const val = sel => (root.querySelector(sel)?.value || '').trim();
 const fixUrl = u => (/^https?:\/\//i.test(u) ? u : 'https://' + u);
 const host = u => { try{ return new URL(fixUrl(u)).hostname.replace(/^www\./, ''); }catch{ return u; } };
 
+const INC = [['education', 'Education'], ['skills', 'Skills'], ['projects', 'Projects'], ['experience', 'Work experience'], ['certifications', 'Certifications'], ['awards', 'Patents, scholarships and volunteering'], ['languages', 'Languages'], ['links', 'Links']];
+const RES_CSS = 'body{font-family:Calibri,Arial,sans-serif;color:#111;line-height:1.4;margin:32px}h1{font-size:24px;margin:0}.c{margin:2px 0 10px;color:#444}h2{font-size:14px;border-bottom:1px solid #999;margin:14px 0 6px;text-transform:uppercase}ul{margin:0;padding-left:18px}p{margin:0}';
+
+/* files that are too big for localStorage (the uploaded resume) go to IndexedDB */
+const idb = () => new Promise((ok, no) => { const r = indexedDB.open('stepup-files', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); });
+const idbDo = async (mode, fn) => { const d = await idb(); return new Promise((ok, no) => { const t = d.transaction('f', mode), q = fn(t.objectStore('f')); t.oncomplete = () => ok(q?.result); t.onerror = () => no(t.error); }); };
+const idbPut = (k, v) => idbDo('readwrite', st => st.put(v, k));
+const idbGet = k => idbDo('readonly', st => st.get(k));
+const idbDel = k => idbDo('readwrite', st => st.delete(k));
+
+function download(name, blob){
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const shrink = (file, max, q) => new Promise((ok, no) => {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => {
+    const r = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', q));
+  };
+  img.onerror = () => no(new Error('bad image')); img.src = url;
+});
+const join = (...a) => a.filter(Boolean).join(', ');
+
+/* resume built from the profile (used for the preview, Word download and print) */
+function resumeBody(){
+  const inc = S.resume.include, e = esc, out = [];
+  const name = field('overview', 'fullName') || 'Your name';
+  const contact = [field('contact', 'email'), field('contact', 'phone'), join(field('address', 'city'), field('address', 'state'))].filter(Boolean).join(' | ');
+  const sec = (t, html) => html ? `<h2>${t}</h2>${html}` : '';
+  const items = id => S.more[id].map(it => `<li><b>${e(it.a)}</b>${join(it.b, it.c) ? ' - ' + e(join(it.b, it.c)) : ''}</li>`).join('');
+  out.push(`<h1>${e(name)}</h1><p class="c">${e(contact)}</p>`);
+  if(S.resume.objective.trim()) out.push(sec('Objective', `<p>${e(S.resume.objective.trim())}</p>`));
+  if(inc.education) out.push(sec('Education', S.colleges.length ? `<ul>${S.colleges.map(c => `<li><b>${e(c.name)}</b>${join(c.course, c.branch) ? ' - ' + e(join(c.course, c.branch)) : ''}${c.years ? ' (' + e(c.years) + ')' : ''}${c.score ? ' | ' + e(c.score) : ''}</li>`).join('')}</ul>` : ''));
+  if(inc.skills) out.push(sec('Skills', S.skills.length ? `<p>${S.skills.map(x => e(x.name)).join(', ')}</p>` : ''));
+  if(inc.projects) out.push(sec('Projects', items('projects') && `<ul>${items('projects')}</ul>`));
+  if(inc.experience) out.push(sec('Work experience', items('experience') && `<ul>${items('experience')}</ul>`));
+  if(inc.certifications) out.push(sec('Certifications', items('certifications') && `<ul>${items('certifications')}</ul>`));
+  if(inc.awards) [['patents', 'Patents'], ['scholarships', 'Scholarships'], ['volunteering', 'Volunteering']].forEach(([id, t]) => out.push(sec(t, items(id) && `<ul>${items(id)}</ul>`)));
+  if(inc.languages) out.push(sec('Languages', S.languages.length ? `<p>${S.languages.map(e).join(', ')}</p>` : ''));
+  if(inc.links){
+    const ls = [...Object.entries(S.socials).map(([p, u]) => `${p}: ${u}`), ...S.links.map(l => l.url)];
+    out.push(sec('Links', ls.length ? `<ul>${ls.map(l => `<li>${e(l)}</li>`).join('')}</ul>` : ''));
+  }
+  return out.join('');
+}
+const resumeDoc = () => `<html><head><meta charset="utf-8"><title>Resume</title><style>${RES_CSS}</style></head><body>${resumeBody()}</body></html>`;
+const fileBase = () => (field('overview', 'fullName') || 'Resume').replace(/[^\w-]+/g, '_');
+
 function completeness(){
   const checks = Object.values(S.sections).flatMap(s => s.fields.map(x => !!x.value.trim()));
   checks.push(!!S.photo, S.skills.length > 0, S.languages.length > 0, S.more.projects.length > 0,
-    Object.keys(S.socials).length > 0, S.documents.some(d => d.status === 'uploaded'));
+    Object.keys(S.socials).length > 0, S.documents.some(d => d.status === 'uploaded') || !!S.resumeFile);
   return Math.round(100 * checks.filter(Boolean).length / checks.length);
 }
 
@@ -151,8 +201,14 @@ function more(){
     const items = S.more[m.id] || [], open = ui.add === m.id;
     return `<section class="card pf-card"><div class="card-head"><div class="card-title">${m.title} (${items.length})</div>
       <button class="btn-solid pf-sm" data-act="more-open" data-id="${m.id}">${open ? 'Close' : '+ ' + m.add.replace(/^Add /, 'Add ')}</button></div>
-      ${open ? `<div class="pf-addrow">${m.ph.map((p, n) => `<input class="pf-in" data-m="${n}" placeholder="${p}" aria-label="${p}" maxlength="80">`).join('')}<button class="btn-solid pf-sm" data-act="more-save" data-id="${m.id}">Save</button></div>` : ''}
-      ${items.length ? `<ul class="pf-items">${items.map((it, i) => `<li><div><b>${esc(it.a)}</b><small>${esc([it.b, it.c].filter(Boolean).join(' · '))}</small></div><button data-act="more-del" data-id="${m.id}" data-i="${i}" aria-label="Remove">${ICON.x}</button></li>`).join('')}</ul>` : `<p class="pf-empty">Nothing added yet.</p>`}</section>`;
+      ${open ? `<div class="pf-addrow">${m.ph.map((p, n) => `<input class="pf-in" data-m="${n}" placeholder="${p}" aria-label="${p}" maxlength="80" value="${esc((ui.draft || [])[n] || '')}">`).join('')}</div>
+        <div class="pf-proofrow"><button class="btn-outline pf-sm" data-act="proof-pick" data-id="${m.id}" data-i="new">${ui.pending ? 'Change photo proof' : 'Attach photo proof'}</button>
+          ${ui.pending ? `<img class="pf-thumb" src="${esc(ui.pending)}" alt="Proof preview"><button class="pf-linkbtn" data-act="proof-new-clear">Remove</button>` : '<small>Optional: certificate, offer letter, award photo…</small>'}
+          <button class="btn-solid pf-sm pf-right" data-act="more-save" data-id="${m.id}">Save</button></div>` : ''}
+      ${items.length ? `<ul class="pf-items">${items.map((it, i) => `<li>${it.proof ? `<button class="pf-thumbbtn" data-act="proof-view" data-id="${m.id}" data-i="${i}" aria-label="View photo proof"><img class="pf-thumb" src="${esc(it.proof)}" alt="Photo proof"></button>` : ''}
+          <div class="pf-grow"><b>${esc(it.a)}</b><small>${esc([it.b, it.c].filter(Boolean).join(' · '))}</small></div>
+          ${it.proof ? '' : `<button class="pf-linkbtn" data-act="proof-pick" data-id="${m.id}" data-i="${i}">+ Add photo proof</button>`}
+          <button data-act="more-del" data-id="${m.id}" data-i="${i}" aria-label="Remove">${ICON.x}</button></li>`).join('')}</ul>` : `<p class="pf-empty">Nothing added yet.</p>`}</section>`;
   }).join('');
   const soc = `<section class="card pf-card"><div class="card-head"><div class="card-title">Social media (${Object.keys(S.socials).length})</div></div>
     <p class="pf-hint">Click a platform to add or edit your link.</p>
@@ -166,11 +222,27 @@ function more(){
 }
 
 /* ---------------- Documents ---------------- */
+function resumeCard(){
+  const f = S.resumeFile, ed = ui.editResume;
+  const editor = ed ? `<div class="pf-editor"><div>
+      <label class="pf-f"><span>Career objective / summary</span><textarea class="pf-in" id="resObj" rows="4" maxlength="500" placeholder="One or two lines about what you are looking for">${esc(S.resume.objective)}</textarea></label>
+      <div class="pf-inc"><span>Include sections</span>${INC.map(([k, l]) => `<label class="pf-chk"><input type="checkbox" data-inc="${k}" ${S.resume.include[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+      <p class="pf-hint">Name and contact come from the Details tab, education from Academics, and the rest from Skills and More. Change those tabs and the resume updates.</p></div>
+      <div class="pf-paper" id="resPaper">${resumeBody()}</div></div>` : '';
+  return `<section class="card pf-card"><div class="card-head"><div class="card-title">Resume</div></div>
+    <div class="pf-rrow"><div class="pf-grow"><b>Uploaded resume</b><small>${f ? esc(f.name) + ' · ' + Math.max(1, Math.round(f.size / 1024)) + ' KB · ' + esc(f.date) : 'No file uploaded yet'}</small></div>
+      <div class="pf-btns"><button class="btn-outline" data-act="res-up">${f ? 'Replace' : 'Upload'}</button>
+      ${f ? `<button class="btn-solid pf-sm" data-act="res-dl">Download</button><button class="pf-xbtn" data-act="res-del" aria-label="Remove uploaded resume">${ICON.x}</button>` : ''}</div></div>
+    <div class="pf-rrow"><div class="pf-grow"><b>Resume from your profile</b><small>Built from your details, skills and projects. Edit it, then download.</small></div>
+      <div class="pf-btns"><button class="btn-outline" data-act="res-edit">${ed ? 'Close editor' : 'Edit resume'}</button>
+      <button class="btn-solid pf-sm" data-act="res-doc">Download (Word)</button><button class="btn-outline" data-act="res-pdf">Print / PDF</button></div></div>
+    ${editor}</section>`;
+}
 function documents(){
-  return `<section class="card pf-card"><div class="card-head"><div class="card-title">Documents</div>
+  return resumeCard() + `<section class="card pf-card"><div class="card-head"><div class="card-title">Other documents</div>
     <button class="btn-solid pf-sm" data-act="doc-new">+ Add new</button></div>
     ${ui.newDoc ? `<div class="pf-addrow"><input class="pf-in" id="docName" placeholder="Document name" aria-label="Document name" maxlength="60"><button class="btn-solid pf-sm" data-act="doc-create">Add</button></div>` : ''}
-    <ul class="pf-items">${S.documents.map((d, i) => `<li><div><b>${esc(d.name)}</b><small>${esc(d.meta)}</small></div>
+    <ul class="pf-items">${S.documents.map((d, i) => d.name === 'Resume' ? '' : `<li><div><b>${esc(d.name)}</b><small>${esc(d.meta)}</small></div>
       <div class="pf-btns"><span class="badge ${d.status === 'uploaded' ? 'badge-green' : 'badge-amber'}">${d.status === 'uploaded' ? 'Uploaded' : 'Missing'}</span>
       <button class="btn-outline" data-act="doc-up" data-i="${i}">${d.status === 'uploaded' ? 'Replace' : 'Upload'}</button>
       <button data-act="doc-del" data-i="${i}" aria-label="Remove ${esc(d.name)}">${ICON.x}</button></div></li>`).join('')}</ul>
@@ -199,8 +271,21 @@ function photo(file){
   img.src = url;
 }
 
+function closeProof(){ root.querySelector('#pfLb')?.remove(); ui.lb = null; }
+function showProof(id, i){
+  const it = S.more[id][i]; if(!it?.proof) return;
+  closeProof(); ui.lb = { id, i };
+  root.insertAdjacentHTML('beforeend', `<div class="pf-lb" id="pfLb"><div class="pf-lbbox" role="dialog" aria-label="Photo proof">
+    <img src="${esc(it.proof)}" alt="Photo proof for ${esc(it.a)}"><p>${esc(it.a)}</p>
+    <div class="pf-btns"><button class="btn-outline" data-act="proof-pick" data-id="${id}" data-i="${i}">Replace</button>
+    <button class="btn-cancel pf-danger" data-act="proof-del">Remove</button><button class="btn-solid pf-sm" data-act="lb-close">Close</button></div></div></div>`);
+}
+
+/* keeps what was typed in the add form while the page re-draws */
+const keepDraft = () => { ui.draft = [0, 1, 2].map(n => val(`[data-m="${n}"]`)); };
+
 const A = {
-  tab: d => { tab = d.t; ui = {}; render(); window.scrollTo({ top: 0 }); },
+  tab: d => { closeProof(); tab = d.t; ui = {}; render(); window.scrollTo({ top: 0 }); },
   go: d => navigate(d.to),
   photo: () => $('#pfPhotoIn').click(),
   verify: () => { S.verification = 'requested'; commit(); toast('Verification requested.'); },
@@ -242,17 +327,37 @@ const A = {
   'sk-del': d => { S.skills.splice(+d.i, 1); commit(); },
   view: d => { S.view = d.v; commit(); },
 
-  'more-open': d => { ui.add = ui.add === d.id ? null : d.id; renderPanel(); },
+  'more-open': d => { ui.add = ui.add === d.id ? null : d.id; ui.pending = null; ui.draft = null; renderPanel(); },
   'more-save': d => {
     const [a, b, c] = [0, 1, 2].map(n => val(`[data-m="${n}"]`));
     if(!a) return toast('Please fill in the first box.');
-    S.more[d.id].push({ a, b, c }); ui.add = null; commit();
+    S.more[d.id].push({ a, b, c, proof: ui.pending || '' }); ui.add = null; ui.pending = null; ui.draft = null; commit();
   },
   'more-del': d => { S.more[d.id].splice(+d.i, 1); commit(); },
   'soc-open': d => { ui.soc = ui.soc === d.p ? null : d.p; renderPanel(); $('#socIn')?.focus(); },
   'soc-save': () => { const u = val('#socIn'); if(!u) return; S.socials[ui.soc] = fixUrl(u); ui.soc = null; commit(); },
   'soc-del': () => { delete S.socials[ui.soc]; ui.soc = null; commit(); },
   lang: d => { const i = S.languages.indexOf(d.l); i < 0 ? S.languages.push(d.l) : S.languages.splice(i, 1); commit(); },
+
+  'proof-pick': d => { ui.proofTo = { id: d.id, i: d.i }; if(d.i === 'new') keepDraft(); $('#pfProofIn').click(); },
+  'proof-new-clear': () => { keepDraft(); ui.pending = null; renderPanel(); },
+  'proof-view': d => showProof(d.id, +d.i),
+  'proof-del': () => { const { id, i } = ui.lb; delete S.more[id][i].proof; closeProof(); commit(); },
+  'lb-close': () => closeProof(),
+
+  'res-up': () => $('#pfResumeIn').click(),
+  'res-dl': async () => {
+    try{ const b = await idbGet('resume'); if(!b) return toast('The file is not on this device any more. Please upload it again.'); download(S.resumeFile.name, b); }
+    catch{ toast('Could not read the saved file.'); }
+  },
+  'res-del': async () => { if(!confirm('Remove the uploaded resume file?')) return; try{ await idbDel('resume'); }catch{} S.resumeFile = null; commit(); },
+  'res-edit': () => { ui.editResume = !ui.editResume; renderPanel(); },
+  'res-doc': () => download(fileBase() + '_Resume.doc', new Blob(['\ufeff' + resumeDoc()], { type: 'application/msword' })),
+  'res-pdf': () => {
+    const fr = Object.assign(document.createElement('iframe'), { className: 'pf-print' });
+    document.body.appendChild(fr); const d = fr.contentDocument; d.open(); d.write(resumeDoc()); d.close();
+    setTimeout(() => { fr.contentWindow.focus(); fr.contentWindow.print(); setTimeout(() => fr.remove(), 2000); }, 250);
+  },
 
   'doc-up': d => { ui.upDoc = +d.i; $('#pfDocIn').click(); },
   'doc-del': d => { const doc = S.documents[+d.i]; if(!confirm(`Remove "${doc.name}"?`)) return; S.documents.splice(+d.i, 1); commit(); },
@@ -269,8 +374,29 @@ export function mount(){
     const el = e.target.closest('[data-act]');
     if(el) A[el.dataset.act]?.(el.dataset);
   });
+  const refreshPaper = () => { const p = $('#resPaper'); if(p) p.innerHTML = resumeBody(); };
   root.addEventListener('input', e => {
     if(e.target.id === 'pfSearch'){ ui.q = e.target.value; applySearch(); }
+    if(e.target.id === 'resObj'){ S.resume.objective = e.target.value; save(); refreshPaper(); }
+  });
+  root.addEventListener('change', e => {
+    if(e.target.dataset.inc){ S.resume.include[e.target.dataset.inc] = e.target.checked; save(); refreshPaper(); }
+  });
+  root.addEventListener('click', e => { if(e.target.id === 'pfLb') closeProof(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && ui.lb) closeProof(); });
+  $('#pfProofIn').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+    if(!f.type.startsWith('image/')) return toast('Please choose an image file.');
+    let url; try{ url = await shrink(f, 900, 0.72); }catch{ return toast('Could not read that image.'); }
+    const t = ui.proofTo; if(!t) return;
+    if(t.i === 'new'){ ui.pending = url; renderPanel(); return; }
+    closeProof(); S.more[t.id][+t.i].proof = url; commit(); toast('Photo proof saved.');
+  });
+  $('#pfResumeIn').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+    if(f.size > 5 * 1024 * 1024) return toast('Please choose a file under 5 MB.');
+    try{ await idbPut('resume', f); }catch{ return toast('Could not store the file in this browser.'); }
+    S.resumeFile = { name: f.name, size: f.size, date: today() }; commit(); toast('Resume uploaded.');
   });
   root.addEventListener('keydown', e => {
     if(e.key !== 'Enter') return;

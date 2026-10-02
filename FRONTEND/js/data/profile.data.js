@@ -45,15 +45,17 @@ export const defaults = {
     { name: 'Class 10', course: 'Secondary', branch: '', years: '', score: '91.2%', backlogs: '', history: '', semesters: [] },
   ],
 
+  resume: { objective: '', include: { education: true, skills: true, projects: true, experience: true, certifications: true, awards: true, languages: true, links: true } },
+  resumeFile: null,                     // { name, size, date }  (file itself is kept in IndexedDB)
+
   skills: [],                           // [{ name, level }]
   view: 'grid',
 
-  more: { experience: [], projects: [], certifications: [], patents: [], scholarships: [], volunteering: [] },
+  more: { experience: [], projects: [], certifications: [], patents: [], scholarships: [], volunteering: [] },   // items: { a, b, c, proof }
   socials: {},                          // { github: 'https://…' }
   languages: [],
 
   documents: [
-    { name: 'Resume', meta: 'Not uploaded yet', status: 'missing' },
     { name: '10th Marksheet', meta: 'Not uploaded yet', status: 'missing' },
     { name: '11th Marksheet', meta: 'Not uploaded yet', status: 'missing' },
     { name: '12th Marksheet', meta: 'Not uploaded yet', status: 'missing' },
