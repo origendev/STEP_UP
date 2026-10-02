@@ -21,7 +21,6 @@
 <link rel="stylesheet" href="css/pages/demands.css">
 <link rel="stylesheet" href="css/pages/skills.css">
 <link rel="stylesheet" href="css/pages/progress.css">
-<link rel="stylesheet" href="css/pages/settings.css">
 </head>
 <body>
 
@@ -30,26 +29,11 @@
   <div class="brand"><span class="brand-mark">S</span>StepUp</div>
 
   <div class="navlinks" id="navlinks">
-    <button class="navlink active" data-tab="home">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
-      <span class="navlabel" data-label="Home">Home</span>
-    </button>
-    <button class="navlink" data-tab="jobs">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
-      <span class="navlabel" data-label="Jobs">Jobs</span>
-    </button>
-    <button class="navlink" data-tab="demands">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="12" width="4.5" height="8" rx="2.2"/><rect x="9.8" y="4" width="4.5" height="16" rx="2.2"/><rect x="15.6" y="8" width="4.5" height="12" rx="2.2"/></svg>
-      <span class="navlabel" data-label="Demands">Demands</span>
-    </button>
-    <button class="navlink" data-tab="skills">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2.5 15 9 22 9.8 16.8 14.6 18.3 21.5 12 18 5.7 21.5 7.2 14.6 2 9.8 9 9"/></svg>
-      <span class="navlabel" data-label="Skills">Skills</span>
-    </button>
-    <button class="navlink" data-tab="progress">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12A9 9 0 1 1 12 3"/><path d="M12 3v9h9"/></svg>
-      <span class="navlabel" data-label="Progress">Progress</span>
-    </button>
+    <button class="navlink active" data-tab="home">Home</button>
+    <button class="navlink" data-tab="jobs">Jobs</button>
+    <button class="navlink" data-tab="demands">Demands</button>
+    <button class="navlink" data-tab="skills">Skills</button>
+    <button class="navlink" data-tab="progress">Progress</button>
   </div>
 
   <div class="top-actions">
@@ -59,16 +43,20 @@
     <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
     </button>
-    <button class="icon-btn has-dot" aria-label="Notifications" title="Notifications">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-    </button>
-    <div class="avatar" id="avatarBtn" title="Account">V</div>
-    <div class="user-menu" id="userMenu" hidden>
-      <button data-go="profile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>My profile</button>
-      <button data-go="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings</button>
-      <div class="um-sep" role="separator"></div>
-      <button class="danger" data-act="logout"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Log out</button>
+    <div class="notif-menu" id="notifMenu">
+      <button class="icon-btn" id="notifBtn" aria-label="Notifications" title="Notifications">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-dot" id="notifDot" hidden></span>
+      </button>
+      <div class="notif-panel" id="notifPanel">
+        <div class="notif-panel-head">
+          <span>Notifications</span>
+          <button id="notifMarkAllBtn">Mark all as read</button>
+        </div>
+        <div class="notif-list" id="notifList"></div>
+      </div>
     </div>
+    <div class="avatar" id="avatarBtn" title="View profile">V</div>
   </div>
 </div>
 
