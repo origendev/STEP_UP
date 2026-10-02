@@ -83,10 +83,13 @@
 
 </main>
 
-<script src="js/config.js"></script>
 <script type="module">
 
-import { api, setSession } from './js/core/api.js';
+import { api, setSession, getToken } from './js/core/api.js';
+
+if (getToken()) {
+  location.href = 'index.html#/home';
+}
 
 const form = document.getElementById('loginForm');
 const msg = document.getElementById('message');

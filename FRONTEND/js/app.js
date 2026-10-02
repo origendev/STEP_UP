@@ -6,20 +6,19 @@
    This is the only script index.html loads.
 ============================================================ */
 
-import * as router from './core/router.js?v=20260930d';
+import * as router from './core/router.js';
 import * as theme  from './core/theme.js';
-import { clearSession } from './core/api.js';
-import { esc } from './core/dom.js';
-import { profileMeta } from './data/profile.data.js';
 
 import { mount as mountHome } from './pages/home.js';
 import { mount as mountProfile } from './pages/profile.js';
 import { mount as mountJobs } from './pages/jobs.js';
-import { mount as mountDemands } from './pages/demands-dashboard.js?v=20260930d';
+import { mount as mountDemands } from './pages/demands.js';
 import { mount as mountSkills } from './pages/skills.js';
 import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
+import { mount as mountSettings } from './pages/settings.js';
+import * as prefs from './core/prefs.js';
 
 /* Route name -> pages/<name>.html + its mount function */
 router.register('home',         mountHome);
@@ -30,49 +29,29 @@ router.register('skills',       mountSkills);
 router.register('progress',     mountProgress);
 router.register('round1', mountRound1);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
+router.register('settings',     mountSettings);  // reached via the avatar menu
 
 /* Shell-level behaviour */
+prefs.init();
 theme.init();
 
-/* Avatar dropdown: name + register number, Profile, Settings, Logout */
+/* Avatar menu: Profile / Settings */
 const avatar = document.getElementById('avatarBtn');
-const menu = document.createElement('div');
-menu.className = 'user-menu';
-avatar.parentElement.appendChild(menu);
-
-function who(){
-  try{ const s = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
-       if(s && s.name) return { name:s.name, reg:s.reg_no || '-' }; }catch{}
-  return { name:profileMeta.name, reg:profileMeta.regNo };
-}
-function openProfile(tab){
-  if(tab) sessionStorage.setItem('pfTab', tab); else sessionStorage.removeItem('pfTab');
-  menu.classList.remove('open');
-  router.navigate('profile');
-  window.dispatchEvent(new CustomEvent('pf-tab', { detail: tab || 'Details' }));
-}
-function fillAvatar(){ avatar.textContent = (who().name[0] || 'S').toUpperCase(); }
-fillAvatar();
-
-avatar.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const u = who();
-  menu.innerHTML = `
-    <div class="um-id"><div class="um-name">${esc(u.name)}</div><div class="um-reg">Reg No: ${esc(u.reg)}</div></div>
-    <button data-act="profile">Profile</button>
-    <button data-act="settings">Settings</button>
-    <button data-act="logout" class="danger">Logout</button>`;
-  menu.classList.toggle('open');
+const menu   = document.getElementById('userMenu');
+avatar.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+menu.addEventListener('click', e => {
+  const b = e.target.closest('[data-go], [data-act]');
+  if(!b) return;
+  menu.hidden = true;
+  if(b.dataset.act === 'logout'){
+    ['stepupStudentToken', 'stepupStudent'].forEach(k => localStorage.removeItem(k));
+    location.href = 'student-login.html';
+    return;
+  }
+  router.navigate(b.dataset.go);
 });
-menu.addEventListener('click', (e) => {
-  const act = e.target.dataset.act;
-  if(act === 'profile')  openProfile();
-  if(act === 'settings') openProfile('Settings');
-  if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
-});
-document.addEventListener('click', () => menu.classList.remove('open'));
-document.addEventListener('keydown', (e) => { if(e.key === 'Escape') menu.classList.remove('open'); });
-window.addEventListener('storage', fillAvatar);
+document.addEventListener('click', () => { menu.hidden = true; });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') menu.hidden = true; });
 
 /* Go */
 router.start({ mountSelector:'#app', fallback:'home' });
