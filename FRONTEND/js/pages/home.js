@@ -8,6 +8,8 @@ import {
   renderList
 } from '../core/dom.js';
 
+import { initChatbot } from './chatbot.js';
+
 import {
   placementProgress,
   skillSnapshot,
@@ -86,6 +88,8 @@ function milestoneRow(milestone) {
 ============================================================ */
 
 export function mount() {
+
+  initChatbot();
 
   /* ----------------------------------------------------------
      Skills
