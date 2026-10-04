@@ -66,25 +66,6 @@
   box-shadow:0 16px 36px -12px rgba(36,26,77,.6); max-width:calc(100vw - 32px);
 }
 
-/* ---------- Avatar menu (Profile / Settings) ---------- */
-.top-actions{ position:relative; }
-.user-menu{
-  position:absolute; top:calc(100% + 10px); right:0; min-width:180px; padding:6px; z-index:80;
-  border-radius:16px; background:var(--white); border:1px solid var(--line);
-  box-shadow:var(--shadow-card), 0 18px 40px -16px rgba(36,26,77,.35);
-}
-.user-menu[hidden]{ display:none; }
-.user-menu button{
-  display:flex; align-items:center; gap:10px; width:100%; padding:10px 12px; border:0; border-radius:10px;
-  background:none; color:var(--ink); font:inherit; font-size:14px; font-weight:500; text-align:left; cursor:pointer;
-}
-.user-menu button:hover{ background:var(--violet-100); }
-.um-sep{ height:1px; margin:4px 6px; background:var(--line); }
-.user-menu button.danger{ color:var(--rose); }
-.user-menu button.danger:hover{ background:var(--rose-bg); }
-.user-menu button.danger svg{ stroke:var(--rose); }
-.user-menu svg{ width:16px; height:16px; fill:none; stroke:var(--ink-soft); stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-
 /* ---------- Font choice (Settings > Appearance) ---------- */
 html[data-font="system"] :where(body, body *){ font-family:system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif !important; }
 html[data-font="serif"]  :where(body, body *){ font-family:Georgia, 'Times New Roman', serif !important; }

@@ -422,6 +422,94 @@ async function ensureSchema() {
    HEALTH CHECK
 ========================================================= */
 
+/* ------------------------------------------------------------
+   StepUp AI assistant (home-page chatbot)
+------------------------------------------------------------ */
+const CHAT_SYSTEM_PROMPT = `You are "Step", the friendly robot assistant of StepUp, a placement hub for college students in India.
+Help with: placement and interview preparation, resumes, aptitude/coding/HR rounds, skills to learn, job roles, career guidance, and how to use StepUp (Home, Jobs, Demands, Skills, Progress tabs and Profile).
+Be warm, concise (under 150 words unless asked for more), practical, and use short bullet points when listing. Never invent specific job openings, salaries or statistics; say you are unsure instead. If asked something unrelated to studies, careers or StepUp, politely steer back.`;
+const chatHits = new Map();
+
+function cleanChatMessages(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+    .slice(-10)
+    .map(m => ({ role: m.role, content: m.content.trim().slice(0, 1500) }));
+}
+
+app.post('/api/chat', async (req, res) => {
+  const now = Date.now();
+  const hits = (chatHits.get(req.ip) || []).filter(t => now - t < 60000);
+  if (hits.length >= 20) return res.status(429).json({ error: 'You are chatting too fast. Please wait a moment.' });
+  hits.push(now);
+  chatHits.set(req.ip, hits);
+
+  const messages = cleanChatMessages(req.body?.messages);
+  if (!messages.length || messages[messages.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'Send a message first.' });
+  }
+
+  try {
+    let reply = '';
+    if (DEMAND_AI_PROVIDER === 'openai' && OPENAI_API_KEY) {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: ROLE_OUTLOOK_MODEL,
+          temperature: 0.5,
+          max_tokens: 500,
+          messages: [{ role: 'system', content: CHAT_SYSTEM_PROMPT }, ...messages]
+        }),
+        signal: AbortSignal.timeout(30000)
+      });
+      const payload = await r.json();
+      if (!r.ok) throw new Error(payload.error?.message || `OpenAI returned ${r.status}`);
+      reply = payload.choices?.[0]?.message?.content?.trim() || '';
+    } else if (GEMINI_API_KEY) {
+      const models = [...new Set([GEMINI_MODEL, GEMINI_FALLBACK_MODEL])];
+      let lastError;
+      for (const model of models) {
+        try {
+          console.log(`Chat: asking ${model}...`);
+          const startedAt = Date.now();
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: CHAT_SYSTEM_PROMPT }] },
+                contents: messages.map(m => ({
+                  role: m.role === 'assistant' ? 'model' : 'user',
+                  parts: [{ text: m.content }]
+                })),
+                generationConfig: { temperature: 0.5, maxOutputTokens: 1500 }
+              }),
+              signal: AbortSignal.timeout(20000)
+            }
+          );
+          const payload = await r.json();
+          if (!r.ok) throw new Error(payload.error?.message || `Gemini returned ${r.status}`);
+          reply = payload.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+          console.log(`Chat: ${model} answered in ${Date.now() - startedAt} ms`);
+          if (!reply) throw new Error('empty answer (the model returned no text)');
+          break;
+        } catch (err) { console.warn(`Chat model ${model} failed: ${err.message}`); lastError = err; }
+      }
+      if (!reply && lastError) throw lastError;
+    } else {
+      return res.status(503).json({ error: 'AI is not configured. Add GEMINI_API_KEY to BACKEND/.env.' });
+    }
+    if (!reply) throw new Error('The assistant returned an empty answer.');
+    res.json({ reply });
+  } catch (error) {
+    console.error('Chat error:', error.message);
+    res.status(502).json({ error: 'The assistant is busy right now. Please try again.' });
+  }
+});
+
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');

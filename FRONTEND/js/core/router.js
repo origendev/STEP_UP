@@ -35,7 +35,34 @@ function setActiveLink(name){
   document.querySelectorAll('.navlink').forEach(link => {
     link.classList.toggle('active', link.dataset.tab === name);
   });
+  moveBubble();
 }
+
+/** Glide the glass bubble behind the active nav link. */
+let bubble = null;
+function moveBubble(instant = false){
+  const bar = document.getElementById('navlinks');
+  const active = bar && bar.querySelector('.navlink.active');
+  if(!bar) return;
+  if(!bubble) bubble = bar.querySelector('.nav-bubble');   // the module can be loaded twice; share one bubble
+  if(!bubble){
+    bubble = document.createElement('span');
+    bubble.className = 'nav-bubble';
+    bar.prepend(bubble);
+  }
+  if(!active){ bubble.classList.remove('ready'); return; }
+  const first = !bubble.classList.contains('ready');
+  if(instant || first) bubble.classList.add('no-anim');
+  bubble.style.width  = active.offsetWidth  + 'px';
+  bubble.style.height = active.offsetHeight + 'px';
+  bubble.style.borderRadius = getComputedStyle(active).borderRadius;
+  bubble.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+  bubble.classList.add('ready');
+  if(instant || first){ bubble.offsetWidth; bubble.classList.remove('no-anim'); }
+}
+window.addEventListener('resize', () => moveBubble(true));
+new MutationObserver(() => moveBubble(true)).observe(document.documentElement, { attributes:true, attributeFilter:['data-nav'] });
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => moveBubble(true));
 
 /** Swap to a route. Called by nav clicks, [data-goto] elements and the hash. */
 export async function navigate(name, { updateHash = true } = {}){
@@ -43,6 +70,7 @@ export async function navigate(name, { updateHash = true } = {}){
   if(name === currentRoute) return;
 
   setActiveLink(name);   // highlight the tab that was touched straight away
+  document.body.dataset.route = name;   // lets CSS show page-specific widgets (e.g. the home chatbot)
 
   try{
     appEl.innerHTML = await loadHTML(name);

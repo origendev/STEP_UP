@@ -28,6 +28,10 @@ function apply(mode){
   document.documentElement.setAttribute('data-theme', mode);
 }
 
+/** Used by the Settings page. mode = 'system' | 'light' | 'dark' */
+export function getMode(){ return read(); }
+export function setMode(mode){ write(mode); apply(mode); }
+
 export function init(){
   apply(read());
 

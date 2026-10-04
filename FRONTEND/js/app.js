@@ -21,6 +21,9 @@ import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 import { mount as mountRound2 } from './pages/round2.js';
+import { mount as mountSettings } from './pages/settings.js';
+import * as prefs from './core/prefs.js';
+import * as notifications from './core/notifications.js';
 
 /* Route name -> pages/<name>.html + its mount function */
 router.register('home',         mountHome);
@@ -32,9 +35,12 @@ router.register('progress',     mountProgress);
 router.register('round1', mountRound1);
 router.register('round2', mountRound2);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
+router.register('settings',     mountSettings);  // reached via the avatar menu
 
 /* Shell-level behaviour */
+prefs.init();
 theme.init();
+notifications.init();   // bell icon: shows the notifications panel
 
 /* Avatar dropdown: name + register number, Profile, Settings, Logout */
 const avatar = document.getElementById('avatarBtn');
@@ -69,7 +75,7 @@ avatar.addEventListener('click', (e) => {
 menu.addEventListener('click', (e) => {
   const act = e.target.dataset.act;
   if(act === 'profile')  openProfile();
-  if(act === 'settings') openProfile('Settings');
+  if(act === 'settings'){ menu.classList.remove('open'); router.navigate('settings'); }
   if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
 });
 document.addEventListener('click', () => menu.classList.remove('open'));
