@@ -219,20 +219,27 @@ export function initChatbot() {
   }
 
   async function ask(signal) {
+    const local = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; local.abort(); }, 35000);   // never spin forever
+    signal.addEventListener('abort', () => local.abort());
     try {
       const res = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
-        signal
+        signal: local.signal
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.reply) throw new Error(data.error || 'No reply');
       return { text: data.reply, offline: false };
     } catch (err) {
+      if (timedOut) return { text: 'Sorry, I am taking too long to answer right now. Please try again in a moment (tap the refresh arrow under this message).', offline: true };
       if (err.name === 'AbortError') throw err;
       const last = history[history.length - 1];
       return { text: fallbackReply(last ? last.content : ''), offline: true };
+    } finally {
+      clearTimeout(timer);
     }
   }
 

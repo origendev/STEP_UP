@@ -472,6 +472,8 @@ app.post('/api/chat', async (req, res) => {
       let lastError;
       for (const model of models) {
         try {
+          console.log(`Chat: asking ${model}...`);
+          const startedAt = Date.now();
           const r = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
             {
@@ -483,16 +485,18 @@ app.post('/api/chat', async (req, res) => {
                   role: m.role === 'assistant' ? 'model' : 'user',
                   parts: [{ text: m.content }]
                 })),
-                generationConfig: { temperature: 0.5, maxOutputTokens: 600 }
+                generationConfig: { temperature: 0.5, maxOutputTokens: 1500 }
               }),
-              signal: AbortSignal.timeout(30000)
+              signal: AbortSignal.timeout(20000)
             }
           );
           const payload = await r.json();
           if (!r.ok) throw new Error(payload.error?.message || `Gemini returned ${r.status}`);
           reply = payload.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('').trim() || '';
+          console.log(`Chat: ${model} answered in ${Date.now() - startedAt} ms`);
+          if (!reply) throw new Error('empty answer (the model returned no text)');
           break;
-        } catch (err) { lastError = err; }
+        } catch (err) { console.warn(`Chat model ${model} failed: ${err.message}`); lastError = err; }
       }
       if (!reply && lastError) throw lastError;
     } else {
