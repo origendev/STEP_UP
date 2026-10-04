@@ -1,0 +1,81 @@
+<!-- ============================================================
+     round2.html — Round 2 Coding Assessment (IDE)
+============================================================ -->
+
+<div class="view" id="view-round2">
+
+  <section class="round2-ide" id="round2Ide">
+
+    <!-- Row 1: title + language + theme -->
+    <div class="r2-header">
+      <div class="r2-header-left">
+        <div class="r2-logo">&gt;_</div>
+        <strong class="r2-title">Open IDE</strong>
+        <span class="r2-file">📄 main.py</span>
+      </div>
+
+      <div class="r2-header-right">
+        <select id="round2Language" class="r2-select">
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="javascript">JavaScript</option>
+        </select>
+        <span class="r2-label">Theme:</span>
+        <select id="round2Theme" class="r2-select">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+        <button class="r2-btn" id="round2TerminalBtn">&gt;_ Terminal</button>
+        <button class="r2-btn r2-btn-blue" id="round2LinesBtn">Lines</button>
+      </div>
+    </div>
+
+    <!-- Row 2: actions + Run -->
+    <div class="r2-actions">
+      <div class="r2-actions-left">
+        <button class="r2-btn r2-icon-btn" id="round2ToggleExplorer" title="Toggle explorer">▯</button>
+        <button class="r2-btn" id="round2Import">⬆ Import</button>
+        <button class="r2-btn" id="round2Export">⬇ Export</button>
+        <span class="r2-divider"></span>
+        <button class="r2-btn r2-btn-save" id="round2Save">💾 Save</button>
+      </div>
+      <button class="r2-run" id="round2Run">▶ Run</button>
+    </div>
+
+    <!-- Body: explorer + editor -->
+    <div class="r2-body">
+
+      <aside class="r2-explorer" id="round2Explorer">
+        <div class="r2-explorer-title">EXPLORER</div>
+        <div class="r2-explorer-empty">Empty</div>
+      </aside>
+
+      <div class="r2-editor-wrap">
+        <div class="r2-lines" id="round2LineNumbers">1<br>2<br>3<br>4<br>5<br>6<br>7</div>
+        <textarea id="round2Editor" class="r2-editor" spellcheck="false" wrap="off"># Python Hello World
+print("Hello, World!")
+
+# Get user input
+name = input("Enter your name: ")
+print(f"Hello, {name}!")
+</textarea>
+        <button class="r2-ai" id="round2Ai">💡 AI Suggest</button>
+      </div>
+
+    </div>
+
+    <!-- Terminal / output (hidden until Terminal is clicked) -->
+    <div class="r2-terminal" id="round2Terminal" hidden>
+      <div class="r2-terminal-title">OUTPUT</div>
+      <pre id="round2Output"></pre>
+    </div>
+
+  </section>
+
+  <div class="round2-controls">
+    <button class="progress-round-button round1-submit" id="round2Submit">
+      Submit Assessment
+    </button>
+  </div>
+
+</div>

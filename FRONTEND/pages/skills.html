@@ -11,12 +11,45 @@
     </div>
   </div>
 
-  <div class="empty-state">
-    <div class="empty-ic">
-      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+    <!-- Assessment Rounds -->
+  <section class="progress-rounds">
+
+    <!-- Round 1 -->
+    <div class="card progress-round-card">
+      <div class="progress-round-status completed"><span>✓</span> Submitted successfully</div>
+      <h3>Round 1 — Assessment</h3>
+      <div class="progress-round-details">
+        <p><strong>Date:</strong> 24 September 2026</p>
+        <p><strong>Time:</strong> 11:00 AM–12:00 PM IST</p>
+      </div>
+      <p class="progress-round-description">Your assessment has been submitted. Official results will be communicated by email.</p>
+      <button class="progress-round-button" data-goto="round1">Start Round 1 <span>›</span></button>
     </div>
-    <h3>Nothing here yet</h3>
-    <p>The Skills section is still being set up. Once it's ready, you'll be able to track proficiency and get recommendations here.</p>
-  </div>
+
+    <!-- Round 2 -->
+    <div class="card progress-round-card">
+      <div class="progress-round-status waiting">Round 1 result awaited</div>
+      <h3>Round 2 — Coding Assessment</h3>
+      <div class="progress-round-details">
+        <p><strong>Date:</strong> 24 September 2026</p>
+        <p><strong>Time:</strong> 1:00 PM–2:00 PM IST</p>
+      </div>
+      <p class="progress-round-description">Your Round 1 result and Round 2 eligibility will be communicated by official email.</p>
+      <button class="progress-round-button" data-goto="round2">Start Round 2 <span>›</span></button>
+    </div>
+
+    <!-- Round 3 -->
+    <div class="card progress-round-card">
+      <div class="progress-round-status waiting">Available after Round 2</div>
+      <h3>Round 3 — Technical Interview</h3>
+      <div class="progress-round-details">
+        <p><strong>Schedule:</strong> From 3:00 PM onward</p>
+        <p><strong>Mode:</strong> Online technical interview</p>
+      </div>
+      <p class="progress-round-description">Students who clear Round 2 will receive the interview meeting link by email.</p>
+      <button class="progress-round-button" disabled>Start Round 3 <span>›</span></button>
+    </div>
+
+  </section>
 
 </div>

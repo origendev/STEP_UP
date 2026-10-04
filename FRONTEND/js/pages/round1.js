@@ -148,7 +148,7 @@ submitButton.addEventListener("click", () => {
     "true"
   );
 
-  window.location.hash = "#progress";
+  window.location.hash = "#skills";
 
 });
 

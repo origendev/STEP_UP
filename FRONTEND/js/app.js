@@ -20,6 +20,7 @@ import { mount as mountSkills } from './pages/skills.js';
 import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
+import { mount as mountRound2 } from './pages/round2.js';
 import { mount as mountSettings } from './pages/settings.js';
 import * as prefs from './core/prefs.js';
 import * as notifications from './core/notifications.js';
@@ -32,6 +33,7 @@ router.register('news-detail',  mountNewsDetail);
 router.register('skills',       mountSkills);
 router.register('progress',     mountProgress);
 router.register('round1', mountRound1);
+router.register('round2', mountRound2);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
 router.register('settings',     mountSettings);  // reached via the avatar menu
 
