@@ -21,7 +21,21 @@ const DET = [
   ['Address Details',1,[['#','Current Address'],...adr('c'),['#','Permanent Address'],...adr('p')]],
   ['Parent Information',1,[['#','Father'],...par('Father','f'),['#','Mother'],...par('Mother','m')]],
 ];
-const RO = new Set(['name','first','last','regNo','email','regOn','verOn','registered','verBy']);
+/* read-only: identity set by the placement cell (name, first & last name are now editable) */
+const RO = new Set(['regNo','email','regOn','verOn','registered','verBy']);
+/* nicer inputs for a few fields; everything else is a plain text box */
+const YN = ['Yes','No'];
+const FT = { gender:['select',['Male','Female','Other','Prefer not to say']], dob:['date'], pwd:['select',YN], da:['select',YN], passOut:['number'], acAtt:['text'], tpAtt:['text'] };
+function fieldInput(k){
+  const v = P.d[k] || '', dis = RO.has(k) ? 'disabled' : '', t = FT[k];
+  if(t && t[0] === 'select'){
+    const opts = t[1].includes(v) || !v ? t[1] : [v, ...t[1]];
+    return `<select data-k="${k}" ${dis}><option value="">Select</option>${opts.map(o => `<option ${o===v?'selected':''}>${esc(o)}</option>`).join('')}</select>`;
+  }
+  if(t && t[0] === 'date') return `<input type="date" data-k="${k}" value="${esc(String(v).slice(0,10))}" max="${new Date().toISOString().slice(0,10)}" ${dis}>`;
+  if(t && t[0] === 'number') return `<input type="number" data-k="${k}" value="${esc(v)}" min="2000" max="2100" ${dis}>`;
+  return `<input data-k="${k}" value="${esc(v)}" ${dis}>`;
+}
 const MORE = [
   ['work','Work Experience','Add Experience',[['title','Role'],['org','Company'],['period','Duration'],['desc','Description','area']]],
   ['projects','Projects','Add Project',[['title','Project name'],['org','Technologies'],['link','Link'],['desc','Description','area']]],
@@ -100,7 +114,7 @@ function head(){
       <p class="pf-sub">${esc([a.branch, a.course, a.year].filter(Boolean).join(' · ') || 'Add your academics')}</p>
       <p class="pf-contact"><b>0</b> applied ${d.email ? ` &nbsp;&#9993; <b>${esc(d.email)}</b>` : ''} ${d.phone ? ` &nbsp;&#9742; <b>${esc(d.phone)}</b>` : ''}</p></div></div>
     <div class="pf-actions"><div class="pf-links">${S.links.map((l,i) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a><button data-rl="${i}" title="Remove">&times;</button>`).join('')}<button class="pf-ghost" id="pfLink">+ Add Link</button></div>
-    <div class="pf-btns"><button class="pf-pill" id="bOffers">0 Offers</button><button class="pf-pill pri" id="pfTrack">Job Tracker</button><button class="pf-pill" id="bSurveys">Surveys</button><button class="pf-pill" id="bResume">Resumes</button><button class="pf-pill" id="bReport">Reports</button></div></div>`;
+    <div class="pf-btns"><button class="pf-pill" id="bOffers">0 Offers</button><button class="pf-pill pri" id="pfTrack">Job Tracker</button><button class="pf-pill" id="bResume">Resumes</button><button class="pf-pill" id="bReport">Reports</button></div></div>`;
 }
 
 const row = (l,v) => `<div class="pf-row"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
@@ -108,10 +122,10 @@ function details(){
   const ql = q.toLowerCase();
   return `<div class="pf-search"><input id="pfQ" placeholder="Search any field or value..." value="${esc(q)}"></div>` + DET.map(([t,ed,f]) => {
     if(t === 'TAGS') return (ql && !S.tags.join(' ').toLowerCase().includes(ql)) ? '' : `<section class="pf-sec"><div class="pf-sh"><h2>Student Tags</h2><button class="pf-edit" id="tagAdd">+ Add tag</button></div>${S.tags.length ? `<div class="pf-chips">${S.tags.map((x,i) => `<button class="on" data-rt="${i}" title="Remove">${esc(x)} &times;</button>`).join('')}</div>` : '<p class="pf-hint">-</p>'}</section>`;
-    if(editing === t) return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2></div><div class="pf-form">${f.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : `<label>${esc(l)}<input data-k="${k}" value="${esc(P.d[k] || '')}" ${RO.has(k)?'disabled':''}></label>`).join('')}</div><div class="pf-fa"><button class="pf-pill" id="dCancel">Cancel</button><button class="pf-pill pri" id="dSave">Save</button></div></section>`;
+    if(editing === t) return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2></div><div class="pf-form">${f.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : `<label>${esc(l)}${RO.has(k) ? '<em class="pf-lock">locked</em>' : ''}${fieldInput(k)}</label>`).join('')}</div><div class="pf-fa"><button class="pf-pill" id="dCancel">Cancel</button><button class="pf-pill pri" id="dSave">Save</button></div></section>`;
     const rows = f.filter(([l,k]) => l==='#' || !ql || (l + ' ' + val(k)).toLowerCase().includes(ql));
     if(!rows.some(r => r[0] !== '#')) return '';
-    return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2>${ed ? `<button class="pf-edit" data-ed="${t}">Edit</button>` : ''}</div><div class="pf-grid">${rows.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : row(l, k==='aadhaar' && P.d[k] ? 'XXXX XXXX ' + String(P.d[k]).slice(-4) : val(k))).join('')}</div></section>`;
+    return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2>${ed ? `<button class="pf-edit" data-ed="${t}">&#9998; Edit</button>` : ''}</div><div class="pf-grid">${rows.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : row(l, k==='aadhaar' && P.d[k] ? 'XXXX XXXX ' + String(P.d[k]).slice(-4) : val(k))).join('')}</div></section>`;
   }).join('');
 }
 
@@ -128,7 +142,7 @@ function academics(){
 
 function skills(){
   return `<section class="pf-card"><div class="pf-sh"><h2>Skills (${S.skills.length})</h2><div><button class="pf-pill ${view==='grid'?'on':''}" data-v="grid">Grid</button><button class="pf-pill ${view==='list'?'on':''}" data-v="list">List</button><button class="pf-pill pri" id="skAdd">+ Add Skill</button></div></div>` +
-    (S.skills.length ? `<div class="pf-skills ${view}">${S.skills.map((s,i) => `<div class="pf-skill" data-es="${i}" title="Click to edit"><b>${esc(s.name)}</b><span>${esc(s.prof)}</span><button data-rs="${i}" title="Remove">&times;</button></div>`).join('')}</div>` : '<p class="pf-empty">No skills added yet.</p>') + '</section>';
+    (S.skills.length ? `<div class="pf-skills ${view}">${S.skills.map((s,i) => `<div class="pf-skill" data-es="${i}" title="Click to edit"><div class="pf-skname"><b>${esc(s.name)}</b>${(s.proof || []).length ? `<span class="pf-prooftag">&#128247; ${s.proof.length} proof${s.proof.length>1?'s':''}</span>` : `<span class="pf-prooftag none">No proof yet</span>`}</div>${(s.proof || []).length ? `<div class="pf-thumbs">${s.proof.map((src,n) => `<img src="${src}" alt="Proof" data-pv="${i}|${n}">`).join('')}</div>` : ''}<span>${esc(s.prof)}</span><button data-rs="${i}" title="Remove">&times;</button></div>`).join('')}</div>` : '<p class="pf-empty">No skills added yet.</p>') + '</section>';
 }
 
 function more(){
@@ -148,12 +162,49 @@ function modal(title, fields, v, onSave){
   o.querySelector('form').onsubmit = e => { e.preventDefault(); const r = Object.fromEntries(new FormData(e.target)); if(!String(r[fields[0][0]]).trim()) return; onSave(r); o.remove(); save(); render(); };
   o.querySelector('input,textarea').focus();
 }
+/* ---------- photo proof for skills ---------- */
+const MAX_PROOF = 3;
+function shrink(file, max = 1000){   // resize + compress so profile data stays small
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { const r = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas');
+      c.width = Math.round(im.width * r); c.height = Math.round(im.height * r); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', .72)); };
+    im.onerror = () => { URL.revokeObjectURL(url); no(new Error('bad image')); };
+    im.src = url;
+  });
+}
+function lightbox(src){ overlay(`<div class="pf-lb"><img src="${src}" alt="Skill proof"><button type="button" class="pf-pill pri" data-x>Close</button></div>`); }
 function skillModal(i){
-  const cur = i == null ? { name:'', prof:'' } : S.skills[i]; let prof = cur.prof;
-  const o = overlay(`<form><h3>${i == null ? 'Add skill' : 'Edit skill'}</h3><label>Skill name<input name="name" placeholder="e.g. Python, React, Communication" value="${esc(cur.name)}"></label><label>Proficiency</label><div class="pf-chips">${PROF.map(p => `<button type="button" class="${p===prof?'on':''}" data-p="${p}">${p}</button>`).join('')}</div><div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button><button class="pf-pill pri">Save</button></div></form>`);
+  const cur = i == null ? { name:'', prof:'', proof:[] } : S.skills[i]; let prof = cur.prof; const proof = [...(cur.proof || [])];
+  const o = overlay(`<form><h3>${i == null ? 'Add skill' : 'Edit skill'}</h3><label>Skill name<input name="name" placeholder="e.g. Python, React, Communication" value="${esc(cur.name)}"></label><label>Proficiency</label><div class="pf-chips">${PROF.map(p => `<button type="button" class="${p===prof?'on':''}" data-p="${p}">${p}</button>`).join('')}</div>
+    <label>Photo proof <small class="pf-hint">Certificate, badge or screenshot. Up to ${MAX_PROOF} photos.</small></label><div class="pf-proofs" id="pfProofs"></div>
+    <input type="file" id="pfProofFile" accept="image/*" multiple hidden>
+    <div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button><button class="pf-pill pri">Save</button></div></form>`);
+  const box = o.querySelector('#pfProofs'), file = o.querySelector('#pfProofFile');
+  const paint = () => {
+    box.innerHTML = proof.map((src,n) => `<div class="pf-proof"><img src="${src}" alt="Proof ${n+1}" data-view="${n}"><button type="button" data-del="${n}" title="Remove photo">&times;</button></div>`).join('') +
+      (proof.length < MAX_PROOF ? `<button type="button" class="pf-addproof" id="pfAddProof">&#128247;<span>Add photo</span></button>` : '');
+    box.querySelector('#pfAddProof')?.addEventListener('click', () => file.click());
+    box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { proof.splice(+b.dataset.del, 1); paint(); });
+    box.querySelectorAll('[data-view]').forEach(im => im.onclick = () => lightbox(proof[+im.dataset.view]));
+  };
+  file.onchange = async () => {
+    const files = [...file.files].filter(f => /^image\//.test(f.type)); file.value = '';
+    if(!files.length){ toast('Choose an image file'); return; }
+    const room = MAX_PROOF - proof.length;
+    if(files.length > room) toast('Maximum ' + MAX_PROOF + ' photos per skill');
+    for(const f of files.slice(0, room)){
+      if(f.size > 15 * 1024 * 1024){ toast('Each photo must be under 15 MB'); continue; }
+      try{ proof.push(await shrink(f)); }catch{ toast('Could not read that image'); }
+    }
+    paint();
+  };
+  paint();
   o.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { prof = b.dataset.p; o.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
   o.querySelector('form').onsubmit = e => { e.preventDefault(); const name = o.querySelector('[name=name]').value.trim(); if(!name){ toast('Enter a skill name'); return; } if(!prof){ toast('Pick a proficiency'); return; }
-    if(i == null) S.skills.push({ name, prof }); else S.skills[i] = { name, prof }; o.remove(); save(); syncCore(); render(); };
+    const item = { name, prof, proof };
+    if(i == null) S.skills.push(item); else S.skills[i] = item; o.remove(); save(); syncCore(); render(); };
   o.querySelector('input').focus();
 }
 function pick(title, opts, onPick){
@@ -168,7 +219,7 @@ function report(){
   const rows = [['Section','Field','Value']];
   DET.forEach(([t,,f]) => { if(!f) return; f.forEach(([l,k]) => { if(l !== '#') rows.push([t, l, P.d[k] || '']); }); });
   S.acad.forEach(a => rows.push(['Academics', a.level + ' - ' + a.inst, a.cgpa]));
-  S.skills.forEach(s => rows.push(['Skills', s.name, s.prof]));
+  S.skills.forEach(s => rows.push(['Skills', s.name, s.prof + ((s.proof || []).length ? ' (' + s.proof.length + ' proof photo' + (s.proof.length > 1 ? 's' : '') + ')' : '')]));
   dl('profile-report.csv', rows.map(r => r.map(csv).join(',')).join('\n'));
 }
 async function resume(){
@@ -248,13 +299,23 @@ function bind(){
   on('[data-rl]', b => { S.links.splice(+b.dataset.rl, 1); save(); render(); });
   $('#pfTrack')?.addEventListener('click', () => navigate('progress'));
   $('#bOffers')?.addEventListener('click', () => info("Student's Offers", 'No offers found.'));
-  $('#bSurveys')?.addEventListener('click', () => info('Surveys', 'No surveys available right now.'));
   $('#bResume')?.addEventListener('click', resume);
   $('#bReport')?.addEventListener('click', report);
   const qi = $('#pfQ'); if(qi) qi.oninput = () => { q = qi.value; const p = qi.selectionStart; render(); const n = $('#pfQ'); n.focus(); n.setSelectionRange(p, p); };
   on('[data-ed]', b => { editing = b.dataset.ed; render(); });
   $('#dCancel')?.addEventListener('click', () => { editing = null; render(); });
-  $('#dSave')?.addEventListener('click', () => { $$('.pf-form [data-k]:not(:disabled)').forEach(i => { P.d[i.dataset.k] = i.value.trim(); S.d[i.dataset.k] = i.value.trim(); }); editing = null; save(); syncCore(); render(); toast('Saved'); });
+  $('#dSave')?.addEventListener('click', () => {
+    const f = $$('.pf-form [data-k]:not(:disabled)'), got = {};
+    f.forEach(i => { got[i.dataset.k] = i.value.trim(); });
+    if('name' in got){
+      if(!got.name){ toast('Full name cannot be empty'); return; }
+      const nameMoved = got.name !== (P.d.name || ''), partsMoved = got.first !== (P.d.first || '') || got.last !== (P.d.last || '');
+      if(nameMoved && !partsMoved){ got.first = got.name.split(/\s+/)[0]; got.last = got.name.split(/\s+/).slice(1).join(' '); }
+      else if(partsMoved && !nameMoved){ got.name = [got.first, got.last].filter(Boolean).join(' ') || got.name; }
+    }
+    Object.entries(got).forEach(([k,v]) => { P.d[k] = v; S.d[k] = v; });
+    editing = null; save(); syncCore(); render(); toast('Saved');
+  });
   $('#tagAdd')?.addEventListener('click', () => modal('Add tag', [['t','Tag']], {}, r => S.tags.push(r.t.trim())));
   on('[data-rt]', b => { S.tags.splice(+b.dataset.rt, 1); save(); render(); });
   on('[data-a]', b => { S.acadSel = +b.dataset.a; render(); });
@@ -263,7 +324,8 @@ function bind(){
   $('#acDel')?.addEventListener('click', () => { S.acad.splice(S.acadSel || 0, 1); S.acadSel = 0; save(); render(); });
   on('[data-v]', b => { view = b.dataset.v; render(); });
   $('#skAdd')?.addEventListener('click', () => skillModal());
-  on('[data-es]', (el, e) => { if(e.target.closest('[data-rs]')) return; skillModal(+el.dataset.es); });
+  on('[data-pv]', (im, e) => { e.stopPropagation(); const [a,b] = im.dataset.pv.split('|'); lightbox(S.skills[+a].proof[+b]); });
+  on('[data-es]', (el, e) => { if(e.target.closest('[data-rs]') || e.target.closest('[data-pv]')) return; skillModal(+el.dataset.es); });
   on('[data-rs]', (b, e) => { e.stopPropagation(); S.skills.splice(+b.dataset.rs, 1); save(); syncCore(); render(); });
   on('[data-m]', b => { const m = MORE.find(x => x[0] === b.dataset.m); modal(m[2], m[3], {}, r => (S.more[m[0]] = S.more[m[0]] || []).push(r)); });
   on('[data-me]', b => { const [k,i] = b.dataset.me.split('|'), m = MORE.find(x => x[0] === k); modal('Edit', m[3], S.more[k][+i], r => S.more[k][+i] = r); });

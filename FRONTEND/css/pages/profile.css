@@ -69,3 +69,27 @@
 @media(max-width:720px){.pf{padding:14px 14px 50px;}.pf-grid,.pf-form,.pf-ac{grid-template-columns:1fr;}.pf-row span{width:120px;}}
 
 .pf-file-label{display:block;margin:14px 0;font-size:12px;font-weight:700}.pf-file-label input{display:block;margin-top:7px;width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--lilac-bg);color:var(--ink)}
+
+
+/* ---------- Student Overview edit ---------- */
+.pf-edit{padding:6px 14px;border-radius:99px;border:1px solid var(--violet-300);background:var(--violet-100);color:var(--violet-700);transition:background .15s;}
+.pf-edit:hover{background:var(--violet-300);color:#fff;}
+.pf-form select,.pf-form input[type=date],.pf-form input[type=number]{width:100%;border:1px solid var(--line);background:var(--lilac-bg);color:var(--ink);border-radius:10px;padding:10px 12px;font:14px Inter,sans-serif;}
+.pf-form input:disabled,.pf-form select:disabled{opacity:.6;cursor:not-allowed;}
+.pf-lock{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--amber);background:var(--amber-bg);border-radius:99px;padding:1px 7px;margin-left:6px;}
+
+/* ---------- Skill photo proof ---------- */
+.pf-skill{flex-wrap:wrap;}
+.pf-skname{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.pf-prooftag{font-size:11px;font-weight:700;color:var(--green);margin:0 !important;}
+.pf-prooftag.none{color:var(--ink-soft);font-weight:500;}
+.pf-thumbs{display:flex;gap:6px;flex-basis:100%;}
+.pf-thumbs img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--line);cursor:zoom-in;}
+.pf-proofs{display:flex;flex-wrap:wrap;gap:10px;}
+.pf-proof{position:relative;width:92px;height:92px;}
+.pf-proof img{width:100%;height:100%;object-fit:cover;border-radius:12px;border:1px solid var(--line);cursor:zoom-in;}
+.pf-proof button{position:absolute;top:-7px;right:-7px;width:22px;height:22px;border-radius:50%;border:0;background:var(--rose);color:#fff;font-size:14px;line-height:1;cursor:pointer;}
+.pf-addproof{width:92px;height:92px;border-radius:12px;border:2px dashed var(--violet-300);background:var(--violet-100);color:var(--violet-700);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:22px;cursor:pointer;}
+.pf-addproof span{font-size:11.5px;font-weight:700;}
+.pf-lb{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:min(92vw,900px);}
+.pf-lb img{max-width:100%;max-height:78vh;border-radius:14px;background:#fff;}
