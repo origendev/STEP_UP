@@ -32,25 +32,6 @@
         <a class="source-link" id="marketSource" href="https://www.epfo.gov.in/" target="_blank" rel="noopener noreferrer">View source ↗</a>
       </div>
 
-      <section class="ai-outlook-section" aria-labelledby="roleOutlookTitle" aria-busy="true">
-        <header class="ai-outlook-heading">
-          <div>
-            <p class="section-kicker"><span id="outlookModeLabel">AI OUTLOOK</span> · <span id="forecastHorizonLabel">NEXT 2 MONTHS</span></p>
-            <h2 id="roleOutlookTitle">In-demand roles and future outlook</h2>
-            <p id="roleOutlookSummary">Building a career outlook from recent reporting and workforce research…</p>
-          </div>
-          <div class="ai-outlook-status">
-            <span class="ai-status-indicator" aria-hidden="true"></span>
-            <span id="roleOutlookUpdated">Analyzing current signals</span>
-          </div>
-        </header>
-        <div id="roleOutlookContent" class="outlook-grid" aria-live="polite">
-          <p class="outlook-loading">Building an evidence-led career outlook…</p>
-        </div>
-        <p class="outlook-disclaimer" id="roleOutlookDisclaimer">AI-generated directional guidance, not a guarantee of vacancies or employment.</p>
-        <a id="geminiSetupLink" class="gemini-setup-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" hidden>Set up a free Gemini API key <span aria-hidden="true">↗</span></a>
-      </section>
-
       <div class="metric-strip" id="marketMetrics" aria-label="Labor market report totals"></div>
 
       <div class="market-analysis-grid">
@@ -75,6 +56,25 @@
           <div id="coverageSummary" class="coverage-summary"></div>
         </section>
       </div>
+
+      <section class="ai-outlook-section" aria-labelledby="roleOutlookTitle" aria-busy="true">
+        <header class="ai-outlook-heading">
+          <div>
+            <p class="section-kicker"><span id="outlookModeLabel">AI OUTLOOK</span> · <span id="forecastHorizonLabel">NEXT 2 MONTHS</span></p>
+            <h2 id="roleOutlookTitle">In-demand roles and future outlook</h2>
+            <p id="roleOutlookSummary">Building a career outlook from recent reporting and workforce research…</p>
+          </div>
+          <div class="ai-outlook-status">
+            <span class="ai-status-indicator" aria-hidden="true"></span>
+            <span id="roleOutlookUpdated">Analyzing current signals</span>
+          </div>
+        </header>
+        <div id="roleOutlookContent" class="outlook-grid" aria-live="polite">
+          <p class="outlook-loading">Building an evidence-led career outlook…</p>
+        </div>
+        <p class="outlook-disclaimer" id="roleOutlookDisclaimer">AI-generated directional guidance, not a guarantee of vacancies or employment.</p>
+        <a id="geminiSetupLink" class="gemini-setup-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" hidden>Set up a free Gemini API key <span aria-hidden="true">↗</span></a>
+      </section>
 
       <section class="news-feed-teaser" aria-labelledby="reportsTitle">
         <div class="reports-heading">
@@ -106,10 +106,7 @@
           </div>
         </header>
         <div class="feed-toolbar">
-          <div class="feed-tabs" role="tablist" aria-label="News feed market">
-            <button class="feed-tab active" type="button" role="tab" aria-selected="true" data-feed-market="india">India</button>
-            <button class="feed-tab" type="button" role="tab" aria-selected="false" data-feed-market="overseas">Global</button>
-          </div>
+          <span class="feed-market-pill" id="newsFeedMarketLabel">India</span>
           <span id="newsFeedCount" class="report-count">Loading reports…</span>
         </div>
         <p class="feed-caption" id="newsFeedCaption"></p>

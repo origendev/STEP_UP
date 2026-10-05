@@ -15,7 +15,7 @@ import { profileMeta } from './data/profile.data.js';
 import { mount as mountHome } from './pages/home.js';
 import { mount as mountProfile } from './pages/profile.js';
 import { mount as mountJobs } from './pages/jobs.js';
-import { mount as mountDemands } from './pages/demands-dashboard.js?v=20260930d';
+import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261005a';
 import { mount as mountSkills } from './pages/skills.js';
 import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';

@@ -90,6 +90,18 @@ async function fetchNewsApi(query, country) {
   }));
 }
 
+const INDIA_TEXT_PATTERN = /\b(?:india|indian|indians|bharat|rupees?|rs\.?\s?\d|inr|crore|lakh|nse|bse|sensex|nifty|iit|iim|nasscom|gcc|bengaluru|bangalore|mumbai|delhi|new delhi|hyderabad|chennai|pune|kolkata|ahmedabad|jaipur|lucknow|kochi|coimbatore|gurugram|gurgaon|noida|haryana|tamil nadu|karnataka|kerala|maharashtra|gujarat|rajasthan|uttar pradesh|telangana|infosys|tcs|tata consultancy|wipro|hcl(?:tech)?|tech mahindra|cognizant india|zomato|swiggy|paytm|flipkart|byju|ola electric|reliance|adani|mahindra|bajaj|naukri|foxconn india)\b/i;
+const INDIA_SOURCE_PATTERN = /\b(?:times of india|economic times|hindustan times|the hindu|business standard|livemint|mint|moneycontrol|ndtv|indian express|financial express|firstpost|news18|india today|zee|republic world|deccan|telangana today|the print|theprint|outlook india|inc42|yourstory|entrackr|ians|pti|business today|economictimes|indiatimes|india\.com)\b/i;
+const INDIA_URL_PATTERN = /(?:\.in(?:\/|$)|indiatimes|timesofindia|hindustantimes|thehindu|livemint|moneycontrol|ndtv|indianexpress|business-standard|financialexpress|news18|indiatoday)/i;
+
+function isIndiaStory(article) {
+  let host = '';
+  try { host = new URL(article.url).hostname; } catch { /* keep empty */ }
+  return INDIA_TEXT_PATTERN.test(`${article.title} ${article.description}`)
+    || INDIA_SOURCE_PATTERN.test(article.source || '')
+    || (host && !/news\.google\.com$/i.test(host) && INDIA_URL_PATTERN.test(host));
+}
+
 async function fetchLaborReports(market) {
   const isIndia = market === 'india';
   const query = isIndia
@@ -135,8 +147,7 @@ async function fetchLaborReports(market) {
       const published = Date.parse(article.publishedAt);
       if (!article.type || !article.title || !article.url || (Number.isFinite(published) && published < cutoff)) return false;
       if (market === 'india' && /\b(?:police recruitment|non-faculty|university recruitment|government recruitment|public service commission|army recruitment|civil service exam)\b/i.test(article.title)) return false;
-      if (market === 'overseas' && (/\b(?:india|indian|bengaluru|bangalore|mumbai|delhi|hyderabad|chennai|pune|kolkata|haryana)\b/i.test(`${article.title} ${article.description}`)
-        || /\bgcc\b.*\blayoffs?\b|\blayoffs?\b.*\bgcc\b/i.test(article.title))) return false;
+      if (market === 'overseas' && isIndiaStory(article)) return false;
       if (market === 'india' && !/\b(?:india|indian|iit|fssai|bengaluru|bangalore|mumbai|delhi|hyderabad|chennai|pune|kolkata|gurugram|gurgaon|noida|haryana|tamil nadu|karnataka|maharashtra|rajasthan|uttar pradesh)\b/i.test(`${article.title} ${article.description}`)
         && !/\bgcc\b.*\blayoffs?\b|\blayoffs?\b.*\bgcc\b/i.test(article.title)) return false;
       if (seen.has(article.url)) return false;

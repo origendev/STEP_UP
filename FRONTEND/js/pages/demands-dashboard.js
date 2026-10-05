@@ -341,15 +341,12 @@ function renderReportPreview(reports) {
   }).join('');
 }
 
-function renderNewsFeed(market = 'india') {
+function renderNewsFeed(market = activeMarket) {
   if (!laborData) return;
   activeFeedMarket = market;
-  document.querySelectorAll('.feed-tab').forEach((tab) => {
-    const selected = tab.dataset.feedMarket === market;
-    tab.classList.toggle('active', selected);
-    tab.setAttribute('aria-selected', String(selected));
-  });
-  const reports = laborData[market]?.reports || [];
+  const label = $('#newsFeedMarketLabel');
+  if (label) label.textContent = market === 'india' ? 'India' : 'Global';
+  const reports = laborData[market === 'india' ? 'india' : 'overseas']?.reports || [];
   renderReports(reports, market);
 }
 
@@ -395,8 +392,7 @@ function renderMarket(market) {
   $('#marketSource').href = isIndia
     ? (data.reports?.[0]?.url || 'https://www.epfo.gov.in/')
     : (data.source || 'https://news.google.com/');
-  const selectedFeed = document.querySelector('.feed-tab.active')?.dataset.feedMarket || 'india';
-  renderNewsFeed(selectedFeed);
+  renderNewsFeed(market);
 }
 
 async function loadLaborData(refresh = false) {
@@ -453,7 +449,7 @@ export function mount() {
     modal.classList.remove('hidden');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
-    renderNewsFeed(activeFeedMarket);
+    renderNewsFeed(activeMarket);
     $('#closeNewsFeed').focus();
   };
   openFeedButtons.forEach((button) => button.addEventListener('click', openFeed));
@@ -462,10 +458,7 @@ export function mount() {
   modal.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeFeed();
   });
-  document.querySelectorAll('.feed-tab').forEach((tab) => {
-    tab.addEventListener('click', () => renderNewsFeed(tab.dataset.feedMarket));
-  });
-  $('#refreshNewsFeed').addEventListener('click', () => refreshDashboard(true));
+$('#refreshNewsFeed').addEventListener('click', () => refreshDashboard(true));
   $('#refreshLaborBtn').addEventListener('click', () => refreshDashboard(true));
   loadLaborData();
   loadRoleOutlook();
