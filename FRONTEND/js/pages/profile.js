@@ -59,16 +59,35 @@ const key = () => 'stepupProfile:' + (P.d.regNo || 'guest');
 const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} announceUser(); if(P?.logged) syncCore(); };
 const val = k => (P.d[k] ?? '') === '' ? '-' : P.d[k];
 
+/* Applications come from /student/applications. Status 'Selected' = an offer.
+   The last good numbers are remembered so the header is not wrong if the server is down. */
+function countApps(rows){
+  const k = 'stepup-apps-' + (getToken() ? 'in' : 'out');
+  if(rows){
+    const out = { applied: rows.length, offers: rows.filter(r => r.status === 'Selected').map(r => ({ company: r.company_name, title: r.title })),
+      list: rows.map(r => ({ company: r.company_name, title: r.title, status: r.status })) };
+    try{ localStorage.setItem(k, JSON.stringify(out)); }catch{}
+    return out;
+  }
+  try{ const old = JSON.parse(localStorage.getItem(k) || 'null'); if(old) return old; }catch{}
+  return { applied: 0, offers: [], list: [] };
+}
+
 async function load(){
   let me = null, st = null;
   try{ st = JSON.parse(localStorage.getItem('stepupStudent') || 'null'); }catch{}
-  if(getToken()){ try{ me = (await api('/student/me')).data; }catch{} }
+  let apps = null;
+  if(getToken()){
+    const [m, a] = await Promise.allSettled([api('/student/me'), api('/student/applications')]);
+    if(m.status === 'fulfilled') me = m.value.data;
+    if(a.status === 'fulfilled' && Array.isArray(a.value.data)) apps = a.value.data;
+  }
   const b = me || st || {};
   const d = { name:b.name || profileMeta.name, regNo:b.reg_no || profileMeta.regNo, email:b.email || '', phone:b.phone || '',
     dob:(b.dob || '').slice(0,10), gender:b.gender || '', nation:'Indian', cCountry:'India', pCountry:'India', cAddr:b.address || '',
     registered:me ? 'True' : '', regOn:me && b.created_at ? new Date(b.created_at).toLocaleDateString() : '' };
   d.first = d.name.split(' ')[0]; d.last = d.name.split(' ').slice(1).join(' ');
-  P = { d, base:b, logged:!!me };
+  P = { d, base:b, logged:!!me, apps:countApps(apps) };
   let ext = {};
   try{ ext = JSON.parse(localStorage.getItem(key()) || '{}'); }catch{}
   const remoteProfile = me && me.profile_details && typeof me.profile_details === 'object' ? me.profile_details : {};
@@ -113,9 +132,9 @@ function head(){
       <div class="pf-reg">${esc(d.regNo)} <span class="pf-badge ${S.verified?'ok':'warn'}">${S.verified?'Verified':'Unverified'}</span></div>
       ${S.verified ? '' : `<p class="pf-note">${S.requested ? 'Verification requested. Your placement team will review your profile.' : 'Your profile is not verified yet. <a href="#" id="pfReq">Request profile verification</a>.'}</p>`}
       <p class="pf-sub">${esc([a.branch, a.course, a.year].filter(Boolean).join(' · ') || 'Add your academics')}</p>
-      <p class="pf-contact"><b>0</b> applied ${d.email ? ` &nbsp;&#9993; <b>${esc(d.email)}</b>` : ''} ${d.phone ? ` &nbsp;&#9742; <b>${esc(d.phone)}</b>` : ''}</p></div></div>
+      <p class="pf-contact"><b>${P.apps.applied}</b> applied ${d.email ? ` &nbsp;&#9993; <b>${esc(d.email)}</b>` : ''} ${d.phone ? ` &nbsp;&#9742; <b>${esc(d.phone)}</b>` : ''}</p></div></div>
     <div class="pf-actions"><div class="pf-links">${S.links.map((l,i) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a><button data-rl="${i}" title="Remove">&times;</button>`).join('')}<button class="pf-ghost" id="pfLink">+ Add Link</button></div>
-    <div class="pf-btns"><button class="pf-pill" id="bOffers">0 Offers</button><button class="pf-pill pri" id="pfTrack">Job Tracker</button><button class="pf-pill" id="bResume">Resumes</button><button class="pf-pill" id="bReport">Reports</button></div></div>`;
+    <div class="pf-btns"><button class="pf-pill" id="bOffers">${P.apps.offers.length} Offer${P.apps.offers.length === 1 ? '' : 's'}</button><button class="pf-pill pri" id="pfTrack">Job Tracker</button><button class="pf-pill" id="bResume">Resumes</button><button class="pf-pill" id="bReport">Reports</button></div></div>`;
 }
 
 const row = (l,v) => `<div class="pf-row"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
@@ -299,7 +318,8 @@ function bind(){
   $('#pfLink')?.addEventListener('click', () => modal('Add link', [['name','Label'],['url','URL']], {}, r => S.links.push(r)));
   on('[data-rl]', b => { S.links.splice(+b.dataset.rl, 1); save(); render(); });
   $('#pfTrack')?.addEventListener('click', () => navigate('progress'));
-  $('#bOffers')?.addEventListener('click', () => info("Student's Offers", 'No offers found.'));
+  $('#bOffers')?.addEventListener('click', () => info("Student's Offers",
+    P.apps.offers.length ? P.apps.offers.map(o => `${o.company} - ${o.title}`).join(', ') : 'No offers found.'));
   $('#bResume')?.addEventListener('click', resume);
   $('#bReport')?.addEventListener('click', report);
   const qi = $('#pfQ'); if(qi) qi.oninput = () => { q = qi.value; const p = qi.selectionStart; render(); const n = $('#pfQ'); n.focus(); n.setSelectionRange(p, p); };
