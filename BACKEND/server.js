@@ -15,6 +15,7 @@ const { Pool } = pg;
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
+const ADMIN_ID = process.env.ADMIN_ID || 'admin';
 const NEWS_API_KEY = process.env.NEWS_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
@@ -102,14 +103,44 @@ function requireStudent(req, res, next) {
   }
 }
 
+function issueAdminToken() {
+  return jwt.sign(
+    { role: 'admin', adminId: ADMIN_ID },
+    JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+}
+
 function requireAdmin(req, res, next) {
-  if (!ADMIN_KEY || req.get('x-admin-key') !== ADMIN_KEY) {
-    return res.status(403).json({
-      error: 'Admin authorization required.'
-    });
+  const authorization = req.get('authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload.role === 'admin' && payload.adminId) {
+        req.admin = payload;
+        const role = payload.adminRole || 'Super Admin';
+        if (role !== 'Super Admin' && req.method !== 'GET') {
+          const path = req.path;
+          const allowed = role === 'Viewer' ? false : role === 'Recruiter Manager' ? /companies|jobs|applications|drives|interviews/.test(path) : true;
+          if (!allowed) return res.status(403).json({ error: 'Your admin role does not have permission for this action.' });
+        }
+        return next();
+      }
+    } catch {
+      return res.status(401).json({ error: 'Admin session expired. Please sign in again.' });
+    }
   }
 
-  next();
+  if (ADMIN_KEY && req.get('x-admin-key') === ADMIN_KEY) {
+    req.admin = { role: 'admin', adminId: ADMIN_ID };
+    return next();
+  }
+
+  return res.status(403).json({
+    error: 'Admin authorization required.'
+  });
 }
 
 function randomPassword(length = 12) {
@@ -415,7 +446,80 @@ async function ensureSchema() {
       file_data BYTEA NOT NULL,
       uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE companies
+      ADD COLUMN IF NOT EXISTS admin_status TEXT NOT NULL DEFAULT 'Active';
+
+    CREATE TABLE IF NOT EXISTS admin_activity_logs (
+      id BIGSERIAL PRIMARY KEY,
+      admin_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      details TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_admin_activity_logs_created_at
+      ON admin_activity_logs(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS placement_drives (
+      id BIGSERIAL PRIMARY KEY,
+      company_id BIGINT REFERENCES companies(id) ON DELETE CASCADE,
+      job_id BIGINT REFERENCES jobs(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      drive_date DATE,
+      eligible_batch TEXT,
+      departments TEXT[] NOT NULL DEFAULT '{}',
+      min_cgpa NUMERIC(4,2),
+      backlogs_allowed BOOLEAN NOT NULL DEFAULT FALSE,
+      location TEXT,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'Upcoming',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS announcements (
+      id BIGSERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      audience TEXT NOT NULL DEFAULT 'All',
+      published BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS interviews (
+      id BIGSERIAL PRIMARY KEY,
+      student_id BIGINT REFERENCES students(id) ON DELETE CASCADE,
+      company_id BIGINT REFERENCES companies(id) ON DELETE SET NULL,
+      job_id BIGINT REFERENCES jobs(id) ON DELETE SET NULL,
+      interview_date TIMESTAMPTZ,
+      mode TEXT NOT NULL DEFAULT 'Online',
+      meeting_link TEXT,
+      interviewer TEXT,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'Scheduled',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_users (
+      id BIGSERIAL PRIMARY KEY,
+      admin_id TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      email TEXT,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'Placement Officer',
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
   `);
+
+
 }
 
 /* =========================================================
@@ -1570,65 +1674,331 @@ const publicJobSelect = `
 `;
 
 /* =========================================================
-   ADMIN: CREATE STUDENT
+   ADMIN AUTHENTICATION AND MANAGEMENT
 ========================================================= */
 
-app.post(
-  '/api/admin/students',
-  requireAdmin,
-  async (req, res) => {
-    const name = clean(req.body.name);
-    const regNo = clean(req.body.regNo);
-    const email = clean(req.body.email)?.toLowerCase();
+app.post('/api/admin/login', async (req, res) => {
+  const adminId = clean(req.body.adminId);
+  const password = req.body.password;
 
-    if (!name || !regNo || !email) {
-      return res.status(400).json({
-        error:
-          'Name, registration number and email are required.'
-      });
-    }
-
-    const password =
-      clean(req.body.password) || randomPassword();
-
-    try {
-      const hash = await bcrypt.hash(password, 12);
-
-      const r = await pool.query(
-        `INSERT INTO students
-         (name,reg_no,email,password_hash,must_change_password)
-         VALUES($1,$2,$3,$4,TRUE)
-         RETURNING id,name,reg_no,email,must_change_password`,
-        [
-          name,
-          regNo,
-          email,
-          hash
-        ]
-      );
-
-      res.status(201).json({
-        data: {
-          student: r.rows[0],
-          temporaryPassword: password
-        }
-      });
-    } catch (e) {
-      if (e.code === '23505') {
-        return res.status(409).json({
-          error:
-            'A student already exists with that registration number or email.'
-        });
-      }
-
-      console.error(e);
-
-      res.status(500).json({
-        error: 'Could not create the student account.'
-      });
-    }
+  if (!adminId || !password) {
+    return res.status(400).json({ error: 'Admin ID and password are required.' });
   }
-);
+
+  if (ADMIN_KEY && adminId === ADMIN_ID && password === ADMIN_KEY) {
+    return res.json({ data: { admin: { id: ADMIN_ID, role: 'Super Admin', name: 'StepUp Administrator' }, token: issueAdminToken() } });
+  }
+  try {
+    const r = await pool.query('SELECT id,admin_id,name,email,password_hash,role FROM admin_users WHERE admin_id=$1 AND active=TRUE', [adminId]);
+    const user = r.rows[0];
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: 'Invalid admin credentials.' });
+    const token = jwt.sign({ role: 'admin', adminId: user.admin_id, adminRole: user.role }, JWT_SECRET, { expiresIn: '8h' });
+    return res.json({ data: { admin: { id: user.admin_id, role: user.role, name: user.name, email: user.email }, token } });
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'Could not sign in as admin.' }); }
+});
+
+const adminStudentSelect = `
+  SELECT
+    id,name,reg_no,email,must_change_password,profile_completed,
+    phone,dob,gender,address,college,degree,department,graduation_year,cgpa,
+    education,skills,languages,experience,achievements,certifications,projects,
+    summary,linkedin,github,portfolio,profile_details,created_at,updated_at
+  FROM students
+`;
+
+function parseAdminArray(value) {
+  if (Array.isArray(value)) return value.map(v => String(v).trim()).filter(Boolean);
+  if (typeof value !== 'string' || !value.trim()) return [];
+  return value.split(',').map(v => v.trim()).filter(Boolean);
+}
+
+function parseAdminJson(value, fallback = []) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+async function logAdminActivity(req, action, entityType = null, entityId = null, details = null) {
+  try {
+    await pool.query(
+      `INSERT INTO admin_activity_logs(admin_id,action,entity_type,entity_id,details) VALUES($1,$2,$3,$4,$5)`,
+      [req.admin?.adminId || ADMIN_ID, action, entityType, entityId == null ? null : String(entityId), details]
+    );
+  } catch (e) {
+    console.warn('Could not write admin activity log:', e.message);
+  }
+}
+
+function adminStudentValues(body) {
+  return {
+    phone: clean(body.phone) || null,
+    dob: clean(body.dob) || null,
+    gender: clean(body.gender) || null,
+    address: clean(body.address) || null,
+    college: clean(body.college) || null,
+    degree: clean(body.degree) || null,
+    department: clean(body.department) || null,
+    graduationYear: body.graduationYear === '' || body.graduationYear === undefined ? null : Number(body.graduationYear),
+    cgpa: body.cgpa === '' || body.cgpa === undefined ? null : Number(body.cgpa),
+    education: parseAdminJson(body.education, []),
+    skills: parseAdminArray(body.skills),
+    languages: parseAdminArray(body.languages),
+    experience: parseAdminJson(body.experience, []),
+    achievements: clean(body.achievements) || null,
+    certifications: parseAdminJson(body.certifications, []),
+    projects: parseAdminJson(body.projects, []),
+    summary: clean(body.summary) || null,
+    linkedin: clean(body.linkedin) || null,
+    github: clean(body.github) || null,
+    portfolio: clean(body.portfolio) || null,
+    profileDetails: parseAdminJson(body.profileDetails, {})
+  };
+}
+
+
+async function adminCrudLog(req, action, type, id, details) { try { await logAdminActivity(req, action, type, id, details); } catch {} }
+
+app.get('/api/admin/drives', requireAdmin, async (_req,res)=>{ try { const r=await pool.query(`SELECT d.*,c.name company_name,j.title job_title FROM placement_drives d LEFT JOIN companies c ON c.id=d.company_id LEFT JOIN jobs j ON j.id=d.job_id ORDER BY d.drive_date NULLS LAST,d.created_at DESC`); res.json({data:r.rows}); } catch(e){console.error(e);res.status(500).json({error:'Could not load placement drives.'});} });
+app.post('/api/admin/drives', requireAdmin, async (req,res)=>{ const b=req.body||{}; if(!clean(b.title)) return res.status(400).json({error:'Drive title is required.'}); try { const r=await pool.query(`INSERT INTO placement_drives(title,company_id,job_id,drive_date,eligible_batch,departments,min_cgpa,backlogs_allowed,location,description,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[clean(b.title),b.companyId||null,b.jobId||null,b.driveDate||null,clean(b.eligibleBatch)||null,Array.isArray(b.departments)?b.departments.map(clean).filter(Boolean):[],b.minCgpa?Number(b.minCgpa):null,!!b.backlogsAllowed,clean(b.location)||null,clean(b.description)||null,clean(b.status)||'Upcoming']); await adminCrudLog(req,'Placement drive created','drive',r.rows[0].id,r.rows[0].title); res.status(201).json({data:r.rows[0]}); } catch(e){console.error(e);res.status(500).json({error:'Could not create placement drive.'});} });
+app.patch('/api/admin/drives/:id', requireAdmin, async (req,res)=>{ try { const r=await pool.query(`UPDATE placement_drives SET title=COALESCE($1,title),status=COALESCE($2,status),drive_date=COALESCE($3,drive_date),updated_at=NOW() WHERE id=$4 RETURNING *`,[clean(req.body.title)||null,clean(req.body.status)||null,req.body.driveDate||null,req.params.id]); if(!r.rows[0])return res.status(404).json({error:'Drive not found.'}); await adminCrudLog(req,'Placement drive updated','drive',req.params.id,r.rows[0].title); res.json({data:r.rows[0]}); }catch(e){console.error(e);res.status(500).json({error:'Could not update drive.'});} });
+app.delete('/api/admin/drives/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM placement_drives WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Drive not found.'});await adminCrudLog(req,'Placement drive removed','drive',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove drive.'});}});
+
+app.get('/api/admin/announcements', requireAdmin, async(_req,res)=>{try{const r=await pool.query('SELECT * FROM announcements ORDER BY created_at DESC');res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load announcements.'});}});
+app.post('/api/admin/announcements', requireAdmin, async(req,res)=>{if(!clean(req.body.title)||!clean(req.body.message))return res.status(400).json({error:'Title and message are required.'});try{const r=await pool.query('INSERT INTO announcements(title,message,audience,published) VALUES($1,$2,$3,$4) RETURNING *',[clean(req.body.title),clean(req.body.message),clean(req.body.audience)||'All',req.body.published!==false]);await adminCrudLog(req,'Announcement published','announcement',r.rows[0].id,r.rows[0].title);res.status(201).json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not create announcement.'});}});
+app.patch('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE announcements SET published=COALESCE($1,published),updated_at=NOW() WHERE id=$2 RETURNING *',[typeof req.body.published==='boolean'?req.body.published:null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update announcement.'});}});
+app.delete('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM announcements WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});await adminCrudLog(req,'Announcement removed','announcement',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove announcement.'});}});
+
+app.get('/api/admin/interviews', requireAdmin, async(_req,res)=>{try{const r=await pool.query(`SELECT i.*,s.name student_name,s.reg_no,c.name company_name,j.title job_title FROM interviews i LEFT JOIN students s ON s.id=i.student_id LEFT JOIN companies c ON c.id=i.company_id LEFT JOIN jobs j ON j.id=i.job_id ORDER BY i.interview_date NULLS LAST`);res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load interviews.'});}});
+app.post('/api/admin/interviews', requireAdmin, async(req,res)=>{const b=req.body||{};if(!b.studentId||!b.interviewDate)return res.status(400).json({error:'Student and interview date are required.'});try{const r=await pool.query('INSERT INTO interviews(student_id,company_id,job_id,interview_date,mode,meeting_link,interviewer,notes,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[b.studentId,b.companyId||null,b.jobId||null,b.interviewDate,clean(b.mode)||'Online',clean(b.meetingLink)||null,clean(b.interviewer)||null,clean(b.notes)||null,clean(b.status)||'Scheduled']);res.status(201).json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not schedule interview.'});}});
+app.patch('/api/admin/interviews/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE interviews SET status=COALESCE($1,status),notes=COALESCE($2,notes),updated_at=NOW() WHERE id=$3 RETURNING *',[clean(req.body.status)||null,clean(req.body.notes)||null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Interview not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update interview.'});}});
+
+app.get('/api/admin/admin-users', requireAdmin, async(_req,res)=>{try{const r=await pool.query('SELECT id,admin_id,name,email,role,active,created_at FROM admin_users ORDER BY created_at DESC');res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load admin users.'});}});
+app.post('/api/admin/admin-users', requireAdmin, async(req,res)=>{const b=req.body||{};if(!clean(b.adminId)||!clean(b.name)||!b.password)return res.status(400).json({error:'Admin ID, name and password are required.'});try{const hash=await bcrypt.hash(b.password,12);const r=await pool.query('INSERT INTO admin_users(admin_id,name,email,password_hash,role) VALUES($1,$2,$3,$4,$5) RETURNING id,admin_id,name,email,role,active',[clean(b.adminId),clean(b.name),clean(b.email)||null,hash,clean(b.role)||'Placement Officer']);res.status(201).json({data:r.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'That admin ID already exists.'});console.error(e);res.status(500).json({error:'Could not create admin user.'});}});
+app.patch('/api/admin/admin-users/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE admin_users SET active=COALESCE($1,active),role=COALESCE($2,role),updated_at=NOW() WHERE id=$3 RETURNING id,admin_id,name,email,role,active',[typeof req.body.active==='boolean'?req.body.active:null,clean(req.body.role)||null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Admin user not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update admin user.'});}});
+
+app.get('/api/admin/student-resume/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('SELECT file_name,mime_type,file_data FROM student_resumes WHERE student_id=$1',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Resume not found.'});res.setHeader('Content-Type',r.rows[0].mime_type);res.setHeader('Content-Disposition',`inline; filename="${r.rows[0].file_name.replace(/"/g,'')}"`);res.send(r.rows[0].file_data);}catch(e){console.error(e);res.status(500).json({error:'Could not load resume.'});}});
+
+app.get('/api/admin/dashboard', requireAdmin, async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM students) AS students,
+        (SELECT COUNT(*)::int FROM companies) AS companies,
+        (SELECT COUNT(*)::int FROM jobs) AS jobs,
+        (SELECT COUNT(*)::int FROM job_applications) AS applications,
+        (SELECT COUNT(*)::int FROM students WHERE profile_completed=TRUE) AS completed_profiles,
+        (SELECT COUNT(*)::int FROM jobs WHERE apply_before >= CURRENT_DATE) AS active_jobs,
+        (SELECT COUNT(*)::int FROM job_applications WHERE status='Selected') AS selected_applications,
+        (SELECT COUNT(*)::int FROM companies WHERE admin_status='Active') AS active_companies
+    `);
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load the admin dashboard.' });
+  }
+});
+
+app.get('/api/admin/companies', requireAdmin, async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT c.id,c.name,c.email,c.website,c.industry,c.location,c.description,c.admin_status,c.created_at,c.updated_at,
+             COUNT(DISTINCT j.id)::int AS job_count, COUNT(DISTINCT a.id)::int AS application_count
+      FROM companies c
+      LEFT JOIN jobs j ON j.company_id=c.id
+      LEFT JOIN job_applications a ON a.job_id=j.id
+      GROUP BY c.id ORDER BY c.created_at DESC
+    `);
+    res.json({ data: r.rows });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load companies.' }); }
+});
+
+app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
+  const status = clean(req.body.status);
+  if (!['Active','Suspended'].includes(status)) return res.status(400).json({ error: 'Company status must be Active or Suspended.' });
+  try {
+    const r = await pool.query(`UPDATE companies SET admin_status=$1,updated_at=NOW() WHERE id=$2 RETURNING id,name,admin_status`, [status, req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Company not found.' });
+    await logAdminActivity(req, `Company ${status.toLowerCase()}`, 'company', req.params.id, r.rows[0].name);
+    res.json({ data: r.rows[0] });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not update company status.' }); }
+});
+
+app.delete('/api/admin/companies/:id', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`DELETE FROM companies WHERE id=$1 RETURNING id,name`, [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Company not found.' });
+    await logAdminActivity(req, 'Company removed', 'company', req.params.id, r.rows[0].name);
+    res.json({ data: r.rows[0] });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not remove company.' }); }
+});
+
+app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.created_at,j.updated_at,
+             c.name AS company_name, COUNT(a.id)::int AS applicant_count
+      FROM jobs j JOIN companies c ON c.id=j.company_id LEFT JOIN job_applications a ON a.job_id=j.id
+      GROUP BY j.id,c.name ORDER BY j.created_at DESC
+    `);
+    res.json({ data: r.rows });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load jobs.' }); }
+});
+
+app.patch('/api/admin/jobs/:id', requireAdmin, async (req, res) => {
+  const status = clean(req.body.status);
+  if (!status) return res.status(400).json({ error: 'Job status is required.' });
+  try {
+    const r = await pool.query(`UPDATE jobs SET status=$1,status_class=$2,updated_at=NOW() WHERE id=$3 RETURNING id,title,status,status_class`, [status, clean(req.body.statusClass)||'status-amber', req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Job not found.' });
+    await logAdminActivity(req, 'Job status updated', 'job', req.params.id, `${r.rows[0].title}: ${status}`);
+    res.json({ data: r.rows[0] });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not update job.' }); }
+});
+
+app.delete('/api/admin/jobs/:id', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`DELETE FROM jobs WHERE id=$1 RETURNING id,title`, [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Job not found.' });
+    await logAdminActivity(req, 'Job removed', 'job', req.params.id, r.rows[0].title);
+    res.json({ data: r.rows[0] });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not remove job.' }); }
+});
+
+app.get('/api/admin/applications', requireAdmin, async (_req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT a.id,a.job_id,a.student_id,a.status,a.applied_at,a.updated_at,j.title AS job_title,c.name AS company_name,s.name AS student_name,s.reg_no,s.email
+      FROM job_applications a JOIN jobs j ON j.id=a.job_id JOIN companies c ON c.id=j.company_id JOIN students s ON s.id=a.student_id
+      ORDER BY a.applied_at DESC
+    `);
+    res.json({ data: r.rows });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load applications.' }); }
+});
+
+app.patch('/api/admin/applications/:id', requireAdmin, async (req, res) => {
+  const status = clean(req.body.status);
+  const allowed = ['Applied','Selected','Rejected','Waitlisted','Shortlisted','Interview'];
+  if (!allowed.includes(status)) return res.status(400).json({ error: `Status must be one of: ${allowed.join(', ')}.` });
+  try {
+    const r = await pool.query(`UPDATE job_applications SET status=$1,updated_at=NOW() WHERE id=$2 RETURNING id,status`, [status, req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found.' });
+    await logAdminActivity(req, 'Application status updated', 'application', req.params.id, status);
+    res.json({ data: r.rows[0] });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not update application.' }); }
+});
+
+app.get('/api/admin/analytics', requireAdmin, async (_req, res) => {
+  try {
+    const [dept,apps,companies,jobs] = await Promise.all([
+      pool.query(`SELECT COALESCE(NULLIF(department,''),'Not specified') AS label, COUNT(*)::int AS value FROM students GROUP BY 1 ORDER BY value DESC LIMIT 10`),
+      pool.query(`SELECT status AS label, COUNT(*)::int AS value FROM job_applications GROUP BY status ORDER BY value DESC`),
+      pool.query(`SELECT c.name AS label, COUNT(a.id)::int AS value FROM companies c LEFT JOIN jobs j ON j.company_id=c.id LEFT JOIN job_applications a ON a.job_id=j.id GROUP BY c.id ORDER BY value DESC LIMIT 8`),
+      pool.query(`SELECT TO_CHAR(month_start,'Mon YYYY') AS label, COUNT(*)::int AS value FROM (SELECT date_trunc('month',created_at) AS month_start FROM jobs) m GROUP BY month_start ORDER BY month_start DESC LIMIT 8`)
+    ]);
+    res.json({ data: { departments: dept.rows, applications: apps.rows, companies: companies.rows, jobsByMonth: jobs.rows.reverse() } });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load analytics.' }); }
+});
+
+app.get('/api/admin/activity', requireAdmin, async (_req, res) => {
+  try {
+    const r = await pool.query(`SELECT id,admin_id,action,entity_type,entity_id,details,created_at FROM admin_activity_logs ORDER BY created_at DESC LIMIT 50`);
+    res.json({ data: r.rows });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load activity log.' }); }
+});
+
+app.get('/api/admin/students', requireAdmin, async (_req, res) => {
+  try {
+    const r = await pool.query(`${adminStudentSelect} ORDER BY created_at DESC`);
+    res.json({ data: r.rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load students.' });
+  }
+});
+
+app.get('/api/admin/students/:id', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query(`${adminStudentSelect} WHERE id=$1`, [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Student not found.' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load the student.' });
+  }
+});
+
+app.post('/api/admin/students', requireAdmin, async (req, res) => {
+  const name = clean(req.body.name);
+  const regNo = clean(req.body.regNo);
+  const email = clean(req.body.email)?.toLowerCase();
+
+  if (!name || !regNo || !email) {
+    return res.status(400).json({ error: 'Name, registration number and email are required.' });
+  }
+
+  const password = clean(req.body.password) || randomPassword();
+  const v = adminStudentValues(req.body);
+
+  if (Number.isNaN(v.graduationYear) || Number.isNaN(v.cgpa)) {
+    return res.status(400).json({ error: 'Graduation year and CGPA must be valid numbers.' });
+  }
+
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const r = await pool.query(
+      `INSERT INTO students
+       (name,reg_no,email,password_hash,must_change_password,phone,dob,gender,address,college,degree,department,graduation_year,cgpa,education,skills,languages,experience,achievements,certifications,projects,summary,linkedin,github,portfolio,profile_details)
+       VALUES($1,$2,$3,$4,TRUE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::text[],$16::text[],$17::jsonb,$18,$19::jsonb,$20::jsonb,$21,$22,$23,$24,$25::jsonb)
+       RETURNING id,name,reg_no,email,must_change_password,profile_completed`,
+      [name,regNo,email,hash,v.phone,v.dob,v.gender,v.address,v.college,v.degree,v.department,v.graduationYear,v.cgpa,JSON.stringify(v.education),v.skills,v.languages,JSON.stringify(v.experience),v.achievements,JSON.stringify(v.certifications),JSON.stringify(v.projects),v.summary,v.linkedin,v.github,v.portfolio,JSON.stringify(v.profileDetails)]
+    );
+    await logAdminActivity(req, 'Student created', 'student', r.rows[0].id, `${r.rows[0].name} (${r.rows[0].reg_no})`);
+    res.status(201).json({ data: { student: r.rows[0], temporaryPassword: password } });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'A student already exists with that registration number or email.' });
+    console.error(e);
+    res.status(500).json({ error: 'Could not create the student account.' });
+  }
+});
+
+app.patch('/api/admin/students/:id', requireAdmin, async (req, res) => {
+  const name = clean(req.body.name);
+  const regNo = clean(req.body.regNo);
+  const email = clean(req.body.email)?.toLowerCase();
+  if (!name || !regNo || !email) return res.status(400).json({ error: 'Name, registration number and email are required.' });
+  const v = adminStudentValues(req.body);
+  if (Number.isNaN(v.graduationYear) || Number.isNaN(v.cgpa)) return res.status(400).json({ error: 'Graduation year and CGPA must be valid numbers.' });
+
+  try {
+    const r = await pool.query(
+      `UPDATE students SET
+        name=$1,reg_no=$2,email=$3,phone=$4,dob=$5,gender=$6,address=$7,college=$8,degree=$9,department=$10,graduation_year=$11,cgpa=$12,
+        education=$13::jsonb,skills=$14::text[],languages=$15::text[],experience=$16::jsonb,achievements=$17,certifications=$18::jsonb,projects=$19::jsonb,
+        summary=$20,linkedin=$21,github=$22,portfolio=$23,profile_details=$24::jsonb,updated_at=NOW()
+       WHERE id=$25
+       RETURNING id,name,reg_no,email,must_change_password,profile_completed`,
+      [name,regNo,email,v.phone,v.dob,v.gender,v.address,v.college,v.degree,v.department,v.graduationYear,v.cgpa,JSON.stringify(v.education),v.skills,v.languages,JSON.stringify(v.experience),v.achievements,JSON.stringify(v.certifications),JSON.stringify(v.projects),v.summary,v.linkedin,v.github,v.portfolio,JSON.stringify(v.profileDetails),req.params.id]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Student not found.' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'Another student already uses that registration number or email.' });
+    console.error(e);
+    res.status(500).json({ error: 'Could not update the student.' });
+  }
+});
+
+app.delete('/api/admin/students/:id', requireAdmin, async (req, res) => {
+  try {
+    const r = await pool.query('DELETE FROM students WHERE id=$1 RETURNING id,name,reg_no', [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Student not found.' });
+    await logAdminActivity(req, 'Student removed', 'student', req.params.id, `${r.rows[0].name} (${r.rows[0].reg_no})`);
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not delete the student.' });
+  }
+});
 
 /* =========================================================
    STUDENT LOGIN
