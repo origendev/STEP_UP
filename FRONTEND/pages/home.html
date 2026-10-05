@@ -8,12 +8,17 @@
   <div class="hero">
 
     <div class="hero-content">
-      <h1>Good evening, Vaishavi</h1>
+      <h1><span id="homeGreeting">Welcome</span>, <span id="homeName"></span> 👋</h1>
 
       <p>
         Welcome to your placement hub. Explore opportunities,
         build your skills, and track your journey toward an offer.
       </p>
+      <p class="hero-date" id="homeDate"></p>
+      <div class="hero-actions">
+        <button class="btn-solid" data-goto="jobs" type="button">Browse jobs</button>
+        <button class="btn-outline hero-ghost" id="askStepBtn" type="button">Ask Step ✨</button>
+      </div>
     </div>
 
     <div class="hero-visual">
@@ -33,6 +38,10 @@
 
   </div>
 
+
+
+  <!-- STAT STRIP -->
+  <div class="home-stats" id="homeStats" aria-label="Your placement numbers"></div>
 
   <!-- DASHBOARD CARDS -->
   <div class="grid3">
@@ -212,6 +221,36 @@
 
     </div>
 
+  </div>
+
+  <!-- ROW 2: openings + upcoming -->
+  <div class="grid2 home-row">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="ic">💼</span> Open Applications</div>
+        <span class="card-link" data-goto="jobs">All jobs →</span>
+      </div>
+      <div id="openingList"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="ic">🗓️</span> Coming Up</div>
+        <span class="card-link" data-goto="progress">Timeline →</span>
+      </div>
+      <div id="upcomingList"></div>
+    </div>
+  </div>
+
+  <!-- ROW 3: funnel + quick actions -->
+  <div class="grid2 home-row">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="ic">📈</span> Application Funnel</div></div>
+      <div id="funnelList"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="ic">⚡</span> Quick Actions</div></div>
+      <div class="quick-grid" id="quickGrid"></div>
+    </div>
   </div>
 
 </div>

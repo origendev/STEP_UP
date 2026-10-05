@@ -10,9 +10,9 @@ import * as router from './core/router.js?v=20260930d';
 import * as theme  from './core/theme.js';
 import { clearSession } from './core/api.js';
 import { esc } from './core/dom.js';
-import { profileMeta } from './data/profile.data.js';
+import { getUser, USER_EVENT } from './core/user.js';
 
-import { mount as mountHome } from './pages/home.js';
+import { mount as mountHome } from './pages/home.js?v=20261005b';
 import { mount as mountProfile } from './pages/profile.js';
 import { mount as mountJobs } from './pages/jobs.js';
 import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261005a';
@@ -48,11 +48,7 @@ const menu = document.createElement('div');
 menu.className = 'user-menu';
 avatar.parentElement.appendChild(menu);
 
-function who(){
-  try{ const s = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
-       if(s && s.name) return { name:s.name, reg:s.reg_no || '-' }; }catch{}
-  return { name:profileMeta.name, reg:profileMeta.regNo };
-}
+function who(){ const u = getUser(); return { name:u.name, reg:u.reg }; }
 function openProfile(tab){
   if(tab) sessionStorage.setItem('pfTab', tab); else sessionStorage.removeItem('pfTab');
   menu.classList.remove('open');
@@ -81,6 +77,7 @@ menu.addEventListener('click', (e) => {
 document.addEventListener('click', () => menu.classList.remove('open'));
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape') menu.classList.remove('open'); });
 window.addEventListener('storage', fillAvatar);
+window.addEventListener(USER_EVENT, fillAvatar);
 
 /* Go */
 router.start({ mountSelector:'#app', fallback:'home' });

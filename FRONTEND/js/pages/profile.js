@@ -3,6 +3,7 @@ import { $, $$, esc } from '../core/dom.js';
 import { api, getToken } from '../core/api.js';
 import { profileMeta } from '../data/profile.data.js';
 import { navigate } from '../core/router.js';
+import { announceUser } from '../core/user.js';
 
 const TABS = ['Details','Academics','Skills','More'];
 const PROF = ['Beginner','Intermediate','Advance','Professional'];
@@ -55,7 +56,7 @@ const ACAD = [['level','Level (Current / 12th / 10th / Diploma)'],['inst','Insti
 
 let P, S, tab = 'Details', editing = null, view = 'grid', q = '';
 const key = () => 'stepupProfile:' + (P.d.regNo || 'guest');
-const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} if(P?.logged) syncCore(); };
+const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} announceUser(); if(P?.logged) syncCore(); };
 const val = k => (P.d[k] ?? '') === '' ? '-' : P.d[k];
 
 async function load(){
