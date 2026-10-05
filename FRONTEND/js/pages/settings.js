@@ -8,10 +8,6 @@ import { clearSession } from '../core/api.js';
 
 const go = name => { location.hash = '#/' + name; };
 
-/* Captured at startup (app.js imports this file) so "Install app" can use it later */
-let installEvt = null;
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; });
-
 function toast(msg){
   document.querySelector('.st-toast')?.remove();
   const t = Object.assign(document.createElement('div'), { className:'st-toast', textContent:msg });
@@ -42,10 +38,6 @@ const actions = {
   },
   twofa:    () => toast('Two-factor authentication is coming soon.'),
   telegram: () => toast('Telegram alerts need a StepUp bot, which is not set up yet.'),
-  install:  async () => {
-    if(!installEvt) return toast('Use your browser menu, then "Install app" or "Add to Home screen".');
-    installEvt.prompt(); await installEvt.userChoice; installEvt = null;
-  },
   update:   async () => { await clearCache(); location.reload(); },
   clear:    async () => { await clearCache(); toast('Cache cleared. Your settings and sign-in are kept.'); }
 };
@@ -150,10 +142,6 @@ const TEMPLATE = `
   <section class="card st-card">
     <div class="card-head"><div class="card-title">Data &amp; Storage</div>
       <span class="st-ic"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span></div>
-    <div class="st-row">
-      <div class="st-label"><b>Install StepUp</b><small>Add this to your home screen or desktop for quicker access</small></div>
-      <button class="btn-outline st-btn" data-act="install">Install app</button>
-    </div>
     <div class="st-row">
       <div class="st-label"><b>Get latest update</b><small>Reload the app and fetch the newest version</small></div>
       <button class="btn-outline st-btn" data-act="update">Update now</button>

@@ -21,7 +21,7 @@ import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 import { mount as mountRound2 } from './pages/round2.js';
-import { mount as mountSettings } from './pages/settings.js';
+import { mount as mountSettings } from './pages/settings.js?v=20261005e';
 import * as prefs from './core/prefs.js';
 import * as notifications from './core/notifications.js';
 
