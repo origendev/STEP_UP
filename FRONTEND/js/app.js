@@ -28,6 +28,7 @@ import * as notifications from './core/notifications.js';
 /* Route name -> pages/<name>.html + its mount function */
 router.register('home',         mountHome);
 router.register('jobs',         mountJobs);
+router.register('jobs-locked',  null);
 router.register('demands',      mountDemands);
 router.register('news-detail',  mountNewsDetail);
 router.register('skills',       mountSkills);
@@ -35,12 +36,28 @@ router.register('progress',     mountProgress);
 router.register('round1', mountRound1);
 router.register('round2', mountRound2);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
-router.register('settings',     mountSettings);  // reached via the avatar menu
+router.register('settings',     mountSettings);
+function getStudentYear(){
+  try{
+    const u=JSON.parse(localStorage.getItem('stepupStudent')||'{}');
+    return Number(u.study_year ?? u.studyYear ?? 0);
+  }catch{return 0;}
+}
+
+function updateYearBasedNavigation(){
+  const placementYear = getStudentYear() >= 3;
+  document.querySelectorAll('[data-tab="progress"]').forEach(el=>{
+    el.style.display = placementYear ? '' : 'none';
+  });
+}
 
 /* Shell-level behaviour */
 prefs.init();
 theme.init();
 notifications.init();   // bell icon: shows the notifications panel
+updateYearBasedNavigation();
+window.addEventListener(USER_EVENT, updateYearBasedNavigation);
+window.addEventListener('storage', updateYearBasedNavigation);
 
 /* Avatar dropdown: name + register number, Profile, Settings, Logout */
 const avatar = document.getElementById('avatarBtn');
@@ -76,8 +93,8 @@ menu.addEventListener('click', (e) => {
 });
 document.addEventListener('click', () => menu.classList.remove('open'));
 document.addEventListener('keydown', (e) => { if(e.key === 'Escape') menu.classList.remove('open'); });
-window.addEventListener('storage', fillAvatar);
-window.addEventListener(USER_EVENT, fillAvatar);
+window.addEventListener('storage', () => { fillAvatar(); });
+window.addEventListener(USER_EVENT, () => { fillAvatar(); });
 
 /* Go */
 router.start({ mountSelector:'#app', fallback:'home' });

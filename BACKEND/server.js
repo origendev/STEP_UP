@@ -53,6 +53,13 @@ app.use(cors({
 app.use(express.json({ limit: '15mb' }));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
+const ELIGIBLE_DEPARTMENTS = ['CSE','IT','EEE','ECE','Mechanical','Civil'];
+
+function normalizeEligibleDepartments(value) {
+  const values = Array.isArray(value) ? value : [];
+  return [...new Set(values.map(clean).filter(Boolean))].filter(d => ELIGIBLE_DEPARTMENTS.includes(d));
+}
+
 const newsArticleCache = new Map();
 const googleNewsDecoder = new GoogleDecoder();
 let demandRolesCache = null;
@@ -266,6 +273,15 @@ function validateJob(b) {
     return 'Visit date must be YYYY-MM-DD.';
   }
 
+  const rawDepartments = Array.isArray(b.eligibleDepartments) ? b.eligibleDepartments.map(clean).filter(Boolean) : [];
+  const departments = normalizeEligibleDepartments(rawDepartments);
+  if (!departments.length) {
+    return 'Select at least one eligible department.';
+  }
+  if (rawDepartments.some(d => !ELIGIBLE_DEPARTMENTS.includes(d))) {
+    return 'Eligible departments contain an invalid value.';
+  }
+
   return null;
 }
 
@@ -364,6 +380,22 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_jobs_category
       ON jobs(category);
 
+    CREATE TABLE IF NOT EXISTS job_departments (
+      id BIGSERIAL PRIMARY KEY,
+      job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      department TEXT NOT NULL,
+      UNIQUE(job_id, department)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_job_departments_job_id
+      ON job_departments(job_id);
+
+    INSERT INTO job_departments (job_id, department)
+    SELECT j.id, d.department
+    FROM jobs j
+    CROSS JOIN (VALUES ('CSE'),('IT'),('EEE'),('ECE'),('Mechanical'),('Civil')) AS d(department)
+    WHERE NOT EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id);
+
     /* STUDENT TABLE */
 
     CREATE TABLE IF NOT EXISTS students (
@@ -383,6 +415,7 @@ async function ensureSchema() {
       degree TEXT,
       department TEXT,
       graduation_year INTEGER,
+      study_year INTEGER NOT NULL DEFAULT 1 CHECK (study_year BETWEEN 1 AND 4),
       cgpa NUMERIC(4,2),
 
       education JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -401,6 +434,10 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    ALTER TABLE students ADD COLUMN IF NOT EXISTS study_year INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE students DROP CONSTRAINT IF EXISTS students_study_year_check;
+    ALTER TABLE students ADD CONSTRAINT students_study_year_check CHECK (study_year BETWEEN 1 AND 4);
 
     /* PASSWORD RESET OTP TABLE */
 
@@ -1474,6 +1511,7 @@ app.get(
   async (req, res) => {
     const r = await pool.query(
       `SELECT j.*,
+               COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments,
                (SELECT COUNT(*)::int FROM job_applications a WHERE a.job_id=j.id) AS applicant_count
         FROM jobs j
         WHERE j.company_id=$1
@@ -1493,48 +1531,37 @@ app.post(
   async (req, res) => {
     const b = req.body;
     const err = validateJob(b);
+    if (err) return res.status(400).json({ error: err });
 
-    if (err) {
-      return res.status(400).json({
-        error: err
-      });
-    }
-
+    const client = await pool.connect();
     try {
-      const r = await pool.query(
+      await client.query('BEGIN');
+      const r = await client.query(
         `INSERT INTO jobs
          (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *`,
         [
-          req.company.companyId,
-          clean(b.title),
-          clean(b.jobType),
-          clean(b.salary) || null,
-          clean(b.stipend) || null,
-          b.applyBefore,
-          clean(b.visitDate) || null,
-          clean(b.visitTag) || null,
-          clean(b.status) || 'Eligible',
-          clean(b.statusClass) || 'status-amber',
-          clean(b.batch) || null,
-          clean(b.location) || null,
-          clean(b.workMode) || null,
-          clean(b.description),
-          clean(b.category) || 'eligible',
-          clean(b.interviewRounds)
+          req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
+          b.applyBefore, clean(b.visitDate) || null, clean(b.visitTag) || null, clean(b.status) || 'Eligible',
+          clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
+          clean(b.description), clean(b.category) || 'eligible', clean(b.interviewRounds)
         ]
       );
-
-      res.status(201).json({
-        data: r.rows[0]
-      });
+      const departments = normalizeEligibleDepartments(b.eligibleDepartments);
+      await client.query(
+        `INSERT INTO job_departments (job_id,department) SELECT $1, UNNEST($2::text[])`,
+        [r.rows[0].id, departments]
+      );
+      await client.query('COMMIT');
+      r.rows[0].eligible_departments = departments;
+      res.status(201).json({ data: r.rows[0] });
     } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
       console.error(e);
-
-      res.status(500).json({
-        error: 'Could not publish the job.'
-      });
+      res.status(500).json({ error: 'Could not publish the job.' });
+    } finally {
+      client.release();
     }
   }
 );
@@ -1545,71 +1572,44 @@ app.patch(
   async (req, res) => {
     const b = req.body;
     const err = validateJob(b);
+    if (err) return res.status(400).json({ error: err });
 
-    if (err) {
-      return res.status(400).json({
-        error: err
-      });
-    }
-
+    const client = await pool.connect();
     try {
-      const r = await pool.query(
+      await client.query('BEGIN');
+      const r = await client.query(
         `UPDATE jobs
-         SET title=$1,
-             job_type=$2,
-             salary=$3,
-             stipend=$4,
-             apply_before=$5,
-             visit_date=$6,
-             visit_tag=$7,
-             status=$8,
-             status_class=$9,
-             batch=$10,
-             location=$11,
-             work_mode=$12,
-             description=$13,
-             category=$14,
-             interview_rounds=$15,
-             updated_at=NOW()
+         SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
+             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,category=$14,
+             interview_rounds=$15,updated_at=NOW()
          WHERE id=$16 AND company_id=$17
          RETURNING *`,
         [
-          clean(b.title),
-          clean(b.jobType),
-          clean(b.salary) || null,
-          clean(b.stipend) || null,
-          b.applyBefore,
-          clean(b.visitDate) || null,
-          clean(b.visitTag) || null,
-          clean(b.status) || 'Eligible',
-          clean(b.statusClass) || 'status-amber',
-          clean(b.batch) || null,
-          clean(b.location) || null,
-          clean(b.workMode) || null,
-          clean(b.description),
-          clean(b.category) || 'eligible',
-          clean(b.interviewRounds),
-          req.params.id,
-          req.company.companyId
+          clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
+          clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
+          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.category)||'eligible',clean(b.interviewRounds),
+          req.params.id,req.company.companyId
         ]
       );
-
       if (!r.rows[0]) {
-        return res.status(404).json({
-          error:
-            'Job not found or you do not own this listing.'
-        });
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error:'Job not found or you do not own this listing.' });
       }
-
-      res.json({
-        data: r.rows[0]
-      });
+      const departments = normalizeEligibleDepartments(b.eligibleDepartments);
+      await client.query('DELETE FROM job_departments WHERE job_id=$1',[req.params.id]);
+      await client.query(
+        `INSERT INTO job_departments (job_id,department) SELECT $1, UNNEST($2::text[])`,
+        [req.params.id,departments]
+      );
+      await client.query('COMMIT');
+      r.rows[0].eligible_departments = departments;
+      res.json({data:r.rows[0]});
     } catch (e) {
+      await client.query('ROLLBACK').catch(() => {});
       console.error(e);
-
-      res.status(500).json({
-        error: 'Could not update the job.'
-      });
+      res.status(500).json({ error:'Could not update the job.' });
+    } finally {
+      client.release();
     }
   }
 );
@@ -1667,6 +1667,7 @@ const publicJobSelect = `
     j.description,
     j.category,
     j.interview_rounds,
+    COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments,
     j.created_at,
     j.updated_at
   FROM jobs j
@@ -1700,7 +1701,7 @@ app.post('/api/admin/login', async (req, res) => {
 const adminStudentSelect = `
   SELECT
     id,name,reg_no,email,must_change_password,profile_completed,
-    phone,dob,gender,address,college,degree,department,graduation_year,cgpa,
+    phone,dob,gender,address,college,degree,department,graduation_year,study_year,cgpa,
     education,skills,languages,experience,achievements,certifications,projects,
     summary,linkedin,github,portfolio,profile_details,created_at,updated_at
   FROM students
@@ -1739,6 +1740,7 @@ function adminStudentValues(body) {
     degree: clean(body.degree) || null,
     department: clean(body.department) || null,
     graduationYear: body.graduationYear === '' || body.graduationYear === undefined ? null : Number(body.graduationYear),
+    studyYear: body.studyYear === '' || body.studyYear === undefined ? null : Number(body.studyYear),
     cgpa: body.cgpa === '' || body.cgpa === undefined ? null : Number(body.cgpa),
     education: parseAdminJson(body.education, []),
     skills: parseAdminArray(body.skills),
@@ -1836,7 +1838,7 @@ app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
       SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.created_at,j.updated_at,
-             c.name AS company_name, COUNT(a.id)::int AS applicant_count
+             c.name AS company_name, COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments, COUNT(a.id)::int AS applicant_count
       FROM jobs j JOIN companies c ON c.id=j.company_id LEFT JOIN job_applications a ON a.job_id=j.id
       GROUP BY j.id,c.name ORDER BY j.created_at DESC
     `);
@@ -1931,26 +1933,22 @@ app.post('/api/admin/students', requireAdmin, async (req, res) => {
   const name = clean(req.body.name);
   const regNo = clean(req.body.regNo);
   const email = clean(req.body.email)?.toLowerCase();
-
-  if (!name || !regNo || !email) {
-    return res.status(400).json({ error: 'Name, registration number and email are required.' });
-  }
+  if (!name || !regNo || !email) return res.status(400).json({ error: 'Name, registration number and email are required.' });
 
   const password = clean(req.body.password) || randomPassword();
   const v = adminStudentValues(req.body);
-
-  if (Number.isNaN(v.graduationYear) || Number.isNaN(v.cgpa)) {
-    return res.status(400).json({ error: 'Graduation year and CGPA must be valid numbers.' });
-  }
+  if (!Number.isInteger(v.studyYear) || v.studyYear < 1 || v.studyYear > 4) return res.status(400).json({ error: 'Please select a valid current year.' });
+  if (v.graduationYear !== null && Number.isNaN(v.graduationYear)) return res.status(400).json({ error: 'Graduation year must be a valid number.' });
+  if (v.cgpa !== null && Number.isNaN(v.cgpa)) return res.status(400).json({ error: 'CGPA must be a valid number.' });
 
   try {
     const hash = await bcrypt.hash(password, 12);
     const r = await pool.query(
       `INSERT INTO students
-       (name,reg_no,email,password_hash,must_change_password,phone,dob,gender,address,college,degree,department,graduation_year,cgpa,education,skills,languages,experience,achievements,certifications,projects,summary,linkedin,github,portfolio,profile_details)
-       VALUES($1,$2,$3,$4,TRUE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::text[],$16::text[],$17::jsonb,$18,$19::jsonb,$20::jsonb,$21,$22,$23,$24,$25::jsonb)
-       RETURNING id,name,reg_no,email,must_change_password,profile_completed`,
-      [name,regNo,email,hash,v.phone,v.dob,v.gender,v.address,v.college,v.degree,v.department,v.graduationYear,v.cgpa,JSON.stringify(v.education),v.skills,v.languages,JSON.stringify(v.experience),v.achievements,JSON.stringify(v.certifications),JSON.stringify(v.projects),v.summary,v.linkedin,v.github,v.portfolio,JSON.stringify(v.profileDetails)]
+       (name,reg_no,email,password_hash,must_change_password,phone,dob,gender,address,college,degree,department,graduation_year,study_year,cgpa,education,skills,languages,experience,achievements,certifications,projects,summary,linkedin,github,portfolio,profile_details)
+       VALUES($1,$2,$3,$4,TRUE,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::text[],$17::text[],$18::jsonb,$19,$20::jsonb,$21::jsonb,$22,$23,$24,$25,$26::jsonb)
+       RETURNING id,name,reg_no,email,department,study_year,graduation_year,must_change_password,profile_completed`,
+      [name,regNo,email,hash,v.phone,v.dob,v.gender,v.address,v.college,v.degree,v.department,v.graduationYear,v.studyYear,v.cgpa,JSON.stringify(v.education),v.skills,v.languages,JSON.stringify(v.experience),v.achievements,JSON.stringify(v.certifications),JSON.stringify(v.projects),v.summary,v.linkedin,v.github,v.portfolio,JSON.stringify(v.profileDetails)]
     );
     await logAdminActivity(req, 'Student created', 'student', r.rows[0].id, `${r.rows[0].name} (${r.rows[0].reg_no})`);
     res.status(201).json({ data: { student: r.rows[0], temporaryPassword: password } });
@@ -1966,18 +1964,21 @@ app.patch('/api/admin/students/:id', requireAdmin, async (req, res) => {
   const regNo = clean(req.body.regNo);
   const email = clean(req.body.email)?.toLowerCase();
   if (!name || !regNo || !email) return res.status(400).json({ error: 'Name, registration number and email are required.' });
+
   const v = adminStudentValues(req.body);
-  if (Number.isNaN(v.graduationYear) || Number.isNaN(v.cgpa)) return res.status(400).json({ error: 'Graduation year and CGPA must be valid numbers.' });
+  if (!Number.isInteger(v.studyYear) || v.studyYear < 1 || v.studyYear > 4) return res.status(400).json({ error: 'Please select a valid current year.' });
+  if (v.graduationYear !== null && Number.isNaN(v.graduationYear)) return res.status(400).json({ error: 'Graduation year must be a valid number.' });
+  if (v.cgpa !== null && Number.isNaN(v.cgpa)) return res.status(400).json({ error: 'CGPA must be a valid number.' });
 
   try {
     const r = await pool.query(
       `UPDATE students SET
-        name=$1,reg_no=$2,email=$3,phone=$4,dob=$5,gender=$6,address=$7,college=$8,degree=$9,department=$10,graduation_year=$11,cgpa=$12,
-        education=$13::jsonb,skills=$14::text[],languages=$15::text[],experience=$16::jsonb,achievements=$17,certifications=$18::jsonb,projects=$19::jsonb,
-        summary=$20,linkedin=$21,github=$22,portfolio=$23,profile_details=$24::jsonb,updated_at=NOW()
-       WHERE id=$25
-       RETURNING id,name,reg_no,email,must_change_password,profile_completed`,
-      [name,regNo,email,v.phone,v.dob,v.gender,v.address,v.college,v.degree,v.department,v.graduationYear,v.cgpa,JSON.stringify(v.education),v.skills,v.languages,JSON.stringify(v.experience),v.achievements,JSON.stringify(v.certifications),JSON.stringify(v.projects),v.summary,v.linkedin,v.github,v.portfolio,JSON.stringify(v.profileDetails),req.params.id]
+        name=$1,reg_no=$2,email=$3,phone=$4,dob=$5,gender=$6,address=$7,college=$8,degree=$9,department=$10,graduation_year=$11,study_year=$12,cgpa=$13,
+        education=$14::jsonb,skills=$15::text[],languages=$16::text[],experience=$17::jsonb,achievements=$18,certifications=$19::jsonb,projects=$20::jsonb,
+        summary=$21,linkedin=$22,github=$23,portfolio=$24,profile_details=$25::jsonb,updated_at=NOW()
+       WHERE id=$26
+       RETURNING id,name,reg_no,email,department,study_year,graduation_year,must_change_password,profile_completed`,
+      [name,regNo,email,v.phone,v.dob,v.gender,v.address,v.college,v.degree,v.department,v.graduationYear,v.studyYear,v.cgpa,JSON.stringify(v.education),v.skills,v.languages,JSON.stringify(v.experience),v.achievements,JSON.stringify(v.certifications),JSON.stringify(v.projects),v.summary,v.linkedin,v.github,v.portfolio,JSON.stringify(v.profileDetails),req.params.id]
     );
     if (!r.rows[0]) return res.status(404).json({ error: 'Student not found.' });
     res.json({ data: r.rows[0] });
@@ -2019,7 +2020,7 @@ app.post(
 
     try {
       const r = await pool.query(
-        `SELECT id,name,reg_no,email,password_hash,must_change_password,profile_completed
+        `SELECT id,name,reg_no,email,password_hash,study_year,department,graduation_year,must_change_password,profile_completed
          FROM students
          WHERE reg_no=$1`,
         [regNo]
@@ -2529,6 +2530,12 @@ app.post('/api/jobs/:id/apply', requireStudent, async (req, res) => {
     );
     if (!job.rows[0]) return res.status(404).json({ error: 'Job listing not found.' });
 
+    const studentInfo = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
+    if (!studentInfo.rows[0]) return res.status(401).json({error:'Student account not found.'});
+    if (Number(studentInfo.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
+    const eligibility = await pool.query('SELECT 1 FROM job_departments WHERE job_id=$1 AND department=$2',[req.params.id,studentInfo.rows[0].department]);
+    if (!eligibility.rows[0]) return res.status(403).json({error:'You are not eligible for this job based on your department.'});
+
     const deadline = job.rows[0].apply_before;
     const today = new Date().toISOString().slice(0, 10);
     if (deadline && String(deadline).slice(0, 10) < today) {
@@ -2720,12 +2727,16 @@ app.get('/api/company/applications/:id/resume', requireCompany, async (req, res)
    PUBLIC JOB LIST
 ========================================================= */
 
-app.get('/api/jobs', async (_req, res) => {
+app.get('/api/jobs', requireStudent, async (req, res) => {
   try {
-    const r = await pool.query(
-      `${publicJobSelect}
-       ORDER BY j.created_at DESC`
-    );
+    let where = '';
+    const params = [];
+    const student = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
+    if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
+    if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
+    params.push(student.rows[0].department);
+    where = ' WHERE EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)';
+    const r = await pool.query(`${publicJobSelect}${where} ORDER BY j.created_at DESC`, params);
 
     res.json({
       data: r.rows
@@ -2743,13 +2754,16 @@ app.get('/api/jobs', async (_req, res) => {
    PUBLIC JOB DETAILS
 ========================================================= */
 
-app.get('/api/jobs/:id', async (req, res) => {
+app.get('/api/jobs/:id', requireStudent, async (req, res) => {
   try {
-    const r = await pool.query(
-      `${publicJobSelect}
-       WHERE j.id=$1`,
-      [req.params.id]
-    );
+    const params = [req.params.id];
+    let where = ' WHERE j.id=$1';
+    const student = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
+    if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
+    if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
+    params.push(student.rows[0].department);
+    where += ' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$2)';
+    const r = await pool.query(`${publicJobSelect}${where}`, params);
 
     if (!r.rows[0]) {
       return res.status(404).json({

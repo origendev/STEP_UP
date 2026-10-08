@@ -62,7 +62,10 @@ async function loadApplications(){
 async function loadJobs(){
   const grid=$('#jobsGrid');
   try{
-    const res=await fetch(`${API_BASE_URL}/jobs`, {headers:{Accept:'application/json'}});
+    const token = getToken();
+    const headers = {Accept:'application/json'};
+    if(token) headers.Authorization = `Bearer ${token}`;
+    const res=await fetch(`${API_BASE_URL}/jobs`, {headers});
     if(!res.ok) throw new Error(`Jobs API returned ${res.status}`);
     const result=await res.json();
     allJobs=Array.isArray(result.data) ? result.data.map(normalise) : [];

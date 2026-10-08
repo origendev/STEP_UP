@@ -1,13 +1,643 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>StepUp — Company Portal</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="../css/base.css"><link rel="stylesheet" href="../css/layout.css"><link rel="stylesheet" href="../css/components.css"><style>
-body{min-height:100vh;display:grid;place-items:center;padding:28px}.portal-wrap{width:min(500px,100%)}.brand-center{text-align:center;margin-bottom:20px}.brand-center .brand{justify-content:center}.brand-center p{margin:7px 0;color:var(--ink-soft);font-size:13px}.portal-card{background:var(--white);border:1px solid var(--line);border-radius:22px;padding:28px;box-shadow:var(--shadow-card)}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--violet-600);margin:0 0 8px}.portal-card h1{margin:0;font-size:25px}.sub{color:var(--ink-soft);font-size:13px;line-height:1.55;margin:9px 0 22px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:block;font-size:12px;font-weight:700;color:var(--ink)}.field.full{grid-column:1/-1}.field input,.field textarea,.field select{width:100%;margin-top:6px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--lilac-bg);color:var(--ink);outline:0;font:inherit;font-size:13px}.field textarea{min-height:82px;resize:vertical}.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--violet-500);box-shadow:0 0 0 3px var(--violet-100)}.primary{width:100%;margin-top:18px;border:0;border-radius:10px;padding:12px;background:linear-gradient(135deg,var(--violet-600),var(--violet-500));color:#fff;font-weight:800}.secondary{width:100%;margin-top:10px;border:1px solid var(--line);border-radius:10px;padding:11px;background:var(--white);color:var(--ink);font-weight:700}.message{display:none;margin:0 0 14px;padding:10px 12px;border-radius:9px;font-size:12.5px}.message.error{display:block;background:var(--rose-bg);color:var(--rose)}.message.ok{display:block;background:var(--green-bg);color:var(--green)}.back{display:block;text-align:center;margin-top:16px;color:var(--violet-700);font-size:12.5px;font-weight:700}.hidden{display:none!important}@media(max-width:560px){.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}}
-</style><script src="../js/config.js"></script></head><body><main class="portal-wrap"><div class="brand-center"><div class="brand"><span class="brand-mark">S</span>StepUp</div><p>Company Portal • Manage recruitment listings</p></div><section class="portal-card"><p class="eyebrow">COMPANY PORTAL</p><h1 id="heading">Welcome back</h1><p class="sub" id="subtitle">Sign in to publish, edit and remove your company's job listings. Changes are stored in the shared StepUp database.</p><div id="message" class="message"></div>
-<form id="loginForm"><label class="field">Work email<input id="loginEmail" type="email" required placeholder="recruiter@company.com"></label><label class="field" style="margin-top:13px">Password<input id="loginPassword" type="password" required placeholder="Your password"></label><button class="primary">Sign In</button></form>
-<form id="registerForm" class="hidden"><div class="form-grid"><label class="field full">Company name<input id="regName" required placeholder="Acme Technologies"></label><label class="field">Work email<input id="regEmail" type="email" required placeholder="recruiter@acme.com"></label><label class="field">Password<input id="regPassword" type="password" minlength="8" required placeholder="At least 8 characters"></label><label class="field"><span>Industry</span><select id="regIndustry"><option>IT</option><option>Product</option><option>Finance</option><option>Consulting</option></select></label><label class="field">Location<input id="regLocation" placeholder="Bangalore"></label><label class="field full">Website<input id="regWebsite" type="url" placeholder="https://company.com"></label><label class="field full">Company description<textarea id="regDescription" placeholder="Short company description shown to students"></textarea></label></div><button class="primary">Create Company Account</button></form>
-<button class="secondary" id="switchMode" type="button">Create Company Account</button><a class="back" href="../index.html#/jobs">← Back to Jobs</a></section></main><script>
-const API=window.STEPUP_API_BASE_URL||'http://localhost:3000/api';const $=id=>document.getElementById(id);let register=false;
-function msg(text,type='error'){const m=$('message');m.textContent=text;m.className='message '+type}
-function setMode(v){register=v;$('loginForm').classList.toggle('hidden',v);$('registerForm').classList.toggle('hidden',!v);$('heading').textContent=v?'Create your company account':'Welcome back';$('subtitle').textContent=v?'Create one company account to manage every listing your recruiters publish on StepUp.':'Sign in to publish, edit and remove your company\'s job listings. Changes are stored in the shared StepUp database.';$('switchMode').textContent=v?'Already have an account? Sign In':'Create Company Account';$('message').className='message'}
-$('switchMode').onclick=()=>setMode(!register);
-$('loginForm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('loginEmail').value,password:$('loginPassword').value})});const d=await r.json();if(!r.ok)throw Error(d.error||'Sign in failed');localStorage.setItem('stepupCompanyToken',d.data.token);localStorage.setItem('stepupCompany',JSON.stringify(d.data.company));location.href='dashboard.html';}catch(err){msg(err.message)}};
-$('registerForm').onsubmit=async e=>{e.preventDefault();try{const r=await fetch(API+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({companyName:$('regName').value,email:$('regEmail').value,password:$('regPassword').value,industry:$('regIndustry').value,location:$('regLocation').value,website:$('regWebsite').value,description:$('regDescription').value})});const d=await r.json();if(!r.ok)throw Error(d.error||'Registration failed');localStorage.setItem('stepupCompanyToken',d.data.token);localStorage.setItem('stepupCompany',JSON.stringify(d.data.company));location.href='dashboard.html';}catch(err){msg(err.message)}};
-</script></body></html>
+<!doctype html>
+<html lang="en">
+
+<head>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>StepUp — Company Portal</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link
+  href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+>
+
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/layout.css">
+<link rel="stylesheet" href="../css/components.css">
+
+<style>
+
+body{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:28px
+}
+
+.portal-wrap{
+  width:min(500px,100%)
+}
+
+.brand-center{
+  text-align:center;
+  margin-bottom:20px
+}
+
+.brand-center .brand{
+  justify-content:center
+}
+
+.brand-center p{
+  margin:7px 0;
+  color:var(--ink-soft);
+  font-size:13px
+}
+
+.portal-card{
+  background:var(--white);
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:28px;
+  box-shadow:var(--shadow-card)
+}
+
+.eyebrow{
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.12em;
+  color:var(--violet-600);
+  margin:0 0 8px
+}
+
+.portal-card h1{
+  margin:0;
+  font-size:25px
+}
+
+.sub{
+  color:var(--ink-soft);
+  font-size:13px;
+  line-height:1.55;
+  margin:9px 0 22px
+}
+
+.form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:13px
+}
+
+.field{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--ink)
+}
+
+.field.full{
+  grid-column:1/-1
+}
+
+.field input,
+.field textarea,
+.field select{
+  width:100%;
+  margin-top:6px;
+  padding:11px 12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--lilac-bg);
+  color:var(--ink);
+  outline:0;
+  font:inherit;
+  font-size:13px
+}
+
+.field textarea{
+  min-height:82px;
+  resize:vertical
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus{
+  border-color:var(--violet-500);
+  box-shadow:0 0 0 3px var(--violet-100)
+}
+
+.primary{
+  width:100%;
+  margin-top:18px;
+  border:0;
+  border-radius:10px;
+  padding:12px;
+  background:linear-gradient(
+    135deg,
+    var(--violet-600),
+    var(--violet-500)
+  );
+  color:#fff;
+  font-weight:800;
+  cursor:pointer
+}
+
+.secondary{
+  width:100%;
+  margin-top:10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:11px;
+  background:var(--white);
+  color:var(--ink);
+  font-weight:700;
+  cursor:pointer
+}
+
+.message{
+  display:none;
+  margin:0 0 14px;
+  padding:10px 12px;
+  border-radius:9px;
+  font-size:12.5px
+}
+
+.message.error{
+  display:block;
+  background:var(--rose-bg);
+  color:var(--rose)
+}
+
+.message.ok{
+  display:block;
+  background:var(--green-bg);
+  color:var(--green)
+}
+
+.back{
+  display:block;
+  text-align:center;
+  margin-top:16px;
+  color:var(--violet-700);
+  font-size:12.5px;
+  font-weight:700;
+  text-decoration:none
+}
+
+.back:hover{
+  text-decoration:underline
+}
+
+.hidden{
+  display:none!important
+}
+
+@media(max-width:560px){
+
+  .form-grid{
+    grid-template-columns:1fr
+  }
+
+  .field.full{
+    grid-column:auto
+  }
+
+}
+
+</style>
+
+<script src="../js/config.js"></script>
+
+</head>
+
+<body>
+
+<main class="portal-wrap">
+
+  <div class="brand-center">
+
+    <div class="brand">
+      <span class="brand-mark">S</span>
+      StepUp
+    </div>
+
+    <p>
+      Company Portal • Manage recruitment listings
+    </p>
+
+  </div>
+
+
+  <section class="portal-card">
+
+    <p class="eyebrow">
+      COMPANY PORTAL
+    </p>
+
+    <h1 id="heading">
+      Welcome back
+    </h1>
+
+    <p class="sub" id="subtitle">
+      Sign in to publish, edit and remove your company's job listings.
+      Changes are stored in the shared StepUp database.
+    </p>
+
+
+    <div id="message" class="message"></div>
+
+
+    <!-- LOGIN FORM -->
+
+    <form id="loginForm">
+
+      <label class="field">
+
+        Work email
+
+        <input
+          id="loginEmail"
+          type="email"
+          required
+          placeholder="recruiter@company.com"
+        >
+
+      </label>
+
+
+      <label
+        class="field"
+        style="margin-top:13px"
+      >
+
+        Password
+
+        <input
+          id="loginPassword"
+          type="password"
+          required
+          placeholder="Your password"
+        >
+
+      </label>
+
+
+      <button
+        class="primary"
+        type="submit"
+      >
+        Sign In
+      </button>
+
+    </form>
+
+
+    <!-- REGISTER FORM -->
+
+    <form
+      id="registerForm"
+      class="hidden"
+    >
+
+      <div class="form-grid">
+
+
+        <label class="field full">
+
+          Company name
+
+          <input
+            id="regName"
+            required
+            placeholder="Acme Technologies"
+          >
+
+        </label>
+
+
+        <label class="field">
+
+          Work email
+
+          <input
+            id="regEmail"
+            type="email"
+            required
+            placeholder="recruiter@acme.com"
+          >
+
+        </label>
+
+
+        <label class="field">
+
+          Password
+
+          <input
+            id="regPassword"
+            type="password"
+            minlength="8"
+            required
+            placeholder="At least 8 characters"
+          >
+
+        </label>
+
+
+        <label class="field">
+
+          <span>Industry</span>
+
+          <select id="regIndustry">
+
+            <option>IT</option>
+            <option>Product</option>
+            <option>Finance</option>
+            <option>Consulting</option>
+
+          </select>
+
+        </label>
+
+
+        <label class="field">
+
+          Location
+
+          <input
+            id="regLocation"
+            placeholder="Bangalore"
+          >
+
+        </label>
+
+
+        <label class="field full">
+
+          Website
+
+          <input
+            id="regWebsite"
+            type="url"
+            placeholder="https://company.com"
+          >
+
+        </label>
+
+
+        <label class="field full">
+
+          Company description
+
+          <textarea
+            id="regDescription"
+            placeholder="Short company description shown to students"
+          ></textarea>
+
+        </label>
+
+
+      </div>
+
+
+      <button
+        class="primary"
+        type="submit"
+      >
+        Create Company Account
+      </button>
+
+    </form>
+
+
+    <!-- LOGIN / REGISTER SWITCH -->
+
+    <button
+      class="secondary"
+      id="switchMode"
+      type="button"
+    >
+      Create Company Account
+    </button>
+
+
+    <!-- BACK TO PORTAL ACCESS -->
+
+    <a
+      class="back"
+      href="../portal-access.html"
+    >
+      ← Back to Portal Access
+    </a>
+
+
+  </section>
+
+</main>
+
+
+<script>
+
+const API =
+  window.STEPUP_API_BASE_URL ||
+  'http://localhost:3000/api';
+
+const $ = id => document.getElementById(id);
+
+let register = false;
+
+
+function msg(text, type = 'error') {
+
+  const m = $('message');
+
+  m.textContent = text;
+
+  m.className = 'message ' + type;
+
+}
+
+
+function setMode(v) {
+
+  register = v;
+
+  $('loginForm').classList.toggle(
+    'hidden',
+    v
+  );
+
+  $('registerForm').classList.toggle(
+    'hidden',
+    !v
+  );
+
+
+  $('heading').textContent =
+    v
+      ? 'Create your company account'
+      : 'Welcome back';
+
+
+  $('subtitle').textContent =
+    v
+      ? 'Create one company account to manage every listing your recruiters publish on StepUp.'
+      : "Sign in to publish, edit and remove your company's job listings. Changes are stored in the shared StepUp database.";
+
+
+  $('switchMode').textContent =
+    v
+      ? 'Already have an account? Sign In'
+      : 'Create Company Account';
+
+
+  $('message').className = 'message';
+
+}
+
+
+$('switchMode').onclick = () => {
+
+  setMode(!register);
+
+};
+
+
+$('loginForm').onsubmit = async e => {
+
+  e.preventDefault();
+
+  try {
+
+    const r = await fetch(
+      API + '/auth/login',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+          email: $('loginEmail').value,
+          password: $('loginPassword').value
+        })
+
+      }
+    );
+
+
+    const d = await r.json();
+
+
+    if (!r.ok) {
+
+      throw Error(
+        d.error || 'Sign in failed'
+      );
+
+    }
+
+
+    localStorage.setItem(
+      'stepupCompanyToken',
+      d.data.token
+    );
+
+
+    localStorage.setItem(
+      'stepupCompany',
+      JSON.stringify(d.data.company)
+    );
+
+
+    location.href = 'dashboard.html';
+
+
+  } catch(err) {
+
+    msg(err.message);
+
+  }
+
+};
+
+
+$('registerForm').onsubmit = async e => {
+
+  e.preventDefault();
+
+  try {
+
+    const r = await fetch(
+      API + '/auth/register',
+      {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+
+          companyName:
+            $('regName').value,
+
+          email:
+            $('regEmail').value,
+
+          password:
+            $('regPassword').value,
+
+          industry:
+            $('regIndustry').value,
+
+          location:
+            $('regLocation').value,
+
+          website:
+            $('regWebsite').value,
+
+          description:
+            $('regDescription').value
+
+        })
+
+      }
+    );
+
+
+    const d = await r.json();
+
+
+    if (!r.ok) {
+
+      throw Error(
+        d.error || 'Registration failed'
+      );
+
+    }
+
+
+    localStorage.setItem(
+      'stepupCompanyToken',
+      d.data.token
+    );
+
+
+    localStorage.setItem(
+      'stepupCompany',
+      JSON.stringify(d.data.company)
+    );
+
+
+    location.href = 'dashboard.html';
+
+
+  } catch(err) {
+
+    msg(err.message);
+
+  }
+
+};
+
+</script>
+
+</body>
+
+</html>

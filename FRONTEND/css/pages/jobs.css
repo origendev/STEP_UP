@@ -44,3 +44,90 @@
 
 
 .jobs-apply-toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,18px);opacity:0;z-index:9999;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 12px 30px rgba(24,20,54,.16);pointer-events:none;transition:opacity .2s ease,transform .2s ease}.jobs-apply-toast.show{opacity:1;transform:translate(-50%,0)}.jobs-apply-toast.ok{background:var(--green-bg);color:var(--green);border:1px solid #bfe9d3}.jobs-apply-toast.error{background:var(--rose-bg);color:var(--rose);border:1px solid #f0c5d2}
+
+/* ============================================================
+   Locked Jobs page — 1st/2nd year students
+============================================================ */
+.jobs-locked-page {
+  min-height: calc(100vh - 90px);
+  display: grid;
+  place-items: center;
+  padding: 42px 24px 70px;
+}
+.jobs-locked-card {
+  width: min(760px, 100%);
+  text-align: center;
+  padding: 48px 42px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 28px;
+  background: rgba(255,255,255,.045);
+  box-shadow: 0 24px 70px rgba(0,0,0,.22);
+  backdrop-filter: blur(18px);
+}
+.jobs-lock-icon {
+  width: 76px; height: 76px; margin: 0 auto 20px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  font-size: 31px;
+}
+.jobs-locked-badge {
+  display: inline-block;
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  opacity: .65;
+}
+.jobs-locked-card h1 {
+  margin: 0 auto 14px;
+  max-width: 650px;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.08;
+}
+.jobs-locked-lead {
+  max-width: 610px;
+  margin: 0 auto 30px;
+  line-height: 1.7;
+  opacity: .72;
+}
+.jobs-journey {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 28px 0;
+}
+.journey-step {
+  min-height: 92px;
+  padding: 15px 10px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.045);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.journey-step span { font-size: 17px; }
+.journey-step strong { display: block; font-size: 13px; }
+.journey-step small { display: block; margin-top: 3px; opacity: .55; font-size: 11px; }
+.journey-step.done { border: 1px solid rgba(255,255,255,.13); }
+.journey-step.locked { opacity: .58; }
+.jobs-locked-message {
+  display: grid; gap: 6px;
+  margin: 25px auto;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.055);
+  text-align: left;
+}
+.jobs-locked-message strong { font-size: 14px; }
+.jobs-locked-message span { font-size: 13px; line-height: 1.55; opacity: .68; }
+.jobs-locked-back {
+  border: 0;
+  border-radius: 13px;
+  padding: 13px 22px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .jobs-locked-card { padding: 34px 20px; }
+  .jobs-journey { grid-template-columns: repeat(2, 1fr); }
+}

@@ -48,7 +48,8 @@ async function apply(){
 async function load(){
   if(!id){$('app').innerHTML='<div class="state">No job listing was selected.</div>';return;}
   try{
-    const r=await fetch(`${API}/jobs/${encodeURIComponent(id)}`);
+    const token=localStorage.getItem('stepupStudentToken');
+    const r=await fetch(`${API}/jobs/${encodeURIComponent(id)}`,{headers:token?{Authorization:'Bearer '+token}: {}});
     const d=await r.json();
     if(!r.ok)throw Error(d.error||'Listing not found');
     current=d.data;

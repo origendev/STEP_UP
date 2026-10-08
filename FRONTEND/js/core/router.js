@@ -66,6 +66,43 @@ if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => moveB
 
 /** Swap to a route. Called by nav clicks, [data-goto] elements and the hash. */
 export async function navigate(name, { updateHash = true } = {}){
+  // Jobs and Progress are authenticated student features.
+  if((name === 'jobs' || name === 'progress') && !localStorage.getItem('stepupStudentToken')){
+    location.href = 'student-login.html';
+    return;
+  }
+
+  // Keep the Jobs button visible for every student, but lock the Jobs page
+  // until the student reaches 3rd year.
+  let requestedName = name;
+
+  if(name === 'jobs'){
+    try{
+      const student = JSON.parse(localStorage.getItem('stepupStudent') || '{}');
+      const studyYear = Number(student.study_year ?? student.studyYear ?? 0);
+      if(studyYear < 3){
+        name = 'jobs-locked';
+      }
+    }catch{
+      name = 'jobs-locked';
+    }
+  }
+
+  if(name === 'progress'){
+    try{
+      const student = JSON.parse(localStorage.getItem('stepupStudent') || '{}');
+      const studyYear = Number(student.study_year ?? student.studyYear ?? 0);
+      if(studyYear < 3){
+        name = 'home';
+      }
+    }catch{
+      name = 'home';
+    }
+  }
+
+  // Keep the URL aligned with the page that was actually granted.
+  requestedName = name;
+
   if(!(name in routes)) name = defaultRoute;
   if(name === currentRoute) return;
 
@@ -96,8 +133,8 @@ export async function navigate(name, { updateHash = true } = {}){
   // Anything inside the new page that jumps to another page
   bindGotoLinks();
 
-  if(updateHash && window.location.hash.slice(2) !== name){
-    history.pushState(null, '', `#/${name}`);
+  if(updateHash && window.location.hash.slice(2) !== requestedName){
+    history.pushState(null, '', `#/${requestedName}`);
   }
   window.scrollTo({ top:0, behavior:'instant' });
 }

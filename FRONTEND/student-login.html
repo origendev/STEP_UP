@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 
@@ -9,40 +11,100 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link
+  href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+>
 
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/student-auth.css">
+
+<style>
+
+.student-back-link {
+  display: block;
+  text-align: center;
+  margin-top: 18px;
+  color: var(--violet-700);
+  text-decoration: none;
+  font-family: Inter, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  transition: color 0.2s ease;
+}
+
+.student-back-link:hover {
+  color: var(--violet-600);
+  text-decoration: underline;
+}
+
+</style>
+
 </head>
+
 
 <body class="student-auth-page">
 
+
 <main class="student-auth-wrap">
 
+
+  <!-- BRAND -->
+
   <div class="student-auth-brand">
+
     <div class="brand">
+
       <span class="brand-mark"></span>
+
       StepUp
+
     </div>
-    <p>Student Placement Portal</p>
+
+    <p>
+      Student Placement Portal
+    </p>
+
   </div>
+
+
+  <!-- LOGIN CARD -->
 
   <section class="student-auth-card">
 
-    <p class="eyebrow">STUDENT PORTAL</p>
 
-    <h1>Welcome back</h1>
+    <p class="eyebrow">
+      STUDENT PORTAL
+    </p>
+
+
+    <h1>
+      Welcome back
+    </h1>
+
 
     <p class="description">
       Sign in using the student account created for you by the placement administrator.
     </p>
 
-    <div id="message" class="student-auth-message"></div>
+
+    <!-- MESSAGE -->
+
+    <div
+      id="message"
+      class="student-auth-message"
+    ></div>
+
+
+    <!-- LOGIN FORM -->
 
     <form id="loginForm">
 
+
       <label>
+
         Registration Number
+
         <input
           id="regNo"
           type="text"
@@ -50,10 +112,14 @@
           placeholder="Enter your registration number"
           required
         >
+
       </label>
 
+
       <label>
+
         Password
+
         <input
           id="password"
           type="password"
@@ -61,11 +127,21 @@
           placeholder="Enter your password"
           required
         >
+
       </label>
 
-      <a class="student-auth-link" href="student-forgot-password.html">
+
+      <!-- FORGOT PASSWORD -->
+
+      <a
+        class="student-auth-link"
+        href="student-forgot-password.html"
+      >
         Forgot my password?
       </a>
+
+
+      <!-- LOGIN BUTTON -->
 
       <button
         id="loginButton"
@@ -75,77 +151,154 @@
         Sign In
       </button>
 
+
     </form>
+
+
+    <!-- DIVIDER -->
 
     <div class="student-auth-divider"></div>
 
+
+    <!-- BACK TO PORTAL ACCESS -->
+
+    <a
+      class="student-back-link"
+      href="portal-access.html"
+    >
+      ← Back to Portal Access
+    </a>
+
+
   </section>
+
 
 </main>
 
+
 <script src="js/config.js"></script>
+
+
 <script type="module">
 
-import { api, setSession } from './js/core/api.js';
+import {
+  api,
+  setSession
+} from './js/core/api.js';
 
-const form = document.getElementById('loginForm');
-const msg = document.getElementById('message');
-const btn = document.getElementById('loginButton');
-const regNo = document.getElementById('regNo');
-const password = document.getElementById('password');
 
-function show(text, type = 'error') {
+const form =
+  document.getElementById('loginForm');
+
+const msg =
+  document.getElementById('message');
+
+const btn =
+  document.getElementById('loginButton');
+
+const regNo =
+  document.getElementById('regNo');
+
+const password =
+  document.getElementById('password');
+
+
+function show(
+  text,
+  type = 'error'
+) {
+
   msg.textContent = text;
-  msg.className = `student-auth-message show ${type}`;
+
+  msg.className =
+    `student-auth-message show ${type}`;
+
 }
 
-form.addEventListener('submit', async e => {
 
-  e.preventDefault();
+form.addEventListener(
+  'submit',
+  async e => {
 
-  btn.disabled = true;
-  btn.textContent = 'Signing in…';
+    e.preventDefault();
 
-  try {
 
-    const r = await api('/student/login', {
-      method: 'POST',
+    btn.disabled = true;
 
-      body: JSON.stringify({
-        regNo: regNo.value.trim(),
-        password: password.value
-      })
-    });
+    btn.textContent =
+      'Signing in…';
 
-    setSession(r.data);
 
-    if (
-      r.data.student.must_change_password ||
-      !r.data.student.profile_completed
-    ) {
+    try {
 
-      location.href = 'student-profile.html';
 
-    } else {
+      const r = await api(
+        '/student/login',
+        {
+          method: 'POST',
 
-      location.href = 'index.html#/home';
+          body: JSON.stringify({
+
+            regNo:
+              regNo.value.trim(),
+
+            password:
+              password.value
+
+          })
+
+        }
+      );
+
+
+      setSession(r.data);
+
+
+      if (
+        r.data.student.must_change_password ||
+        !r.data.student.profile_completed
+      ) {
+
+
+        location.href =
+          'student-profile.html';
+
+
+      } else {
+
+
+        location.href =
+          'index.html#/home';
+
+
+      }
+
+
+    } catch (err) {
+
+
+      show(
+        err.message
+      );
+
+
+    } finally {
+
+
+      btn.disabled = false;
+
+      btn.textContent =
+        'Sign In';
+
 
     }
 
-  } catch (err) {
-
-    show(err.message);
-
-  } finally {
-
-    btn.disabled = false;
-    btn.textContent = 'Sign In';
-
   }
-
-});
+);
 
 </script>
 
+
 </body>
+
 </html>

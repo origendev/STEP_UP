@@ -40,6 +40,21 @@ CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_apply_before ON jobs(apply_before);
 CREATE INDEX IF NOT EXISTS idx_jobs_category ON jobs(category);
 
+CREATE TABLE IF NOT EXISTS job_departments (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  department TEXT NOT NULL,
+  UNIQUE(job_id, department)
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_departments_job_id ON job_departments(job_id);
+
+INSERT INTO job_departments (job_id, department)
+SELECT j.id, d.department
+FROM jobs j
+CROSS JOIN (VALUES ('CSE'),('IT'),('EEE'),('ECE'),('Mechanical'),('Civil')) AS d(department)
+WHERE NOT EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id);
+
 -- Student portal and OTP verification tables (additive integration).
 CREATE TABLE IF NOT EXISTS students (
   id BIGSERIAL PRIMARY KEY,
@@ -57,6 +72,7 @@ CREATE TABLE IF NOT EXISTS students (
   degree TEXT,
   department TEXT,
   graduation_year INTEGER,
+  study_year INTEGER NOT NULL DEFAULT 1 CHECK (study_year BETWEEN 1 AND 4),
   cgpa NUMERIC(4,2),
   education JSONB NOT NULL DEFAULT '[]'::jsonb,
   skills TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
@@ -75,6 +91,10 @@ CREATE TABLE IF NOT EXISTS students (
 
 CREATE INDEX IF NOT EXISTS idx_students_reg_no ON students(reg_no);
 CREATE INDEX IF NOT EXISTS idx_students_email ON students(email);
+
+ALTER TABLE students ADD COLUMN IF NOT EXISTS study_year INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE students DROP CONSTRAINT IF EXISTS students_study_year_check;
+ALTER TABLE students ADD CONSTRAINT students_study_year_check CHECK (study_year BETWEEN 1 AND 4);
 
 CREATE TABLE IF NOT EXISTS password_reset_otps (
   id BIGSERIAL PRIMARY KEY,

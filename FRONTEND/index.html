@@ -1,19 +1,34 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
+
+<script>
+    // Open Portal Access only when index.html is opened directly.
+    // Keep dashboard routes such as index.html#/home working.
+    if (!window.location.hash) {
+        window.location.replace("portal-access.html");
+    }
+</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>StepUp — Placement Hub</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-<!-- Core styles: order matters (tokens → layout → shared components) -->
+<link
+    href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+>
+
+<!-- Core styles -->
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/layout.css">
 <link rel="stylesheet" href="css/components.css">
 
-<!-- Per-page styles -->
+<!-- Page styles -->
 <link rel="stylesheet" href="css/pages/home.css?v=20261005d">
 <link rel="stylesheet" href="css/pages/profile.css">
 <link rel="stylesheet" href="css/pages/jobs.css">
@@ -22,52 +37,236 @@
 <link rel="stylesheet" href="css/pages/progress.css">
 <link rel="stylesheet" href="css/pages/settings.css">
 <link rel="stylesheet" href="css/pages/chatbot.css">
+
 </head>
+
 <body>
 
 <!-- ================= APP SHELL ================= -->
+
 <div class="topbar">
-  <div class="brand"><img class="brand-logo" src="assets/logo.png" alt="StepUp"></div>
 
-  <div class="navlinks" id="navlinks">
-    <button class="navlink active" data-tab="home">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8 2.9 11a.9.9 0 0 0 .6 1.6H5v7.4c0 .8.6 1.4 1.4 1.4h3.1v-6h5v6h3.1c.8 0 1.4-.6 1.4-1.4v-7.4h1.5a.9.9 0 0 0 .6-1.6z"/></svg>
-      <span class="navlabel" data-label="Home">Home</span>
-    </button>
-    <button class="navlink" data-tab="jobs">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="5.2" rx="2"/><rect x="3" y="13.6" width="18" height="6.4" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" fill="none" stroke-width="1.9"/></svg>
-      <span class="navlabel" data-label="Jobs">Jobs</span>
-    </button>
-    <button class="navlink" data-tab="demands">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="12" width="4.5" height="8" rx="2.2"/><rect x="9.8" y="4" width="4.5" height="16" rx="2.2"/><rect x="15.6" y="8" width="4.5" height="12" rx="2.2"/></svg>
-      <span class="navlabel" data-label="Demands">Demands</span>
-    </button>
-    <button class="navlink" data-tab="skills">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2.5 15 9 22 9.8 16.8 14.6 18.3 21.5 12 18 5.7 21.5 7.2 14.6 2 9.8 9 9"/></svg>
-      <span class="navlabel" data-label="Skills">Skills</span>
-    </button>
-    <button class="navlink" data-tab="progress">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 4.2A8.6 8.6 0 1 0 19.8 13.4h-9.2z"/><path d="M13.4 2.4a8.6 8.6 0 0 1 8.2 8.2h-8.2z"/></svg>
-      <span class="navlabel" data-label="Progress">Progress</span>
-    </button>
-  </div>
+    <!-- LOGO -->
+    <div class="brand">
+        <img
+            class="brand-logo"
+            src="assets/logo.png"
+            alt="StepUp"
+        >
+    </div>
 
-  <div class="top-actions">
-    <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle theme">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    </button>
-    <button class="icon-btn" id="notifBtn" aria-label="Notifications" aria-haspopup="true" aria-expanded="false" title="Notifications">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-    </button>
-    <div class="avatar" id="avatarBtn" title="View profile">V</div>
-  </div>
+
+    <!-- NAVIGATION -->
+    <div class="navlinks" id="navlinks">
+
+        <!-- HOME -->
+        <button class="navlink active" data-tab="home">
+
+            <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <path d="M12 2.8 2.9 11a.9.9 0 0 0 .6 1.6H5v7.4c0 .8.6 1.4 1.4 1.4h3.1v-6h5v6h3.1c.8 0 1.4-.6 1.4-1.4v-7.4h1.5a.9.9 0 0 0 .6-1.6z"/>
+            </svg>
+
+            <span class="navlabel" data-label="Home">
+                Home
+            </span>
+
+        </button>
+
+
+        <!-- JOBS -->
+        <button class="navlink" data-tab="jobs">
+
+            <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <rect x="3" y="7" width="18" height="5.2" rx="2"/>
+                <rect x="3" y="13.6" width="18" height="6.4" rx="2"/>
+                <path
+                    d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"
+                    fill="none"
+                    stroke-width="1.9"
+                />
+            </svg>
+
+            <span class="navlabel" data-label="Jobs">
+                Jobs
+            </span>
+
+        </button>
+
+
+        <!-- DEMANDS -->
+        <button class="navlink" data-tab="demands">
+
+            <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <rect x="4" y="12" width="4.5" height="8" rx="2.2"/>
+                <rect x="9.8" y="4" width="4.5" height="16" rx="2.2"/>
+                <rect x="15.6" y="8" width="4.5" height="12" rx="2.2"/>
+            </svg>
+
+            <span class="navlabel" data-label="Demands">
+                Demands
+            </span>
+
+        </button>
+
+
+        <!-- SKILLS -->
+        <button class="navlink" data-tab="skills">
+
+            <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <polygon points="12 2.5 15 9 22 9.8 16.8 14.6 18.3 21.5 12 18 5.7 21.5 7.2 14.6 2 9.8 9 9.8"/>
+            </svg>
+
+            <span class="navlabel" data-label="Skills">
+                Skills
+            </span>
+
+        </button>
+
+
+        <!-- PROGRESS -->
+        <button class="navlink" data-tab="progress">
+
+            <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                stroke-width="1.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <path d="M10.6 4.2A8.6 8.6 0 1 0 19.8 13.4h-9.2z"/>
+                <path d="M13.4 2.4a8.6 8.6 0 0 1 8.2 8.2h-8.2z"/>
+            </svg>
+
+            <span class="navlabel" data-label="Progress">
+                Progress
+            </span>
+
+        </button>
+
+    </div>
+
+
+    <!-- TOP ACTIONS -->
+    <div class="top-actions">
+
+        <!-- THEME -->
+        <button
+            class="icon-btn"
+            id="themeToggle"
+            aria-label="Toggle theme"
+            title="Toggle theme"
+        >
+
+            <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+
+        </button>
+
+
+        <!-- NOTIFICATIONS -->
+        <button
+            class="icon-btn"
+            id="notifBtn"
+            aria-label="Notifications"
+            aria-haspopup="true"
+            aria-expanded="false"
+            title="Notifications"
+        >
+
+            <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+
+        </button>
+
+
+        <!-- PROFILE -->
+        <div
+            class="avatar"
+            id="avatarBtn"
+            title="View profile"
+        >
+            V
+        </div>
+
+    </div>
+
 </div>
 
-<!-- Pages from /pages are injected here by js/core/router.js -->
+
+<!-- ================= APP CONTENT ================= -->
+
 <main id="app"></main>
 
+
+<!-- ================= JAVASCRIPT ================= -->
+
 <script src="js/config.js"></script>
-<script type="module" src="js/app.js?v=20261005e"></script>
+
+<script
+    type="module"
+    src="js/app.js?v=20261005e"
+></script>
+
 </body>
 </html>
-
