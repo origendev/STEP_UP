@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
@@ -43,6 +45,9 @@ const pool = new Pool({
 });
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendDir = path.join(__dirname, '../FRONTEND');
 
 app.use(cors({
   origin: process.env.FRONTEND_ORIGIN
@@ -51,6 +56,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '15mb' }));
+app.use(express.static(frontendDir));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
 const ELIGIBLE_DEPARTMENTS = ['CSE','IT','EEE','ECE','Mechanical','Civil'];
@@ -2842,6 +2848,9 @@ app.get('/api/jobs/:id', requireStudent, async (req, res) => {
       error: 'Could not load the job listing.'
     });
   }
+});
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(frontendDir, 'index.html'));
 });
 
 /* =========================================================
