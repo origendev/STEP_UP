@@ -15,6 +15,17 @@
     </header>
 
     <div class="labor-toolbar">
+      <div class="course-picker">
+        <label for="demandCourse">B.Tech course</label>
+        <select id="demandCourse" aria-label="Select your B.Tech course">
+          <option value="cse">Computer Science &amp; Engineering (CSE)</option>
+          <option value="it">Information Technology (IT)</option>
+          <option value="ece">Electronics &amp; Communication Engineering (ECE)</option>
+          <option value="eee">Electrical &amp; Electronics Engineering (EEE)</option>
+          <option value="mechanical">Mechanical Engineering</option>
+          <option value="civil">Civil Engineering</option>
+        </select>
+      </div>
       <div class="market-tabs" role="tablist" aria-label="Labor market">
         <button class="market-tab active" id="indiaTab" type="button" role="tab" aria-selected="true" data-market="india">India</button>
         <button class="market-tab" id="overseasTab" type="button" role="tab" aria-selected="false" data-market="overseas">Global</button>
@@ -61,8 +72,8 @@
         <header class="ai-outlook-heading">
           <div>
             <p class="section-kicker"><span id="outlookModeLabel">AI OUTLOOK</span> · <span id="forecastHorizonLabel">NEXT 2 MONTHS</span></p>
-            <h2 id="roleOutlookTitle">In-demand roles and future outlook</h2>
-            <p id="roleOutlookSummary">Building a career outlook from recent reporting and workforce research…</p>
+            <h2 id="roleOutlookTitle">Trending roles for your course</h2>
+            <p id="roleOutlookSummary">Select a B.Tech course to see current India or global demand signals.</p>
           </div>
           <div class="ai-outlook-status">
             <span class="ai-status-indicator" aria-hidden="true"></span>

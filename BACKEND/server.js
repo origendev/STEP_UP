@@ -62,9 +62,9 @@ function normalizeEligibleDepartments(value) {
 
 const newsArticleCache = new Map();
 const googleNewsDecoder = new GoogleDecoder();
-let demandRolesCache = null;
-let demandRolesCacheAt = 0;
-let demandRolesInFlight = null;
+const demandRolesCache = new Map();
+const demandRolesCacheAt = new Map();
+const demandRolesInFlight = new Map();
 
 /* =========================================================
    STUDENT AUTHENTICATION AND HELPERS
@@ -904,13 +904,72 @@ async function getBusinessNews() {
 /* =========================================================
    NEWS ROUTES
 ========================================================= */
-const ROLE_OUTLOOK_AREAS = [
-  { code: '01', name: 'AI, data & automation' },
-  { code: '02', name: 'Cybersecurity & digital trust' },
-  { code: '03', name: 'Healthcare & health technology' },
-  { code: '04', name: 'Commerce, supply chain & logistics' },
-  { code: '05', name: 'Clean energy & sustainability' }
-];
+const DEMAND_COURSES = {
+  cse: {
+    label: 'Computer Science & Engineering (CSE)',
+    terms: 'software engineering OR artificial intelligence OR machine learning OR data engineering OR cloud OR DevOps OR cybersecurity OR backend OR full stack',
+    baseline: ['AI/ML Engineer', 'Software Engineer', 'Data Engineer', 'Cloud/DevOps Engineer', 'Cybersecurity Engineer']
+  },
+  it: {
+    label: 'Information Technology (IT)',
+    terms: 'software engineering OR cloud computing OR DevOps OR data engineering OR cybersecurity OR IT infrastructure OR platform engineering',
+    baseline: ['Software Engineer', 'Cloud Engineer', 'DevOps Engineer', 'Data Engineer', 'Cybersecurity Engineer']
+  },
+  ece: {
+    label: 'Electronics & Communication Engineering (ECE)',
+    terms: 'embedded systems OR VLSI OR semiconductor OR ASIC OR verification OR IoT OR electronics OR telecom OR RF',
+    baseline: ['Embedded Systems Engineer', 'VLSI Design Engineer', 'Verification Engineer', 'IoT Engineer', 'RF/Telecom Engineer']
+  },
+  eee: {
+    label: 'Electrical & Electronics Engineering (EEE)',
+    terms: 'power systems OR electrical engineering OR electric vehicles OR renewable energy OR industrial automation OR grid OR battery',
+    baseline: ['Electrical Design Engineer', 'Power Systems Engineer', 'EV Engineer', 'Renewable Energy Engineer', 'Industrial Automation Engineer']
+  },
+  mechanical: {
+    label: 'Mechanical Engineering',
+    terms: 'mechanical engineering OR manufacturing OR product design OR automotive OR robotics OR automation OR CAD OR CAE',
+    baseline: ['Design Engineer', 'Manufacturing Engineer', 'Automation Engineer', 'Automotive Engineer', 'CAE Engineer']
+  },
+  civil: {
+    label: 'Civil Engineering',
+    terms: 'civil engineering OR construction OR structural engineering OR infrastructure OR BIM OR transportation OR project engineering',
+    baseline: ['Structural Engineer', 'Construction Engineer', 'BIM Engineer', 'Infrastructure Engineer', 'Project Engineer']
+  }
+};
+
+const ROLE_OUTLOOK_AREAS = [1, 2, 3, 4, 5].map((number) => ({
+  code: String(number).padStart(2, '0'),
+  name: `Trending role ${number}`
+}));
+
+async function getCourseDemandNews(courseKey, market) {
+  const course = DEMAND_COURSES[courseKey] || DEMAND_COURSES.cse;
+  const isIndia = market === 'india';
+  const region = isIndia
+    ? 'India AND (hiring OR recruitment OR jobs OR vacancies OR placements)'
+    : '(United States OR UK OR Canada OR Germany OR Australia OR UAE OR Singapore OR Japan) AND (hiring OR recruitment OR jobs OR vacancies OR skills shortage)';
+  const section = {
+    category: isIndia ? `India · ${course.label}` : `Global · ${course.label}`,
+    query: `(${course.terms}) AND (${region})`,
+    rssQuery: `${course.terms} ${isIndia ? 'India hiring recruitment jobs' : 'global international hiring recruitment jobs'} when:7d`,
+    locale: isIndia ? { hl: 'en-IN', gl: 'IN', ceid: 'IN:en' } : { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+  };
+  try {
+    if (NEWS_API_KEY) {
+      const articles = await fetchNewsSection(section);
+      if (articles.length) return { data: articles, source: 'newsapi' };
+    }
+  } catch (error) {
+    console.warn(`Course demand NewsAPI failed for ${courseKey}/${market}; trying RSS.`, error.message);
+  }
+  try {
+    const articles = await fetchRssNewsSection(section);
+    return { data: articles, source: 'google-news-rss' };
+  } catch (error) {
+    console.warn(`Course demand RSS failed for ${courseKey}/${market}.`, error.message);
+    return { data: [], source: 'unavailable' };
+  }
+}
 
 const ROLE_BASELINE_SOURCE = {
   label: 'World Economic Forum · Future of Jobs 2025',
@@ -993,13 +1052,13 @@ async function requestGeminiOutlook(prompt, model) {
   return { text, model };
 }
 
-async function generateDemandRoles() {
-  const news = await getBusinessNews();
-  if (!news.data.length) throw new Error('No recent news is available to ground the role outlook.');
+async function generateDemandRoles(courseKey = 'cse', market = 'india') {
+  const course = DEMAND_COURSES[courseKey] || DEMAND_COURSES.cse;
+  const targetMarket = market === 'global' ? 'global' : 'india';
+  const news = await getCourseDemandNews(courseKey, targetMarket);
+  if (!news.data.length) throw new Error('No recent course-specific news is available to ground the role outlook.');
 
-  const evidenceArticles = NEWS_SECTIONS.flatMap(section =>
-    news.data.filter(article => article.category === section.category).slice(0, 5)
-  );
+  const evidenceArticles = news.data.slice(0, 20);
   const evidenceContext = evidenceArticles.map((article, index) => ({
     index,
     category: article.category,
@@ -1010,21 +1069,25 @@ async function generateDemandRoles() {
   }));
 
   const prompt = {
-    task: 'Create a student-facing current demand overview and two-month career outlook for India and international markets.',
+    task: 'Create a student-facing ranking of the 5 most currently trending job roles for the selected B.Tech course and selected market.',
     asOf: new Date().toISOString(),
+    course: course.label,
+    market: targetMarket === 'india' ? 'India' : 'Global / International',
     rules: [
       'Return JSON only with keys summary and roles.',
-      'Return exactly one role object for each supplied area, keeping its code and name unchanged.',
+      'Return exactly 5 role objects, ranked from most to least currently trending for the selected course and market.',
       'Each role object needs code, name, signal, twoMonthOutlook, roles, india, international, skills, and evidenceIndexes.',
-      'Use recent headlines as evidence, not as proof of hiring volume. Do not invent statistics, salaries, vacancies, or guarantees.',
-      'Write twoMonthOutlook as a cautious qualitative forecast for the next two months from the asOf date. Focus on near-term hiring signals supported by the supplied recent headlines; state uncertainty and do not present long-term trends as short-term evidence.',
-      'If evidence does not support a role-specific two-month prediction, say that the signal is too limited instead of inventing one.',
-      'Explain concrete employer use cases and entry-level or early-career job titles. Keep each field concise and understandable to a student.',
-      'Use only evidenceIndexes that refer to supplied headlines and are relevant to that role. Use an empty array when the headlines do not support a specific claim; the app will show its baseline research source.',
-      'Distinguish India-specific signals from overseas signals. Do not imply a country-wide shortage based on one story.'
+      'Use the supplied recent course-specific headlines as the primary evidence. Do not invent statistics, salaries, vacancies, hiring percentages, or guarantees.',
+      'For India, use India-specific evidence only and prioritize the current Indian hiring market, Indian employers, GCCs, Indian industry activity, recruitment and vacancies.',
+      'For Global, use international evidence across major markets such as the US, UK, Europe, Canada, Australia, Middle East and Asia-Pacific. Do not make India the primary evidence source.',
+      'Do not simply reuse the baseline role list. Use the evidence to decide the actual role names and ranking. A baseline title may be used only when it is supported by the evidence.',
+      'Prefer concrete job titles that a B.Tech student can actually search for. Include early-career roles where evidence supports them.',
+      'Write twoMonthOutlook as a cautious qualitative near-term outlook from the asOf date. Do not present long-term workforce trends as proof of a two-month trend.',
+      'If evidence is weak, explicitly say the signal is limited rather than fabricating a trend.',
+      'Use only evidenceIndexes that refer to supplied headlines and directly support the role. Use an empty array when evidence is insufficient.'
     ],
     areas: ROLE_OUTLOOK_AREAS,
-    baseline: ROLE_BASELINE_SOURCE,
+    baseline: { course: course.baseline, source: ROLE_BASELINE_SOURCE },
     evidence: evidenceContext
   };
 
@@ -1123,6 +1186,9 @@ async function generateDemandRoles() {
   });
 
   return {
+    course: courseKey,
+    courseLabel: course.label,
+    market: targetMarket,
     data: roles,
     summary: generatedText(generated.summary, 320) || 'AI-generated outlook grounded in recent headlines and workforce research.',
     forecastHorizon: '2 months',
@@ -1133,50 +1199,45 @@ async function generateDemandRoles() {
 }
 
 app.get('/api/demand-roles', async (req, res) => {
+  const courseKey = String(req.query.course || 'cse').toLowerCase();
+  const market = String(req.query.market || 'india').toLowerCase() === 'global' ? 'global' : 'india';
+  if (!DEMAND_COURSES[courseKey]) return res.status(400).json({ code: 'invalid_course', error: 'Select one of the six supported B.Tech courses.' });
   const forceRefresh = req.query.refresh === 'true';
-  const providerConfigured = DEMAND_AI_PROVIDER === 'openai'
-    ? Boolean(OPENAI_API_KEY)
-    : Boolean(GEMINI_API_KEY);
+  const providerConfigured = DEMAND_AI_PROVIDER === 'openai' ? Boolean(OPENAI_API_KEY) : Boolean(GEMINI_API_KEY);
+  const cacheKey = `${courseKey}:${market}`;
   if (!providerConfigured) {
     return res.status(503).json({
       code: 'ai_provider_unconfigured',
-      error: DEMAND_AI_PROVIDER === 'openai'
-        ? 'OPENAI_API_KEY is missing for the selected provider.'
-        : 'Add a free Gemini API key as GEMINI_API_KEY to enable AI role outlooks.'
+      error: DEMAND_AI_PROVIDER === 'openai' ? 'OPENAI_API_KEY is missing for the selected provider.' : 'Add a free Gemini API key as GEMINI_API_KEY to enable live course-based demand trends.'
     });
   }
-
-  if (!forceRefresh && demandRolesCache && Date.now() - demandRolesCacheAt < ROLE_OUTLOOK_CACHE_MS) {
-    return res.json(demandRolesCache);
+  if (!forceRefresh && demandRolesCache.has(cacheKey) && Date.now() - (demandRolesCacheAt.get(cacheKey) || 0) < ROLE_OUTLOOK_CACHE_MS) {
+    return res.json(demandRolesCache.get(cacheKey));
   }
-
   try {
-    if (!demandRolesInFlight) demandRolesInFlight = generateDemandRoles();
-    const result = await demandRolesInFlight;
-    demandRolesCache = result;
-    demandRolesCacheAt = Date.now();
+    if (!demandRolesInFlight.has(cacheKey)) demandRolesInFlight.set(cacheKey, generateDemandRoles(courseKey, market));
+    const result = await demandRolesInFlight.get(cacheKey);
+    demandRolesCache.set(cacheKey, result);
+    demandRolesCacheAt.set(cacheKey, Date.now());
     res.json(result);
   } catch (error) {
-    console.error('AI role outlook failed:', error.message);
-    if (demandRolesCache) return res.json({ ...demandRolesCache, stale: true });
+    console.error(`AI role outlook failed for ${courseKey}/${market}:`, error.message);
+    if (demandRolesCache.has(cacheKey)) return res.json({ ...demandRolesCache.get(cacheKey), stale: true });
     const quotaLimited = /credit|billing|quota|rate limit|resource_exhausted/i.test(error.message);
     const temporarilyBusy = error.status >= 500 || /high demand|overload|temporarily/i.test(error.message);
-    const provider = DEMAND_AI_PROVIDER;
     res.status(503).json({
-      code: quotaLimited
-        ? 'ai_provider_quota_limited'
-        : temporarilyBusy ? 'ai_provider_temporarily_busy' : 'ai_role_outlook_unavailable',
-      provider,
-      error: quotaLimited && provider === 'openai'
+      code: quotaLimited ? 'ai_provider_quota_limited' : temporarilyBusy ? 'ai_provider_temporarily_busy' : 'ai_role_outlook_unavailable',
+      provider: DEMAND_AI_PROVIDER,
+      error: quotaLimited && DEMAND_AI_PROVIDER === 'openai'
         ? 'OpenAI credits are unavailable. Add a free Gemini API key to continue with the no-cost tier.'
         : quotaLimited
-          ? 'The Gemini free-tier limit was reached. The saved research baseline remains available; try again after the limit resets.'
+          ? 'The Gemini free-tier limit was reached. The saved course baseline remains available; try again after the limit resets.'
           : temporarilyBusy
-            ? 'Gemini is temporarily busy. The research baseline remains available while the app retries later.'
-            : 'AI role outlook could not be generated. The research baseline remains available.'
+            ? 'Gemini is temporarily busy. The course baseline remains available while the app retries later.'
+            : 'Live course-based role trends could not be generated. Try Refresh outlook again.'
     });
   } finally {
-    demandRolesInFlight = null;
+    demandRolesInFlight.delete(cacheKey);
   }
 });
 

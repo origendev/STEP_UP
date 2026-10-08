@@ -1,11 +1,15 @@
 import { $ } from '../core/dom.js';
-import { demands as researchBaseline } from '../data/demands.data.js';
+import { COURSE_OPTIONS, COURSE_BASELINES, BASELINE_SOURCE } from '../data/demands.data.js';
 
 const API_BASE_URL = window.STEPUP_API_BASE_URL || 'http://localhost:3000/api';
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 let laborData = null;
 let roleOutlookData = null;
+// Keep a separate in-memory AI result for every course + market. Switching tabs
+// should show the last loaded result immediately until the user explicitly refreshes.
+const roleOutlookCache = new Map();
 let activeMarket = 'india';
+let activeCourse = localStorage.getItem('stepup-demand-course') || 'cse';
 let activeFeedMarket = 'india';
 let isLoading = false;
 let isLoadingRoleOutlook = false;
@@ -36,10 +40,12 @@ function renderRoleOutlook(result) {
   const outlookSection = document.querySelector('.ai-outlook-section');
   const roles = result.data || [];
   const marketLabel = activeMarket === 'india' ? 'India' : 'Global';
+  const course = COURSE_OPTIONS.find(item => item.value === activeCourse);
+  const courseLabel = course?.label || 'B.Tech';
   outlookSection.classList.toggle('is-fallback', Boolean(result.fallback));
   outlookSection.setAttribute('aria-busy', 'false');
   $('#geminiSetupLink').hidden = !result.setupRequired;
-  $('#roleOutlookSummary').textContent = result.summary || 'AI outlook grounded in recent reporting and workforce research.';
+  $('#roleOutlookSummary').textContent = result.summary || `Current ${marketLabel} demand signals for ${courseLabel}.`;
   $('#outlookModeLabel').textContent = result.fallback
     ? 'RESEARCH BASELINE'
     : result.source === 'gemini-free-tier' ? 'GEMINI FREE TIER' : 'AI OUTLOOK';
@@ -112,14 +118,27 @@ function renderRoleOutlook(result) {
 }
 
 async function loadRoleOutlook(refresh = false) {
+  const cacheKey = `${activeCourse}:${activeMarket}`;
+  const cached = roleOutlookCache.get(cacheKey);
+
+  // Normal navigation uses the already-loaded result. Only an explicit refresh
+  // (Refresh outlook / labor button) bypasses the cache.
+  if (!refresh && cached) {
+    roleOutlookData = cached;
+    renderRoleOutlook(cached);
+    return;
+  }
   if (isLoadingRoleOutlook) return;
   isLoadingRoleOutlook = true;
   const section = document.querySelector('.ai-outlook-section');
   section.setAttribute('aria-busy', 'true');
-  if (!roleOutlookData) $('#roleOutlookUpdated').textContent = 'Updating AI outlook…';
+  if (refresh || !roleOutlookData) $('#roleOutlookUpdated').textContent = 'Generating fresh AI outlook…';
   try {
-    const response = await fetch(`${API_BASE_URL}/demand-roles${refresh ? '?refresh=true' : ''}`, {
-      headers: { Accept: 'application/json' }
+    const params = new URLSearchParams({ course: activeCourse, market: activeMarket === 'india' ? 'india' : 'global' });
+    if (refresh) params.set('refresh', 'true');
+    const response = await fetch(`${API_BASE_URL}/demand-roles?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+      cache: refresh ? 'no-store' : 'default'
     });
     const result = await response.json();
     if (!response.ok) {
@@ -129,6 +148,7 @@ async function loadRoleOutlook(refresh = false) {
       throw error;
     }
     roleOutlookData = result;
+    roleOutlookCache.set(cacheKey, result);
     renderRoleOutlook(result);
   } catch (error) {
     section.setAttribute('aria-busy', 'false');
@@ -145,14 +165,26 @@ async function loadRoleOutlook(refresh = false) {
           : error.code === 'ai_provider_temporarily_busy'
             ? 'Gemini is temporarily busy. Keeping the research baseline; automatic refresh will retry.'
           : 'Gemini free-tier limit reached; retry after it resets.';
+      const fallbackTitles = COURSE_BASELINES[activeCourse] || COURSE_BASELINES.cse;
       roleOutlookData = {
-        data: researchBaseline.map((role) => ({ ...role, evidence: [role.source] })),
-        summary: 'The saved workforce-research baseline is shown below. Current news updates continue, but live AI forecasts are paused.',
+        data: fallbackTitles.map((title, index) => ({
+          code: String(index + 1).padStart(2, '0'),
+          name: title,
+          signal: `Baseline role for ${COURSE_OPTIONS.find(item => item.value === activeCourse)?.label || 'B.Tech'}; live trend evidence is temporarily unavailable.`,
+          twoMonthOutlook: 'A reliable two-month forecast is unavailable while live AI evidence is paused.',
+          roles: [title],
+          india: activeMarket === 'india' ? 'Live India-specific evidence is unavailable in this update.' : 'This is an India baseline, not the global ranking.',
+          international: activeMarket === 'india' ? 'This is not the global ranking.' : 'Live international evidence is unavailable in this update.',
+          skills: [],
+          evidence: [BASELINE_SOURCE]
+        })),
+        summary: `Showing a ${activeMarket === 'india' ? 'course-specific India' : 'course-specific global'} baseline until live evidence is available.`,
         forecastHorizon: '2 months',
         fallbackReason,
         setupRequired: error.code === 'ai_provider_unconfigured',
         fallback: true
       };
+      roleOutlookCache.set(cacheKey, roleOutlookData);
       renderRoleOutlook(roleOutlookData);
       return;
     }
@@ -435,8 +467,39 @@ async function refreshDashboard(forceRefresh = false) {
 }
 
 export function mount() {
+  const courseSelect = $('#demandCourse');
+  if (courseSelect) {
+    courseSelect.value = COURSE_OPTIONS.some(item => item.value === activeCourse) ? activeCourse : 'cse';
+    courseSelect.addEventListener('change', () => {
+      activeCourse = courseSelect.value;
+      localStorage.setItem('stepup-demand-course', activeCourse);
+      const cached = roleOutlookCache.get(`${activeCourse}:${activeMarket}`);
+      if (cached) {
+        roleOutlookData = cached;
+        renderRoleOutlook(cached);
+      } else {
+        $('#roleOutlookUpdated').textContent = 'Generating fresh AI outlook…';
+        $('#roleOutlookContent').innerHTML = '<p class="outlook-empty">Analyzing the latest market evidence for this course…</p>';
+        loadRoleOutlook(false);
+      }
+    });
+  }
   document.querySelectorAll('.market-tab').forEach((tab) => {
-    tab.addEventListener('click', () => renderMarket(tab.dataset.market));
+    tab.addEventListener('click', () => {
+      const nextMarket = tab.dataset.market;
+      if (nextMarket === activeMarket) return;
+      activeMarket = nextMarket;
+      renderMarket(activeMarket);
+      const cached = roleOutlookCache.get(`${activeCourse}:${activeMarket}`);
+      if (cached) {
+        roleOutlookData = cached;
+        renderRoleOutlook(cached);
+      } else {
+        $('#roleOutlookUpdated').textContent = 'Generating fresh AI outlook…';
+        $('#roleOutlookContent').innerHTML = '<p class="outlook-empty">Analyzing the latest market evidence for this course…</p>';
+        loadRoleOutlook(false);
+      }
+    });
   });
   const modal = $('#newsFeedModal');
   const openFeedButtons = [$('#openNewsFeed'), $('#openNewsFeedInline')];

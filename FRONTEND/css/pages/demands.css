@@ -218,6 +218,10 @@
 .market-hero .labor-refresh:hover{ border-color:#e4f5ae; background:#e4f5ae; }
 .labor-refresh:disabled{ opacity:.6; cursor:wait; }
 .labor-toolbar{ min-height:58px; margin-bottom:10px; border-bottom:1px solid var(--line); }
+.course-picker{ display:flex; align-items:center; gap:10px; min-width:320px; }
+.course-picker label{ color:var(--ink-soft); font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.course-picker select{ min-width:290px; padding:9px 34px 9px 11px; border:1px solid var(--line); border-radius:6px; background:var(--white); color:var(--ink); font:inherit; font-size:13px; font-weight:700; outline:none; }
+.course-picker select:focus{ border-color:var(--d-accent2); box-shadow:0 0 0 3px rgba(44,122,102,.10); }
 .market-tabs{ display:inline-flex; gap:3px; padding:3px; border:1px solid var(--line); border-radius:6px; background:var(--white); }
 .market-tab{ min-height:32px; padding:0 12px; border:0; border-radius:4px; background:transparent; color:var(--ink-soft); font:inherit; font-size:11px; font-weight:700; cursor:pointer; }
 .market-tab.active{ background:#203a31; color:#fff; }
@@ -362,6 +366,8 @@
   .news-feed-trigger{ flex:1; }
   .labor-refresh{ padding:0 9px; font-size:10px; }
   .labor-toolbar{ align-items:flex-start; flex-direction:column; padding:12px 0; }
+  .course-picker{ width:100%; flex-direction:column; align-items:flex-start; }
+  .course-picker select{ width:100%; min-width:0; }
   .market-tabs{ width:100%; }
   .market-tab{ flex:1; padding:0 6px; }
   .market-heading,.chart-heading,.reports-heading{ align-items:flex-start; }
