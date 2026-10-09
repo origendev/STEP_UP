@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
-import nodemailer from 'nodemailer';
 import { XMLParser } from 'fast-xml-parser';
 import { extract } from '@extractus/article-extractor';
 import { GoogleDecoder } from 'google-news-url-decoder';
@@ -174,48 +173,61 @@ function randomOtp() {
 }
 
 async function sendResetEmail({ to, name, otp }) {
-  const required = [
-    'SMTP_HOST',
-    'SMTP_PORT',
-    'SMTP_USER',
-    'SMTP_PASS',
-    'SMTP_FROM'
-  ];
-
-  const missing = required.filter(key => !process.env[key]);
-
-  if (missing.length) {
-    throw new Error(
-      `Missing SMTP configuration: ${missing.join(', ')}`
-    );
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not configured.');
   }
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
+  if (!process.env.MAIL_FROM) {
+    throw new Error('MAIL_FROM is not configured.');
+  }
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: process.env.MAIL_FROM,
+      to: [to],
+      subject: 'StepUp Password Reset OTP',
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>StepUp Password Reset</h2>
+
+          <p>Hello ${name},</p>
+
+          <p>Your StepUp password reset OTP is:</p>
+
+          <div style="
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            margin: 20px 0;
+          ">
+            ${otp}
+          </div>
+
+          <p>This OTP expires in <strong>10 minutes</strong>.</p>
+
+          <p>
+            If you did not request a password reset,
+            you can safely ignore this email.
+          </p>
+
+          <p>StepUp Placement Portal</p>
+        </div>
+      `
+    })
   });
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to,
-    subject: 'StepUp Password Reset OTP',
-    text: `Hello ${name},
+  if (!response.ok) {
+    const errorText = await response.text();
 
-Your StepUp password reset OTP is:
-
-${otp}
-
-This OTP expires in 10 minutes.
-
-If you did not request a password reset, you can ignore this email.
-
-StepUp`
-  });
+    throw new Error(
+      `Resend email failed (${response.status}): ${errorText}`
+    );
+  }
 
   return true;
 }
