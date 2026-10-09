@@ -1857,6 +1857,67 @@ app.post('/api/admin/announcements', requireAdmin, async(req,res)=>{if(!clean(re
 app.patch('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE announcements SET published=COALESCE($1,published),updated_at=NOW() WHERE id=$2 RETURNING *',[typeof req.body.published==='boolean'?req.body.published:null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update announcement.'});}});
 app.delete('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM announcements WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});await adminCrudLog(req,'Announcement removed','announcement',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove announcement.'});}});
 
+// Student notification feed: published announcements plus approved, eligible jobs.
+app.get('/api/student/notifications', requireStudent, async (req, res) => {
+  try {
+    const studentResult = await pool.query(
+      'SELECT department, study_year FROM students WHERE id=$1',
+      [req.student.studentId]
+    );
+    const student = studentResult.rows[0];
+    if (!student) return res.status(401).json({ error: 'Student account not found.' });
+
+    const announcementsResult = await pool.query(
+      `SELECT id, title, message AS text, created_at
+       FROM announcements
+       WHERE published=TRUE AND audience IN ('All','Students')
+       ORDER BY created_at DESC`
+    );
+
+    let jobsResult = { rows: [] };
+    if (Number(student.study_year) >= 3) {
+      jobsResult = await pool.query(
+        `SELECT j.id, j.title, c.name AS company_name, j.created_at
+         FROM jobs j
+         JOIN companies c ON c.id=j.company_id
+         WHERE j.approval_status='Approved'
+           AND c.admin_status='Active'
+           AND EXISTS (
+             SELECT 1 FROM job_departments jd
+             WHERE jd.job_id=j.id AND jd.department=$1
+           )
+         ORDER BY j.created_at DESC`,
+        [student.department]
+      );
+    }
+
+    const data = [
+      ...announcementsResult.rows.map(a => ({
+        id: `announcement-${a.id}`,
+        type: 'announcement',
+        title: a.title,
+        text: a.text,
+        time: a.created_at,
+        goto: 'home'
+      })),
+      ...jobsResult.rows.map(j => ({
+        id: `job-${j.id}`,
+        type: 'job',
+        title: `New job: ${j.title}`,
+        text: `${j.company_name} has posted a new opportunity.`,
+        time: j.created_at,
+        goto: 'jobs'
+      }))
+    ].sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    res.json({ data });
+  } catch (e) {
+    console.error('Could not load student notifications:', e);
+    res.status(500).json({ error: 'Could not load notifications.' });
+  }
+});
+
+
 app.get('/api/admin/interviews', requireAdmin, async(_req,res)=>{try{const r=await pool.query(`SELECT i.*,s.name student_name,s.reg_no,c.name company_name,j.title job_title FROM interviews i LEFT JOIN students s ON s.id=i.student_id LEFT JOIN companies c ON c.id=i.company_id LEFT JOIN jobs j ON j.id=i.job_id ORDER BY i.interview_date NULLS LAST`);res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load interviews.'});}});
 app.post('/api/admin/interviews', requireAdmin, async(req,res)=>{const b=req.body||{};if(!b.studentId||!b.interviewDate)return res.status(400).json({error:'Student and interview date are required.'});try{const r=await pool.query('INSERT INTO interviews(student_id,company_id,job_id,interview_date,mode,meeting_link,interviewer,notes,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',[b.studentId,b.companyId||null,b.jobId||null,b.interviewDate,clean(b.mode)||'Online',clean(b.meetingLink)||null,clean(b.interviewer)||null,clean(b.notes)||null,clean(b.status)||'Scheduled']);res.status(201).json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not schedule interview.'});}});
 app.patch('/api/admin/interviews/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE interviews SET status=COALESCE($1,status),notes=COALESCE($2,notes),updated_at=NOW() WHERE id=$3 RETURNING *',[clean(req.body.status)||null,clean(req.body.notes)||null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Interview not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update interview.'});}});
