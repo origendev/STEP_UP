@@ -42,7 +42,6 @@ function studentYear(){
 }
 
 const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
-const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 
 const state = { dept: 'CSE', year: 0 };
 let locked = false;   // true when the student's year is known: they only see their own year
@@ -56,7 +55,6 @@ function card(c){
     <article class="card sk-card">
       <div class="sk-top">
         <span class="sk-co">${esc(c.company)}</span>
-        <span class="badge badge-green sk-cert">${CHECK} Free ${esc(c.cert.toLowerCase())}</span>
       </div>
       <h4 class="sk-title">${esc(c.title)}</h4>
       <p class="sk-desc">${esc(c.desc)}</p>
