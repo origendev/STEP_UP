@@ -5,31 +5,6 @@
    Department courses  -> .sk-two-rows  (two rows, scrolls sideways)
 ============================================================ */
 
-/* ---------- Search ---------- */
-.sk-search{
-  display:flex; align-items:center; gap:10px; height:46px; margin-top:28px;
-  border:1px solid var(--line); border-radius:12px; background:var(--lilac-bg); padding:0 12px 0 14px;
-  transition:border-color .15s, box-shadow .15s;
-}
-.sk-search:focus-within{ border-color:var(--violet-500); box-shadow:0 0 0 3px rgba(114,87,255,.18); }
-.sk-search-ic{ flex-shrink:0; color:var(--ink-soft); }
-.sk-search input{
-  flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--ink);
-  font:inherit; font-size:14px;
-}
-.sk-search input::placeholder{ color:var(--ink-soft); }
-.sk-search input::-webkit-search-cancel-button{ display:none; }
-.sk-search-x{
-  flex-shrink:0; width:28px; height:28px; border:0; border-radius:50%; cursor:pointer;
-  background:transparent; color:var(--ink-soft); font-size:20px; line-height:1;
-  display:inline-flex; align-items:center; justify-content:center;
-}
-.sk-search-x[hidden]{ display:none; }
-.sk-search-x:hover{ background:var(--violet-100); color:var(--ink); }
-.sk-search-x:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
-.sk-none{ margin-top:22px; }
-.sk-none[hidden], .sk-section[hidden], .sk-tabs[hidden]{ display:none; }
-
 /* ---------- Year filter (only shown when the student's year is unknown) ---------- */
 .sk-years{ display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 6px; }
 .sk-years[hidden]{ display:none; }
@@ -144,6 +119,38 @@
 .sk-go:hover{ filter:brightness(1.06); }
 .sk-go:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
 .sk-yr{ font-size:12px; font-weight:600; color:var(--ink-soft); }
+
+/* ---------- Certificate attach ---------- */
+.sk-cert-row{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:nowrap; min-height:48px; box-sizing:border-box;
+  margin-top:10px; padding-top:12px; border-top:1px dashed var(--line, rgba(128,128,150,.28));
+}
+.sk-attach{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  padding:7px 14px; border-radius:999px; font:600 13px inherit; font-family:inherit;
+  background:transparent; color:var(--violet-700);
+  border:1.5px dashed var(--violet-500);
+}
+.sk-attach:hover{ background:var(--violet-100); }
+.sk-cert-ok{ white-space:nowrap; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:var(--green); }
+.sk-cert-actions{ display:inline-flex; gap:10px; white-space:nowrap; }
+.sk-link{
+  background:none; border:0; padding:0; cursor:pointer;
+  font:600 12px inherit; font-family:inherit; color:var(--violet-700); text-decoration:underline;
+}
+.sk-link.danger{ color:var(--rose); }
+.sk-attach:focus-visible, .sk-link:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
+
+.sk-lb{ position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(8,8,24,.78); }
+.sk-lb-box{ display:flex; flex-direction:column; align-items:center; gap:14px; max-width:min(900px,100%); max-height:100%; }
+.sk-lb-box img{ max-width:100%; max-height:78vh; border-radius:12px; background:#fff; }
+.sk-lb-box iframe{ width:min(860px,92vw); height:78vh; border:0; border-radius:12px; background:#fff; }
+.sk-toast{
+  position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px); z-index:1100;
+  padding:10px 18px; border-radius:12px; font-size:14px; font-weight:600; max-width:90vw;
+  background:#1b1b3a; color:#fff; opacity:0; pointer-events:none; transition:.25s;
+}
+.sk-toast.show{ opacity:1; transform:translate(-50%,0); }
 
 /* ---------- Phone ---------- */
 @media (max-width:680px){
