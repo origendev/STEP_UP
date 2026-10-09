@@ -98,23 +98,16 @@ const text=[j.companyName,j.jobTitle,j.description,j.industry,j.location,j.workM
   else list.sort((a,b)=>b.posted-a.posted);
   return list;
 }
+
+
 function groupByCompany(list){
-  const map = new Map();
-
-  for(const j of list){
-    if(!map.has(j.companyId)){
-      map.set(j.companyId, []);
-    }
-
-    map.get(j.companyId).push(j);
-  }
-
-  return [...map.entries()].map(([companyId, jobs]) => ({
-    companyId,
-    jobs,
-    primary: jobs[0]
+  return list.map(j => ({
+    companyId: j.companyId,
+    jobs: [j],
+    primary: j
   }));
 }
+
 
 function cardHTML(group){
   const j=group.primary, count=group.jobs.length, saved=savedIds().has(String(j.id));
