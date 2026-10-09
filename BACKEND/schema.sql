@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS jobs (
   description TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'eligible',
   interview_rounds TEXT NOT NULL DEFAULT 'Not specified',
+  approval_status TEXT NOT NULL DEFAULT 'Pending',
+  approval_note TEXT,
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -36,6 +40,13 @@ CREATE TABLE IF NOT EXISTS jobs (
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS industry TEXT NOT NULL DEFAULT 'IT';
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS location TEXT;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS description TEXT;
+-- Existing listings are grandfathered in as approved; all new submissions default to pending.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_note TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+ALTER TABLE jobs ALTER COLUMN approval_status SET DEFAULT 'Pending';
+CREATE INDEX IF NOT EXISTS idx_jobs_approval_status ON jobs(approval_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_jobs_company_id ON jobs(company_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_apply_before ON jobs(apply_before);
 CREATE INDEX IF NOT EXISTS idx_jobs_category ON jobs(category);

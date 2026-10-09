@@ -380,6 +380,14 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    -- Approval is tracked per job listing, not per company. Existing jobs remain visible.
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_note TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+    ALTER TABLE jobs ALTER COLUMN approval_status SET DEFAULT 'Pending';
+    CREATE INDEX IF NOT EXISTS idx_jobs_approval_status ON jobs(approval_status, created_at DESC);
+
     ALTER TABLE companies
       ADD COLUMN IF NOT EXISTS industry TEXT NOT NULL DEFAULT 'IT';
 
@@ -474,10 +482,6 @@ async function ensureSchema() {
 
     ALTER TABLE jobs
       ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
-
-    -- Separate admin approval from the job's recruitment/status field. Existing jobs remain approved.
-    ALTER TABLE jobs
-      ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
 
     ALTER TABLE students
       ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -1632,8 +1636,8 @@ app.post(
       await client.query('BEGIN');
       const r = await client.query(
         `INSERT INTO jobs
-         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,approval_status)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Pending')
+         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,approval_status,approval_note,reviewed_at,reviewed_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Pending',NULL,NULL,NULL)
          RETURNING *`,
         [
           req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
@@ -1675,7 +1679,7 @@ app.patch(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
              status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,category=$14,
-             interview_rounds=$15,updated_at=NOW()
+             interview_rounds=$15,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
          WHERE id=$16 AND company_id=$17
          RETURNING *`,
         [
@@ -1884,7 +1888,7 @@ app.get('/api/student/notifications', requireStudent, async (req, res) => {
     let jobsResult = { rows: [] };
     if (Number(student.study_year) >= 3) {
       jobsResult = await pool.query(
-        `SELECT j.id, j.title, c.name AS company_name, j.created_at
+        `SELECT j.id, j.title, c.name AS company_name, COALESCE(j.reviewed_at,j.created_at) AS created_at
          FROM jobs j
          JOIN companies c ON c.id=j.company_id
          WHERE j.approval_status='Approved'
@@ -1959,8 +1963,7 @@ app.get('/api/admin/companies', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
       SELECT c.id,c.name,c.email,c.website,c.industry,c.location,c.description,c.admin_status,c.created_at,c.updated_at,
-             COUNT(DISTINCT j.id)::int AS job_count, COUNT(DISTINCT a.id)::int AS application_count,
-             COUNT(DISTINCT j.id) FILTER (WHERE j.approval_status='Pending')::int AS pending_job_count
+             COUNT(DISTINCT j.id)::int AS job_count, COUNT(DISTINCT a.id)::int AS application_count
       FROM companies c
       LEFT JOIN jobs j ON j.company_id=c.id
       LEFT JOIN job_applications a ON a.job_id=j.id
@@ -1993,7 +1996,7 @@ app.delete('/api/admin/companies/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
-      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.approval_status,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.created_at,j.updated_at,
+      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.approval_status,j.approval_note,j.reviewed_at,j.reviewed_by,j.created_at,j.updated_at,
              c.name AS company_name, COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments, COUNT(a.id)::int AS applicant_count
       FROM jobs j JOIN companies c ON c.id=j.company_id LEFT JOIN job_applications a ON a.job_id=j.id
       GROUP BY j.id,c.name ORDER BY j.created_at DESC
@@ -2004,24 +2007,30 @@ app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
 
 app.patch('/api/admin/jobs/:id', requireAdmin, async (req, res) => {
   const approvalStatus = clean(req.body.approvalStatus);
-  const status = clean(req.body.status);
-  if (approvalStatus) {
-    if (!['Pending','Approved','Rejected'].includes(approvalStatus)) {
-      return res.status(400).json({ error: 'Approval status must be Pending, Approved or Rejected.' });
-    }
-    try {
+  try {
+    if (approvalStatus !== undefined) {
+      if (!['Approved', 'Rejected', 'Pending'].includes(approvalStatus)) {
+        return res.status(400).json({ error: 'Approval status must be Approved, Rejected, or Pending.' });
+      }
+      const note = clean(req.body.approvalNote) || null;
+      if (approvalStatus === 'Rejected' && !note) {
+        return res.status(400).json({ error: 'Please provide a reason when rejecting a job.' });
+      }
+      const reviewer = req.admin?.adminId || 'admin';
       const r = await pool.query(
-        `UPDATE jobs SET approval_status=$1,updated_at=NOW() WHERE id=$2 RETURNING id,title,approval_status`,
-        [approvalStatus, req.params.id]
+        `UPDATE jobs SET approval_status=$1,approval_note=$2,reviewed_at=NOW(),reviewed_by=$3,updated_at=NOW()
+         WHERE id=$4
+         RETURNING id,title,company_id,approval_status,approval_note,reviewed_at,reviewed_by`,
+        [approvalStatus, note, reviewer, req.params.id]
       );
       if (!r.rows[0]) return res.status(404).json({ error: 'Job not found.' });
-      await logAdminActivity(req, `Job ${approvalStatus.toLowerCase()}`, 'job', req.params.id, r.rows[0].title);
+      await logAdminActivity(req, `Job ${approvalStatus.toLowerCase()}`, 'job', req.params.id, `${r.rows[0].title}${note ? ` — ${note}` : ''}`);
       return res.json({ data: r.rows[0] });
-    } catch (e) { console.error(e); return res.status(500).json({ error: 'Could not update job approval.' }); }
-  }
-  if (!status) return res.status(400).json({ error: 'Job status or approval status is required.' });
-  try {
-    const r = await pool.query(`UPDATE jobs SET status=$1,status_class=$2,updated_at=NOW() WHERE id=$3 RETURNING id,title,status,status_class,approval_status`, [status, clean(req.body.statusClass)||'status-amber', req.params.id]);
+    }
+
+    const status = clean(req.body.status);
+    if (!status) return res.status(400).json({ error: 'Job status is required.' });
+    const r = await pool.query(`UPDATE jobs SET status=$1,status_class=$2,updated_at=NOW() WHERE id=$3 RETURNING id,title,status,status_class`, [status, clean(req.body.statusClass)||'status-amber', req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Job not found.' });
     await logAdminActivity(req, 'Job status updated', 'job', req.params.id, `${r.rows[0].title}: ${status}`);
     res.json({ data: r.rows[0] });
@@ -2696,9 +2705,7 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
 app.post('/api/jobs/:id/apply', requireStudent, async (req, res) => {
   try {
     const job = await pool.query(
-      `SELECT j.id,j.title,j.apply_before FROM jobs j
-       JOIN companies c ON c.id=j.company_id
-       WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'`,
+      `SELECT j.id,j.title,j.apply_before FROM jobs j JOIN companies c ON c.id=j.company_id WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'`,
       [req.params.id]
     );
     if (!job.rows[0]) return res.status(404).json({ error: 'Job listing not found.' });
@@ -3102,7 +3109,7 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
     if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
     params.push(student.rows[0].department);
-    where = " WHERE j.approval_status='Approved' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)";
+    where = " WHERE j.approval_status='Approved' AND c.admin_status='Active' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)";
     const r = await pool.query(`${publicJobSelect}${where} ORDER BY j.created_at DESC`, params);
 
     res.json({
@@ -3124,7 +3131,7 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
 app.get('/api/jobs/:id', requireStudent, async (req, res) => {
   try {
     const params = [req.params.id];
-    let where = " WHERE j.id=$1 AND j.approval_status='Approved'";
+    let where = " WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'";
     const student = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
     if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
