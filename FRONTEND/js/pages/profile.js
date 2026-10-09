@@ -245,22 +245,44 @@ function report(){
 async function resume(){
   const current = await api('/student/resume').catch(() => null);
   const existing = current?.data || null;
-  const o = overlay(`<form id="resumeForm">
-    <h3>Student Resume</h3>
-    <p class="pf-empty">${existing ? `Current resume: <b>${esc(existing.file_name)}</b>` : 'Upload the PDF resume that companies will receive when you apply.'}</p>
+  const previous = await api('/student/resume/analysis').catch(() => null);
+  const analysis = previous?.data?.analysis || null;
+  const score = n => Number.isFinite(Number(n)) ? Math.max(0, Math.min(100, Math.round(Number(n)))) : 0;
+  const scoreCard = (label, value) => `<div class="rai-score"><span>${esc(label)}</span><b>${score(value)}%</b></div>`;
+  const renderAnalysis = a => {
+    if(!a) return '<p class="pf-empty">Upload your resume, then choose <b>Analyze with AI</b> to get a real analysis of the uploaded PDF.</p>';
+    const mistakes = Array.isArray(a.mistakes) ? a.mistakes : [];
+    const projects = Array.isArray(a.projects) ? a.projects : [];
+    const sections = Array.isArray(a.sectionFeedback) ? a.sectionFeedback : [];
+    return `<div class="rai-analysis">
+      <div class="rai-summary"><div><small>Overall Resume Score</small><strong>${score(a.overallScore)}%</strong></div><p>${esc(a.summary || '')}</p></div>
+      <div class="rai-scores">${scoreCard('ATS',a.atsScore)}${scoreCard('Content',a.contentScore)}${scoreCard('Skills',a.skillsScore)}${scoreCard('Projects',a.projectsScore)}${scoreCard('Vocabulary',a.vocabularyScore)}</div>
+      ${Array.isArray(a.strengths)&&a.strengths.length?`<section class="rai-section"><h4>✓ Strengths</h4><ul>${a.strengths.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>`:''}
+      ${mistakes.length?`<section class="rai-section"><h4>⚠ Mistakes & corrections</h4>${mistakes.map(x=>`<div class="rai-item"><b>${esc(x.type)}</b><div class="rai-original">${esc(x.original)}</div><div class="rai-suggestion">${esc(x.suggestion)}</div><small>${esc(x.explanation)}</small></div>`).join('')}</section>`:''}
+      ${a.vocabulary?.weakWords?.length||a.vocabulary?.notes?.length?`<section class="rai-section"><h4>✦ Vocabulary</h4><p><b>Weak / repeated words:</b> ${esc((a.vocabulary?.weakWords||[]).join(', ')||'None identified')}</p><p><b>Better alternatives:</b> ${esc((a.vocabulary?.betterAlternatives||[]).join(', ')||'None')}</p>${(a.vocabulary?.notes||[]).map(x=>`<p>${esc(x)}</p>`).join('')}</section>`:''}
+      ${a.detectedSkills?.length?`<section class="rai-section"><h4>🧠 Detected skills</h4><div class="rai-chips">${a.detectedSkills.map(x=>`<span>${esc(x)}</span>`).join('')}</div></section>`:''}
+      ${a.skillSuggestions?.length?`<section class="rai-section"><h4>💡 Skill suggestions</h4><ul>${a.skillSuggestions.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>`:''}
+      ${projects.length?`<section class="rai-section"><h4>🚀 Project analysis</h4>${projects.map(x=>`<div class="rai-item"><b>${esc(x.name)}</b><span class="rai-project-score">${score(x.score)}%</span><p>${esc(x.suggestion)}</p>${x.domains?.length?`<small>${esc(x.domains.join(' • '))}</small>`:''}</div>`).join('')}</section>`:''}
+      ${a.domainSuggestions?.length?`<section class="rai-section"><h4>🎯 Domain-based suggestions</h4><ul>${a.domainSuggestions.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>`:''}
+      ${sections.length?`<section class="rai-section"><h4>📌 Section feedback</h4>${sections.map(x=>`<div class="rai-section-row"><b>${esc(x.section)}</b><span>${esc(x.status)}</span><p>${esc(x.feedback)}</p></div>`).join('')}</section>`:''}
+    </div>`;
+  };
+  const o = overlay(`<form id="resumeForm" class="rai-modal-form">
+    <h3>AI Resume Analyzer</h3>
+    <p class="pf-empty">Upload the actual PDF you want StepUp AI to review. No dummy resume data is used.</p>
     <label class="pf-file-label">PDF resume
       <input id="resumeFile" type="file" accept="application/pdf,.pdf">
     </label>
-    <p class="pf-hint">PDF only • Maximum 10 MB. This is the exact file companies can view/download.</p>
+    <p class="pf-hint">PDF only • Maximum 10 MB. The uploaded PDF remains the exact resume companies receive.</p>
     <div class="pf-fa">
       <button type="button" class="pf-pill" data-x>Close</button>
       ${existing ? '<button type="button" class="pf-pill" id="resumeDownload">Download Current</button>' : ''}
-      <button type="submit" class="pf-pill pri" id="resumeUpload">Upload PDF</button>
+      <button type="submit" class="pf-pill pri" id="resumeUpload">${existing ? 'Replace & Analyze' : 'Upload & Analyze'}</button>
     </div>
     <div id="resumeMsg" class="pf-hint"></div>
+    <div id="resumeAnalysis">${renderAnalysis(analysis)}</div>
   </form>`);
-  const form=o.querySelector('#resumeForm');
-  const msgEl=o.querySelector('#resumeMsg');
+  const form=o.querySelector('#resumeForm'), msgEl=o.querySelector('#resumeMsg'), analysisEl=o.querySelector('#resumeAnalysis');
   const setMsg=(m,ok=false)=>{msgEl.textContent=m;msgEl.style.color=ok?'var(--green)':'var(--rose)';};
   o.querySelector('#resumeDownload')?.addEventListener('click',async()=>{
     try{
@@ -268,22 +290,33 @@ async function resume(){
       const r=await fetch(base+'/student/resume/download',{headers:{Authorization:'Bearer '+getToken()}});
       if(!r.ok) throw Error('Could not download the resume.');
       const blob=await r.blob(), url=URL.createObjectURL(blob), a=document.createElement('a');
-      a.href=url; a.download=existing.file_name; a.click(); URL.revokeObjectURL(url);
+      a.href=url; a.download=existing.file_name; a.click(); setTimeout(()=>URL.revokeObjectURL(url),500);
     }catch(e){setMsg(e.message);}
   });
+  async function analyze(){
+    const button=o.querySelector('#resumeUpload'); button.disabled=true; setMsg('AI is reading your actual resume…',true);
+    try{
+      const result=await api('/student/resume/analyze',{method:'POST',body:JSON.stringify({})});
+      analysisEl.innerHTML=renderAnalysis(result?.data?.analysis);
+      setMsg('Resume analyzed successfully.',true);
+    }catch(err){setMsg(err.message);}
+    finally{button.disabled=false;}
+  }
   form.addEventListener('submit',async e=>{
     e.preventDefault();
     const file=o.querySelector('#resumeFile').files[0];
-    if(!file){setMsg('Choose a PDF resume first.');return;}
+    if(!file){
+      if(existing){ await analyze(); } else setMsg('Choose a PDF resume first.');
+      return;
+    }
     if(file.type!=='application/pdf' && !/\.pdf$/i.test(file.name)){setMsg('Only PDF resumes are allowed.');return;}
     if(file.size>10*1024*1024){setMsg('Resume PDF must be smaller than 10 MB.');return;}
     const reader=new FileReader();
     reader.onload=async()=>{
-      const button=o.querySelector('#resumeUpload'); button.disabled=true; setMsg('Uploading…',true);
+      const button=o.querySelector('#resumeUpload'); button.disabled=true; setMsg('Uploading your actual PDF…',true);
       try{
         await api('/student/resume',{method:'POST',body:JSON.stringify({fileName:file.name,mimeType:'application/pdf',data:reader.result})});
-        setMsg('Resume uploaded successfully. Companies will receive this exact PDF.',true);
-        setTimeout(()=>{o.remove(); render();},700);
+        await analyze();
       }catch(err){button.disabled=false;setMsg(err.message);}
     };
     reader.onerror=()=>setMsg('Could not read the selected PDF.');

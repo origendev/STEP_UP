@@ -1,12 +1,17 @@
 /* ============================================================
    skills.js — Skills page
    Renders free courses (js/data/skills.data.js) into pages/skills.html.
-   Two filters: department tab (General + one per department) and
-   study year (All, 1st-4th). Both open on the student's own values.
+
+   Layout
+     General courses     one row, scrolls sideways
+     Department courses  two rows, scrolls sideways (tabs pick the department)
+
+   A student whose study year is known only sees that year's courses.
+   If the year is unknown, year chips let them pick one.
 ============================================================ */
 
 import { $, $$, esc } from '../core/dom.js';
-import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES } from '../data/skills.data.js?v=20261009c';
+import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES } from '../data/skills.data.js?v=20261009d';
 
 function read(key){ try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch{ return null; } }
 
@@ -39,19 +44,21 @@ function studentYear(){
 const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 
-const state = { tab: 'General', year: 0 };
+const state = { dept: 'CSE', year: 0 };
 let locked = false;   // true when the student's year is known: they only see their own year
+
+function ordinal(y){ return y + (y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'); }
 
 function card(c){
   const levels = c.years.map(y => YEARS.find(v => v.key === y)?.level).filter(Boolean);
-  const yearTag = c.years.length === YEARS.length ? 'All years' : c.years.map(y => y + (y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th')).join(' · ') + ' year';
+  const yearTag = c.years.length === YEARS.length ? 'All years' : c.years.map(ordinal).join(' · ') + ' year';
   return `
     <article class="card sk-card">
       <div class="sk-top">
         <span class="sk-co">${esc(c.company)}</span>
         <span class="badge badge-green sk-cert">${CHECK} Free ${esc(c.cert.toLowerCase())}</span>
       </div>
-      <h3 class="sk-title">${esc(c.title)}</h3>
+      <h4 class="sk-title">${esc(c.title)}</h4>
       <p class="sk-desc">${esc(c.desc)}</p>
       <div class="sk-bottom">
         <a class="btn-solid sk-go" href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">
@@ -62,20 +69,21 @@ function card(c){
     </article>`;
 }
 
-function grid(list){ return `<div class="sk-grid">${list.map(card).join('')}</div>`; }
+const yearOk = c => state.year === 0 || c.years.includes(state.year);
 
-function matches(c){
-  const tabOk = state.tab === 'General' ? !!c.general : (c.depts === 'ALL' || c.depts.includes(state.tab));
-  const yearOk = state.year === 0 || c.years.includes(state.year);
-  return tabOk && yearOk;
+/** Fill a scroller: cards, or one friendly message when there are none. */
+function fill(el, list, emptyText){
+  el.classList.toggle('is-empty', !list.length);
+  el.scrollLeft = 0;
+  el.innerHTML = list.length ? list.map(card).join('') : `<div class="card sk-empty">${esc(emptyText)}</div>`;
 }
 
 function render(){
-  const body = $('#skBody');
-  if(!body) return;
+  const y = YEARS.find(v => v.key === state.year);
+  const yearWords = y ? ` for ${y.label}` : '';
 
   $$('#skTabs .sk-tab').forEach(b => {
-    const on = b.dataset.tab === state.tab;
+    const on = b.dataset.tab === state.dept;
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
@@ -85,69 +93,72 @@ function render(){
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
   });
 
-  const y = YEARS.find(v => v.key === state.year);
   $('#skBlurb').textContent = y
     ? (locked ? `${y.label} · ${y.level} — ${y.blurb}` : y.blurb)
     : 'Showing courses for every year. Pick a year to see what suits you now.';
 
-  const list = COURSES.filter(matches);
-  $('#skCount').textContent = list.length + (list.length === 1 ? ' course' : ' courses');
+  /* General: everything flagged `general`, grouped in a fixed order */
+  const order = GENERAL_GROUPS.map(g => g.key);
+  const general = COURSES
+    .filter(c => c.general && yearOk(c))
+    .sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
+
+  /* Department: this department's courses, minus the ones already in the General row */
+  const dept = COURSES.filter(c =>
+    !c.general && (c.depts === 'ALL' || c.depts.includes(state.dept)) && yearOk(c));
+
+  fill($('#skGeneral'), general, `No general courses added yet${yearWords}.`);
+  fill($('#skDept'), dept,
+    `No ${state.dept}-specific free certificate courses added yet${yearWords}. Check the General courses above.`);
 
   const note = $('#skNote');
-  note.hidden = !DEPT_NOTES[state.tab];
-  note.textContent = DEPT_NOTES[state.tab] || '';
+  note.hidden = !DEPT_NOTES[state.dept];
+  note.textContent = DEPT_NOTES[state.dept] || '';
 
-  if(!list.length){
-    const where = state.tab === 'General' ? 'General' : state.tab;
-    const when = y ? ` for ${y.label}` : '';
-    body.innerHTML = `<div class="card sk-empty">No free certificate courses added yet for ${esc(where)}${esc(when)}.<br>Try another year or the General tab.</div>`;
-    return;
-  }
-
-  if(state.tab === 'General'){
-    body.innerHTML = GENERAL_GROUPS.map(g => {
-      const items = list.filter(c => c.group === g.key);
-      return items.length ? `<h3 class="sk-group">${esc(g.label)}</h3>${grid(items)}` : '';
-    }).join('');
-    return;
-  }
-
-  body.innerHTML = grid(list);
+  const total = general.length + dept.length;
+  $('#skCount').textContent = total + (total === 1 ? ' course' : ' courses');
 }
 
 export function mount(){
   const tabs = $('#skTabs');
   const years = $('#skYears');
-  if(!tabs || !years) return;
+  const view = $('#view-skills');
+  if(!tabs || !years || !view) return;
 
   const mine = studentDept();
   const myYear = studentYear();
   locked = myYear !== 0;
 
-  tabs.innerHTML = ['General', ...DEPARTMENTS.map(d => d.key)].map(k => {
-    const label = k === 'General' ? 'General' : DEPARTMENTS.find(d => d.key === k).label;
-    const tag = k === mine ? '<span class="sk-mine">Your department</span>' : '';
-    return `<button class="sk-tab" role="tab" data-tab="${esc(k)}">${esc(label)}${tag}</button>`;
+  tabs.innerHTML = DEPARTMENTS.map(d => {
+    const tag = d.key === mine ? '<span class="sk-mine">Your department</span>' : '';
+    return `<button class="sk-tab" role="tab" data-tab="${esc(d.key)}">${esc(d.label)}${tag}</button>`;
   }).join('');
 
-  years.innerHTML = [{ key: 0, label: 'All years', level: '' }, ...YEARS].map(y => {
-    const tag = y.key && y.key === myYear ? '<span class="sk-mine">You</span>' : '';
-    const level = y.level ? `<span class="sk-level">${esc(y.level)}</span>` : '';
-    return `<button class="sk-year" data-year="${y.key}">${esc(y.label)}${level}${tag}</button>`;
+  years.innerHTML = [{ key: 0, label: 'All years', level: '' }, ...YEARS].map(yr => {
+    const level = yr.level ? `<span class="sk-level">${esc(yr.level)}</span>` : '';
+    return `<button class="sk-year" data-year="${yr.key}">${esc(yr.label)}${level}</button>`;
   }).join('');
+  years.hidden = locked;   // a student with a known year never sees the other years
 
   tabs.addEventListener('click', e => {
     const b = e.target.closest('.sk-tab');
-    if(b){ state.tab = b.dataset.tab; render(); }
+    if(b){ state.dept = b.dataset.tab; render(); }
   });
   years.addEventListener('click', e => {
     if(locked) return;
     const b = e.target.closest('.sk-year');
     if(b){ state.year = Number(b.dataset.year); render(); }
   });
-  years.hidden = locked;   // a student with a known year never sees the other years
 
-  state.tab = mine || 'General';
+  /* ‹ › buttons nudge a row sideways (handy with a mouse that has no sideways wheel) */
+  view.addEventListener('click', e => {
+    const b = e.target.closest('.sk-arrow');
+    if(!b) return;
+    const row = document.getElementById(b.dataset.scroll);
+    if(row) row.scrollBy({ left: Number(b.dataset.dir) * Math.max(280, row.clientWidth * 0.8), behavior: 'smooth' });
+  });
+
+  state.dept = mine || 'CSE';
   state.year = myYear;
   render();
 }
