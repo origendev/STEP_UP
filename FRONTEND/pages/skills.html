@@ -8,7 +8,14 @@
 ============================================================ -->
 <div class="view" id="view-skills">
 
-  <div class="section-heading" style="margin-top:36px;">
+  <!-- ===== Search (filters every course by title, company, skill or certificate) ===== -->
+  <div class="sk-search" role="search">
+    <svg class="sk-search-ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+    <input id="skSearch" type="search" placeholder="Search courses, companies or skills (e.g. Python, IBM, aptitude)..." autocomplete="off" aria-label="Search courses">
+    <button type="button" class="sk-search-x" id="skSearchClear" aria-label="Clear search" hidden>&times;</button>
+  </div>
+
+  <div class="section-heading" style="margin-top:22px;">
     <div>
       <h2>Skills</h2>
       <p>Free courses with free certificates from trusted companies and institutions</p>
@@ -20,7 +27,7 @@
   <p class="sk-blurb" id="skBlurb"></p>
 
   <!-- ===== General courses: ONE row ===== -->
-  <section class="sk-section" aria-labelledby="skGenTitle">
+  <section class="sk-section" id="skGenSec" aria-labelledby="skGenTitle">
     <div class="sk-sec-head">
       <div>
         <h3 id="skGenTitle">General courses</h3>
@@ -35,7 +42,7 @@
   </section>
 
   <!-- ===== Department courses: TWO rows ===== -->
-  <section class="sk-section" aria-labelledby="skDeptTitle">
+  <section class="sk-section" id="skDeptSec" aria-labelledby="skDeptTitle">
     <div class="sk-sec-head">
       <div>
         <h3 id="skDeptTitle">Department courses</h3>
@@ -50,6 +57,8 @@
     <p class="sk-note" id="skNote" hidden></p>
     <div class="sk-scroller sk-two-rows" id="skDept" tabindex="0" role="region" aria-label="Department courses"></div>
   </section>
+
+  <div class="card sk-empty sk-none" id="skNone" hidden></div>
 
   <p class="sk-foot">
     These courses are run by the companies and institutions themselves, so you may need to create a free account on their site.
