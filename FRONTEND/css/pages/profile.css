@@ -93,3 +93,16 @@
 .pf-addproof span{font-size:11.5px;font-weight:700;}
 .pf-lb{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:min(92vw,900px);}
 .pf-lb img{max-width:100%;max-height:78vh;border-radius:14px;background:#fff;}
+
+/* ---------- AI Resume Analyzer ---------- */
+.rai-modal-form{width:min(760px,100%) !important;}
+.rai-summary{display:grid;grid-template-columns:145px 1fr;gap:16px;align-items:center;border:1px solid var(--line);background:var(--lilac-bg);border-radius:14px;padding:14px;}
+.rai-summary small{display:block;color:var(--ink-soft);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.rai-summary strong{display:block;font:700 34px Sora,sans-serif;color:var(--violet-600);margin-top:3px;}
+.rai-summary p{margin:0;color:var(--ink-soft);font-size:13px;line-height:1.55;}
+.rai-scores{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.rai-score{border:1px solid var(--line);border-radius:11px;padding:10px;background:var(--white);text-align:center;}
+.rai-score span{display:block;color:var(--ink-soft);font-size:11px;}.rai-score b{display:block;margin-top:3px;color:var(--violet-600);font-size:18px;}
+.rai-section{border-top:1px solid var(--line);padding-top:12px;}.rai-section h4{margin:0 0 8px;font-size:14px;}.rai-section ul{margin:0;padding-left:20px;color:var(--ink-soft);font-size:13px;line-height:1.6;}.rai-section p{color:var(--ink-soft);font-size:13px;line-height:1.55;margin:6px 0;}
+.rai-item{position:relative;border:1px solid var(--line);background:var(--lilac-bg);border-radius:10px;padding:10px;margin-top:8px;font-size:13px;}.rai-original{margin-top:6px;color:var(--rose);}.rai-suggestion{margin-top:5px;color:var(--green);font-weight:600;}.rai-item small{display:block;color:var(--ink-soft);margin-top:5px;}.rai-project-score{float:right;color:var(--violet-600);font-weight:700;}.rai-chips{display:flex;flex-wrap:wrap;gap:7px;}.rai-chips span{background:var(--violet-100);color:var(--violet-700);border-radius:99px;padding:5px 10px;font-size:12px;font-weight:600;}.rai-section-row{border-bottom:1px solid var(--line);padding:8px 0;}.rai-section-row span{float:right;font-size:11px;color:var(--violet-600);font-weight:700;}.rai-section-row p{margin:4px 0 0;}
+@media(max-width:650px){.rai-scores{grid-template-columns:repeat(2,1fr)}.rai-summary{grid-template-columns:1fr}.rai-score:last-child{grid-column:1/-1}}

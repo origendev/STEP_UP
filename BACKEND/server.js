@@ -502,16 +502,19 @@ async function ensureSchema() {
       uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS resume_ai_analysis (
+      student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+      resume_file_name TEXT NOT NULL,
+      resume_uploaded_at TIMESTAMPTZ NOT NULL,
+      analysis JSONB NOT NULL DEFAULT '{}'::jsonb,
+      analyzed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_resume_ai_analysis_analyzed_at
+      ON resume_ai_analysis(analyzed_at DESC);
+
     ALTER TABLE companies
       ADD COLUMN IF NOT EXISTS admin_status TEXT NOT NULL DEFAULT 'Active';
-
-    -- Existing jobs remain visible after upgrading; newly submitted jobs require approval.
-    ALTER TABLE jobs
-      ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
-    ALTER TABLE jobs
-      ALTER COLUMN approval_status SET DEFAULT 'Pending';
-    ALTER TABLE jobs
-      ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
     CREATE TABLE IF NOT EXISTS admin_activity_logs (
       id BIGSERIAL PRIMARY KEY,
@@ -1625,8 +1628,8 @@ app.post(
       await client.query('BEGIN');
       const r = await client.query(
         `INSERT INTO jobs
-         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,approval_status)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Pending')
+         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *`,
         [
           req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
@@ -1668,7 +1671,7 @@ app.patch(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
              status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,category=$14,
-             interview_rounds=$15,approval_status='Pending',rejection_reason=NULL,updated_at=NOW()
+             interview_rounds=$15,updated_at=NOW()
          WHERE id=$16 AND company_id=$17
          RETURNING *`,
         [
@@ -1901,36 +1904,6 @@ app.get('/api/admin/companies', requireAdmin, async (_req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load companies.' }); }
 });
 
-app.get('/api/admin/companies/:id/jobs', requireAdmin, async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,
-             j.location,j.work_mode,j.description,j.status,j.approval_status,j.rejection_reason,
-             j.created_at,c.name AS company_name,
-             COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments
-      FROM jobs j JOIN companies c ON c.id=j.company_id
-      WHERE c.id=$1 ORDER BY j.created_at DESC
-    `, [req.params.id]);
-    res.json({ data: r.rows });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load company job posts.' }); }
-});
-
-app.patch('/api/admin/jobs/:id/approval', requireAdmin, async (req, res) => {
-  const approvalStatus = clean(req.body.approvalStatus);
-  if (!['Approved', 'Rejected', 'Pending'].includes(approvalStatus)) {
-    return res.status(400).json({ error: 'Approval status must be Approved, Rejected or Pending.' });
-  }
-  try {
-    const r = await pool.query(
-      `UPDATE jobs SET approval_status=$1,rejection_reason=$2,updated_at=NOW() WHERE id=$3 RETURNING id,title,company_id,approval_status,rejection_reason`,
-      [approvalStatus, approvalStatus === 'Rejected' ? (clean(req.body.rejectionReason) || 'Rejected by administrator') : null, req.params.id]
-    );
-    if (!r.rows[0]) return res.status(404).json({ error: 'Job post not found.' });
-    await logAdminActivity(req, `Job post ${approvalStatus.toLowerCase()}`, 'job', req.params.id, r.rows[0].title);
-    res.json({ data: r.rows[0] });
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not update job approval.' }); }
-});
-
 app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
   const status = clean(req.body.status);
   if (!['Active','Suspended'].includes(status)) return res.status(400).json({ error: 'Company status must be Active or Suspended.' });
@@ -1954,7 +1927,7 @@ app.delete('/api/admin/companies/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
-      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.approval_status,j.rejection_reason,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.created_at,j.updated_at,
+      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.created_at,j.updated_at,
              c.name AS company_name, COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments, COUNT(a.id)::int AS applicant_count
       FROM jobs j JOIN companies c ON c.id=j.company_id LEFT JOIN job_applications a ON a.job_id=j.id
       GROUP BY j.id,c.name ORDER BY j.created_at DESC
@@ -2769,6 +2742,200 @@ app.get('/api/student/resume/download', requireStudent, async (req, res) => {
   }
 });
 
+const RESUME_AI_RESPONSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    overallScore: { type: 'INTEGER' },
+    atsScore: { type: 'INTEGER' },
+    contentScore: { type: 'INTEGER' },
+    skillsScore: { type: 'INTEGER' },
+    projectsScore: { type: 'INTEGER' },
+    vocabularyScore: { type: 'INTEGER' },
+    strengths: { type: 'ARRAY', items: { type: 'STRING' } },
+    mistakes: {
+      type: 'ARRAY', items: { type: 'OBJECT', properties: {
+        type: { type: 'STRING' }, original: { type: 'STRING' }, suggestion: { type: 'STRING' }, explanation: { type: 'STRING' }
+      }, required: ['type','original','suggestion','explanation'] }
+    },
+    vocabulary: {
+      type: 'OBJECT', properties: {
+        weakWords: { type: 'ARRAY', items: { type: 'STRING' } },
+        betterAlternatives: { type: 'ARRAY', items: { type: 'STRING' } },
+        notes: { type: 'ARRAY', items: { type: 'STRING' } }
+      }, required: ['weakWords','betterAlternatives','notes']
+    },
+    detectedSkills: { type: 'ARRAY', items: { type: 'STRING' } },
+    skillSuggestions: { type: 'ARRAY', items: { type: 'STRING' } },
+    projects: {
+      type: 'ARRAY', items: { type: 'OBJECT', properties: {
+        name: { type: 'STRING' }, score: { type: 'INTEGER' }, domains: { type: 'ARRAY', items: { type: 'STRING' } }, suggestion: { type: 'STRING' }
+      }, required: ['name','score','domains','suggestion'] }
+    },
+    domainSuggestions: { type: 'ARRAY', items: { type: 'STRING' } },
+    sectionFeedback: {
+      type: 'ARRAY', items: { type: 'OBJECT', properties: {
+        section: { type: 'STRING' }, status: { type: 'STRING' }, feedback: { type: 'STRING' }
+      }, required: ['section','status','feedback'] }
+    },
+    summary: { type: 'STRING' }
+  },
+  required: ['overallScore','atsScore','contentScore','skillsScore','projectsScore','vocabularyScore','strengths','mistakes','vocabulary','detectedSkills','skillSuggestions','projects','domainSuggestions','sectionFeedback','summary']
+};
+
+function clampScore(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 0;
+}
+
+function normalizeResumeAnalysis(a) {
+  return {
+    ...a,
+    overallScore: clampScore(a.overallScore), atsScore: clampScore(a.atsScore), contentScore: clampScore(a.contentScore),
+    skillsScore: clampScore(a.skillsScore), projectsScore: clampScore(a.projectsScore), vocabularyScore: clampScore(a.vocabularyScore),
+    strengths: generatedList(a.strengths, 8, 500),
+    mistakes: Array.isArray(a.mistakes) ? a.mistakes.slice(0, 20).map(x => ({
+      type: generatedText(x?.type, 80), original: generatedText(x?.original, 500), suggestion: generatedText(x?.suggestion, 500), explanation: generatedText(x?.explanation, 500)
+    })) : [],
+    vocabulary: {
+      weakWords: generatedList(a.vocabulary?.weakWords, 20, 80),
+      betterAlternatives: generatedList(a.vocabulary?.betterAlternatives, 20, 120),
+      notes: generatedList(a.vocabulary?.notes, 10, 500)
+    },
+    detectedSkills: generatedList(a.detectedSkills, 40, 100),
+    skillSuggestions: generatedList(a.skillSuggestions, 20, 250),
+    projects: Array.isArray(a.projects) ? a.projects.slice(0, 15).map(x => ({
+      name: generatedText(x?.name, 180), score: clampScore(x?.score), domains: generatedList(x?.domains, 10, 100), suggestion: generatedText(x?.suggestion, 600)
+    })) : [],
+    domainSuggestions: generatedList(a.domainSuggestions, 20, 300),
+    sectionFeedback: Array.isArray(a.sectionFeedback) ? a.sectionFeedback.slice(0, 20).map(x => ({ section: generatedText(x?.section, 100), status: generatedText(x?.status, 50), feedback: generatedText(x?.feedback, 600) })) : [],
+    summary: generatedText(a.summary, 1200)
+  };
+}
+
+async function analyzeResumeWithGemini(pdfBuffer, profile) {
+  if (!GEMINI_API_KEY) throw new Error('AI is not configured. Add GEMINI_API_KEY to BACKEND/.env.');
+  const models = [...new Set([GEMINI_MODEL, GEMINI_FALLBACK_MODEL])];
+  const profileContext = {
+    name: profile.name, department: profile.department, degree: profile.degree, studyYear: profile.study_year,
+    cgpa: profile.cgpa, skills: profile.skills, projects: profile.projects, experience: profile.experience,
+    certifications: profile.certifications, summary: profile.summary
+  };
+  const prompt = `Analyze the attached student's actual resume PDF for a college placement portal. Do not invent facts, achievements, metrics, skills, technologies, employers, projects, or qualifications. Score only what is supported by the resume. This is a general resume-quality analysis, NOT a job eligibility decision. Do not use resume score to decide which jobs the student can see.\n\nStudent profile context (use only as context and flag mismatches rather than inventing resume content): ${JSON.stringify(profileContext)}\n\nScoring guidance: ATS score should reflect machine readability, standard sections, clear formatting, contact information, headings, and keyword clarity. Content score should reflect specificity, action verbs, measurable evidence when present, and relevance. Vocabulary score should reflect grammar, spelling, clarity, repetition, and professional wording. Projects score should reflect technical clarity, technologies, contribution, and impact evidence. Overall score should be a balanced assessment of the resume.\n\nFor mistakes, quote only short snippets from the resume and provide a correction. If a recommendation depends on a skill that is not actually evidenced, phrase it as a suggestion to add it only if the student genuinely used it. Give department/domain suggestions based on the student's actual department and evidence in the resume. Return only the requested JSON.`;
+  const inlineData = { mimeType: 'application/pdf', data: pdfBuffer.toString('base64') };
+  let lastError;
+  for (const model of models) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: 'You are a careful resume reviewer. Analyze the supplied PDF itself. Never fabricate facts. Return valid JSON matching the schema.' }] },
+          contents: [{ parts: [{ text: prompt }, { inlineData }] }],
+          generationConfig: { temperature: 0.15, responseMimeType: 'application/json', responseSchema: RESUME_AI_RESPONSE_SCHEMA, maxOutputTokens: 7000 }
+        }), signal: AbortSignal.timeout(60000)
+      });
+      const payload = await response.json();
+      if (!response.ok) { const e = new Error(payload.error?.message || `Gemini returned ${response.status}`); e.status = response.status; throw e; }
+      const text = payload.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+      if (!text) throw new Error('Gemini returned no resume analysis.');
+      return normalizeResumeAnalysis(JSON.parse(text));
+    } catch (e) { lastError = e; if (model === models[models.length - 1]) throw lastError; }
+  }
+  throw lastError || new Error('Resume analysis failed.');
+}
+
+app.get('/api/student/resume', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT file_name,mime_type,uploaded_at FROM student_resumes WHERE student_id=$1`,
+      [req.student.studentId]
+    );
+    res.json({ data: r.rows[0] || null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not load resume information.' });
+  }
+});
+
+app.post('/api/student/resume', requireStudent, async (req, res) => {
+  const fileName = clean(req.body.fileName);
+  const mimeType = clean(req.body.mimeType);
+  let encoded = clean(req.body.data);
+
+  if (!fileName || !encoded) return res.status(400).json({ error: 'A PDF resume is required.' });
+  if (mimeType !== 'application/pdf' || !/\.pdf$/i.test(fileName)) {
+    return res.status(400).json({ error: 'Resume must be a PDF file.' });
+  }
+
+  encoded = encoded.replace(/^data:application\/pdf;base64,/i, '');
+  let fileData;
+  try { fileData = Buffer.from(encoded, 'base64'); }
+  catch { return res.status(400).json({ error: 'The uploaded PDF could not be read.' }); }
+
+  if (!fileData.length || fileData.length > 10 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Resume PDF must be smaller than 10 MB.' });
+  }
+
+  if (fileData.subarray(0, 5).toString() !== '%PDF-') {
+    return res.status(400).json({ error: 'The selected file is not a valid PDF.' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO student_resumes(student_id,file_name,mime_type,file_data,uploaded_at)
+       VALUES($1,$2,$3,$4,NOW())
+       ON CONFLICT(student_id)
+       DO UPDATE SET file_name=EXCLUDED.file_name,mime_type=EXCLUDED.mime_type,
+                     file_data=EXCLUDED.file_data,uploaded_at=NOW()`,
+      [req.student.studentId, fileName, mimeType, fileData]
+    );
+    res.json({ data: { file_name: fileName, mime_type: mimeType, size: fileData.length } });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not save the uploaded resume.' });
+  }
+});
+
+app.get('/api/student/resume/download', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT file_name,mime_type,file_data FROM student_resumes WHERE student_id=$1`,
+      [req.student.studentId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'No resume has been uploaded.' });
+    const row = r.rows[0];
+    res.setHeader('Content-Type', row.mime_type);
+    res.setHeader('Content-Disposition', `attachment; filename="${String(row.file_name).replace(/["\r\n]/g, '_')}"`);
+    res.send(row.file_data);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not download your resume.' });
+  }
+});
+
+app.get('/api/student/resume/analysis', requireStudent, async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT resume_file_name,resume_uploaded_at,analysis,analyzed_at FROM resume_ai_analysis WHERE student_id=$1`, [req.student.studentId]);
+    res.json({ data: r.rows[0] || null });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load resume analysis.' }); }
+});
+
+app.post('/api/student/resume/analyze', requireStudent, async (req, res) => {
+  try {
+    const resume = await pool.query(`SELECT file_name,mime_type,file_data,uploaded_at FROM student_resumes WHERE student_id=$1`, [req.student.studentId]);
+    if (!resume.rows[0]) return res.status(404).json({ error: 'Upload a resume before asking AI to analyze it.' });
+    if (resume.rows[0].mime_type !== 'application/pdf') return res.status(400).json({ error: 'Only PDF resumes can be analyzed right now.' });
+    const profile = await pool.query(`SELECT name,department,degree,study_year,cgpa,skills,projects,experience,certifications,summary FROM students WHERE id=$1`, [req.student.studentId]);
+    if (!profile.rows[0]) return res.status(404).json({ error: 'Student profile not found.' });
+    const analysis = await analyzeResumeWithGemini(resume.rows[0].file_data, profile.rows[0]);
+    await pool.query(`INSERT INTO resume_ai_analysis(student_id,resume_file_name,resume_uploaded_at,analysis,analyzed_at) VALUES($1,$2,$3,$4,NOW()) ON CONFLICT(student_id) DO UPDATE SET resume_file_name=EXCLUDED.resume_file_name,resume_uploaded_at=EXCLUDED.resume_uploaded_at,analysis=EXCLUDED.analysis,analyzed_at=NOW()`, [req.student.studentId, resume.rows[0].file_name, resume.rows[0].uploaded_at, analysis]);
+    res.json({ data: { file_name: resume.rows[0].file_name, analyzed_at: new Date().toISOString(), analysis } });
+  } catch (e) {
+    console.error('Resume AI analysis failed:', e);
+    const status = e.status === 429 ? 429 : 500;
+    res.status(status).json({ error: status === 429 ? 'The AI service is busy or rate-limited. Please try again shortly.' : (e.message || 'Could not analyze the resume.') });
+  }
+});
+
 /* =========================================================
    COMPANY APPLICANT MANAGEMENT
 ========================================================= */
@@ -2852,7 +3019,7 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
     if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
     params.push(student.rows[0].department);
-    where = " WHERE j.approval_status='Approved' AND c.admin_status='Active' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)";
+    where = ' WHERE EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)';
     const r = await pool.query(`${publicJobSelect}${where} ORDER BY j.created_at DESC`, params);
 
     res.json({
@@ -2874,7 +3041,7 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
 app.get('/api/jobs/:id', requireStudent, async (req, res) => {
   try {
     const params = [req.params.id];
-    let where = " WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'";
+    let where = ' WHERE j.id=$1';
     const student = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
     if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});

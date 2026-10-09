@@ -22,6 +22,7 @@ import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 import { mount as mountRound2 } from './pages/round2.js';
 import { mount as mountSettings } from './pages/settings.js?v=20261005e';
+import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261008a';
 import * as prefs from './core/prefs.js';
 import * as notifications from './core/notifications.js';
 
@@ -37,6 +38,7 @@ router.register('round1', mountRound1);
 router.register('round2', mountRound2);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
 router.register('settings',     mountSettings);
+router.register('resume-parser', mountResumeParser);
 function getStudentYear(){
   try{
     const u=JSON.parse(localStorage.getItem('stepupStudent')||'{}');
@@ -81,6 +83,7 @@ avatar.addEventListener('click', (e) => {
   menu.innerHTML = `
     <div class="um-id"><div class="um-name">${esc(u.name)}</div><div class="um-reg">Reg No: ${esc(u.reg)}</div></div>
     <button data-act="profile">Profile</button>
+    <button data-act="resume-parser">Resume Parser</button>
     <button data-act="settings">Settings</button>
     <button data-act="logout" class="danger">Logout</button>`;
   menu.classList.toggle('open');
@@ -88,6 +91,7 @@ avatar.addEventListener('click', (e) => {
 menu.addEventListener('click', (e) => {
   const act = e.target.dataset.act;
   if(act === 'profile')  openProfile();
+  if(act === 'resume-parser'){ menu.classList.remove('open'); router.navigate('resume-parser'); }
   if(act === 'settings'){ menu.classList.remove('open'); router.navigate('settings'); }
   if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
 });
