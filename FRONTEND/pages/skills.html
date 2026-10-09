@@ -2,6 +2,9 @@
      skills.html — Skills page: free courses with free certificates
      Markup only. Cards are rendered by js/pages/skills.js from
      js/data/skills.data.js
+
+     Layout:  General courses  -> one row, scrolls sideways
+              Department courses -> two rows, scrolls sideways
 ============================================================ -->
 <div class="view" id="view-skills">
 
@@ -13,14 +16,40 @@
     <span class="badge badge-violet" id="skCount"></span>
   </div>
 
-  <div class="sk-tabs" id="skTabs" role="tablist" aria-label="Department"></div>
-
   <div class="sk-years" id="skYears" role="group" aria-label="Study year"></div>
   <p class="sk-blurb" id="skBlurb"></p>
 
-  <p class="sk-note" id="skNote" hidden></p>
+  <!-- ===== General courses: ONE row ===== -->
+  <section class="sk-section" aria-labelledby="skGenTitle">
+    <div class="sk-sec-head">
+      <div>
+        <h3 id="skGenTitle">General courses</h3>
+        <p>Aptitude, communication, and AI &amp; digital skills for every branch</p>
+      </div>
+      <div class="sk-arrows">
+        <button type="button" class="sk-arrow" data-scroll="skGeneral" data-dir="-1" aria-label="Scroll general courses left">&#8249;</button>
+        <button type="button" class="sk-arrow" data-scroll="skGeneral" data-dir="1" aria-label="Scroll general courses right">&#8250;</button>
+      </div>
+    </div>
+    <div class="sk-scroller sk-one-row" id="skGeneral" tabindex="0" role="region" aria-label="General courses"></div>
+  </section>
 
-  <div id="skBody"></div>
+  <!-- ===== Department courses: TWO rows ===== -->
+  <section class="sk-section" aria-labelledby="skDeptTitle">
+    <div class="sk-sec-head">
+      <div>
+        <h3 id="skDeptTitle">Department courses</h3>
+        <p>Courses for your branch</p>
+      </div>
+      <div class="sk-arrows">
+        <button type="button" class="sk-arrow" data-scroll="skDept" data-dir="-1" aria-label="Scroll department courses left">&#8249;</button>
+        <button type="button" class="sk-arrow" data-scroll="skDept" data-dir="1" aria-label="Scroll department courses right">&#8250;</button>
+      </div>
+    </div>
+    <div class="sk-tabs" id="skTabs" role="tablist" aria-label="Department"></div>
+    <p class="sk-note" id="skNote" hidden></p>
+    <div class="sk-scroller sk-two-rows" id="skDept" tabindex="0" role="region" aria-label="Department courses"></div>
+  </section>
 
   <p class="sk-foot">
     These courses are run by the companies and institutions themselves, so you may need to create a free account on their site.
