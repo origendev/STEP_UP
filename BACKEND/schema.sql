@@ -133,4 +133,16 @@ CREATE TABLE IF NOT EXISTS student_resumes (
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+
+CREATE TABLE IF NOT EXISTS resume_ai_analysis (
+  student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+  resume_file_name TEXT NOT NULL,
+  resume_uploaded_at TIMESTAMPTZ NOT NULL,
+  analysis JSONB NOT NULL DEFAULT '{}'::jsonb,
+  analyzed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_resume_ai_analysis_analyzed_at
+  ON resume_ai_analysis(analyzed_at DESC);
+
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
