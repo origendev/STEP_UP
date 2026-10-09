@@ -1,4 +1,5 @@
-// One shared API address for the whole team.
-// For local development keep localhost. For team-wide sync, replace this with
-// your deployed StepUp backend URL, e.g. https://your-stepup-api.example.com/api
-window.STEPUP_API_BASE_URL = '/api';
+window.STEPUP_API_BASE_URL =
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:3000/api'
+    : '/api';

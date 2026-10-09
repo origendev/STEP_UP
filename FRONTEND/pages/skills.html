@@ -1,55 +1,30 @@
 <!-- ============================================================
-     skills.html — Skills page (placeholder for now)
-     Styles for the real layout already live in css/pages/skills.css
+     skills.html — Skills page: free courses with free certificates
+     Markup only. Cards are rendered by js/pages/skills.js from
+     js/data/skills.data.js
 ============================================================ -->
 <div class="view" id="view-skills">
 
   <div class="section-heading" style="margin-top:36px;">
     <div>
       <h2>Skills</h2>
-      <p>Track what you know, and what to learn next</p>
+      <p>Free courses with free certificates from trusted companies and institutions</p>
     </div>
+    <span class="badge badge-violet" id="skCount"></span>
   </div>
 
-    <!-- Assessment Rounds -->
-  <section class="progress-rounds">
+  <div class="sk-tabs" id="skTabs" role="tablist" aria-label="Department"></div>
 
-    <!-- Round 1 -->
-    <div class="card progress-round-card">
-      <div class="progress-round-status completed"><span>✓</span> Submitted successfully</div>
-      <h3>Round 1 — Assessment</h3>
-      <div class="progress-round-details">
-        <p><strong>Date:</strong> 24 September 2026</p>
-        <p><strong>Time:</strong> 11:00 AM–12:00 PM IST</p>
-      </div>
-      <p class="progress-round-description">Your assessment has been submitted. Official results will be communicated by email.</p>
-      <button class="progress-round-button" data-goto="round1">Start Round 1 <span>›</span></button>
-    </div>
+  <div class="sk-years" id="skYears" role="group" aria-label="Study year"></div>
+  <p class="sk-blurb" id="skBlurb"></p>
 
-    <!-- Round 2 -->
-    <div class="card progress-round-card">
-      <div class="progress-round-status waiting">Round 1 result awaited</div>
-      <h3>Round 2 — Coding Assessment</h3>
-      <div class="progress-round-details">
-        <p><strong>Date:</strong> 24 September 2026</p>
-        <p><strong>Time:</strong> 1:00 PM–2:00 PM IST</p>
-      </div>
-      <p class="progress-round-description">Your Round 1 result and Round 2 eligibility will be communicated by official email.</p>
-      <button class="progress-round-button" data-goto="round2">Start Round 2 <span>›</span></button>
-    </div>
+  <p class="sk-note" id="skNote" hidden></p>
 
-    <!-- Round 3 -->
-    <div class="card progress-round-card">
-      <div class="progress-round-status waiting">Available after Round 2</div>
-      <h3>Round 3 — Technical Interview</h3>
-      <div class="progress-round-details">
-        <p><strong>Schedule:</strong> From 3:00 PM onward</p>
-        <p><strong>Mode:</strong> Online technical interview</p>
-      </div>
-      <p class="progress-round-description">Students who clear Round 2 will receive the interview meeting link by email.</p>
-      <button class="progress-round-button" disabled>Start Round 3 <span>›</span></button>
-    </div>
+  <div id="skBody"></div>
 
-  </section>
+  <p class="sk-foot">
+    These courses are run by the companies and institutions themselves, so you may need to create a free account on their site.
+    Certificate rules can change — check the course page before you start.
+  </p>
 
 </div>

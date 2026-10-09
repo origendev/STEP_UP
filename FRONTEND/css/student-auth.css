@@ -1,9 +1,8 @@
-
 /* StepUp student authentication additions. Existing dashboard styles are untouched. */
 .student-auth-page{min-height:100vh;display:grid;place-items:center;padding:32px;background:var(--lilac-bg);}
 .student-auth-wrap{width:min(480px,100%);}
 .student-auth-brand{text-align:center;margin-bottom:22px;}
-.student-auth-brand .brand{font-size:30px;justify-content:center;}
+.student-auth-logo{height:48px;width:auto;display:inline-block;}
 .student-auth-brand p{margin:7px 0 0;color:var(--ink-soft);font-size:13px;}
 .student-auth-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:32px;box-shadow:var(--shadow-card);}
 .student-auth-card .eyebrow{margin:0 0 8px;color:var(--violet-600);font-size:11px;font-weight:800;letter-spacing:.12em;}
