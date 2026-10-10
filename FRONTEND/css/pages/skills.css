@@ -102,6 +102,12 @@
 .sk-scroller.is-empty{ display:block; overflow-x:visible; }
 .sk-empty{ text-align:center; color:var(--ink-soft); font-size:14px; }
 
+/* ---------- Programming: Beginner / Intermediate / Advanced sub-headings ---------- */
+.sk-sub{ margin-top:18px; }
+.sk-sub-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; }
+.sk-sub-head h4{ margin:0; font-size:15px; font-weight:700; color:var(--violet-700); }
+.sk-sub .sk-arrow{ width:30px; height:30px; font-size:18px; }
+
 /* ---------- Course card ---------- */
 .sk-card{ display:flex; flex-direction:column; gap:10px; padding:20px; }
 .sk-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
@@ -134,3 +140,14 @@
   :root:not([data-theme="light"]) .sk-note{ background:#2a2212; color:#e8b64d; }
 }
 :root[data-theme="dark"] .sk-note{ background:#2a2212; color:#e8b64d; }
+
+
+/* Hide horizontal scrollbar while keeping course scrolling */
+.sk-scroller {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sk-scroller::-webkit-scrollbar {
+  display: none;
+}

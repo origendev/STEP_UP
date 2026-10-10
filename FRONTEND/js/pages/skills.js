@@ -11,7 +11,7 @@
 ============================================================ */
 
 import { $, $$, esc } from '../core/dom.js';
-import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES } from '../data/skills.data.js?v=20261009d';
+import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES, PROG_LANGS, PROG_COURSES } from '../data/skills.data.js?v=20261009h';
 
 function read(key){ try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch{ return null; } }
 
@@ -44,7 +44,8 @@ function studentYear(){
 const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 
-const state = { dept: 'CSE', year: 0 };
+const state = { dept: 'CSE', year: 0, lang: 'Python' };
+const PROG_LEVELS = [{ key: 'Beginner' }, { key: 'Intermediate' }, { key: 'Advanced' }];
 let locked = false;   // true when the student's year is known: they only see their own year
 
 function ordinal(y){ return y + (y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'); }
@@ -78,7 +79,25 @@ function fill(el, list, emptyText){
   el.innerHTML = list.length ? list.map(card).join('') : `<div class="card sk-empty">${esc(emptyText)}</div>`;
 }
 
+/** Build the Beginner / Intermediate / Advanced rows once, before they are filled. */
+function ensureLevels(){
+  const box = $('#skProgLevels');
+  if(!box || box.children.length) return;
+  box.innerHTML = PROG_LEVELS.map(lv => `
+    <div class="sk-sub">
+      <div class="sk-sub-head">
+        <h4>${lv.key}</h4>
+        <div class="sk-arrows">
+          <button type="button" class="sk-arrow" data-scroll="skProgLevels${lv.key}" data-dir="-1" aria-label="Scroll ${lv.key} courses left">&#8249;</button>
+          <button type="button" class="sk-arrow" data-scroll="skProgLevels${lv.key}" data-dir="1" aria-label="Scroll ${lv.key} courses right">&#8250;</button>
+        </div>
+      </div>
+      <div class="sk-scroller sk-one-row" id="skProgLevels${lv.key}" tabindex="0" role="region" aria-label="${lv.key} courses"></div>
+    </div>`).join('');
+}
+
 function render(){
+  ensureLevels();
   const y = YEARS.find(v => v.key === state.year);
   const yearWords = y ? ` for ${y.label}` : '';
 
@@ -115,8 +134,29 @@ function render(){
   note.hidden = !DEPT_NOTES[state.dept];
   note.textContent = DEPT_NOTES[state.dept] || '';
 
-  const total = general.length + dept.length;
-  $('#skCount').textContent = total + (total === 1 ? ' course' : ' courses');
+    /* Programming: the chosen language's courses */
+  $$('#skProgTabs .sk-tab').forEach(b => {
+    const on = b.dataset.tab === state.lang;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+    PROG_LEVELS.forEach(lv => {
+    const list = PROG_COURSES.filter(c =>
+      c.lang === state.lang &&
+      (c.level || 'Beginner') === lv.key &&
+      yearOk(c)
+    );
+    fill(
+      $(`#skProgLevels${lv.key}`),
+      list,
+      `${lv.key} ${state.lang} courses coming soon.`
+    );
+  });
+    PROG_LEVELS.forEach(lv => {
+    const list = PROG_COURSES.filter(c =>
+      c.lang === state.lang && (c.level || 'Beginner') === lv.key && yearOk(c));
+    fill($('#skProgLevels' + lv.key), list, `${lv.key} ${state.lang} courses coming soon.`);
+  });
 }
 
 export function mount(){
@@ -139,6 +179,18 @@ export function mount(){
     return `<button class="sk-year" data-year="${yr.key}">${esc(yr.label)}${level}</button>`;
   }).join('');
   years.hidden = locked;   // a student with a known year never sees the other years
+
+    const progTabs = $('#skProgTabs');
+  if(progTabs){
+    progTabs.innerHTML = PROG_LANGS.map(l =>
+      `<button class="sk-tab" role="tab" data-tab="${esc(l.key)}">${esc(l.label)}</button>`).join('');
+    progTabs.addEventListener('click', e => {
+      const b = e.target.closest('.sk-tab');
+      if(b){ state.lang = b.dataset.tab; render(); }
+    });
+  }
+
+    
 
   tabs.addEventListener('click', e => {
     const b = e.target.closest('.sk-tab');
