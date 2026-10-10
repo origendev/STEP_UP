@@ -6,6 +6,20 @@
   <meta name="description" content="StepUp portal selection">
   <title>StepUp — Portal Access</title>
 
+  <!-- Intro animation: plays on a fresh visit, not when coming back from a login page.
+       Add ?intro to the URL to force it. The 8s timer is a safety net. -->
+  <link rel="stylesheet" href="intro/intro.css">
+  <script>
+    (function () {
+      var q = location.search, d = document.documentElement;
+      if (window.top !== window.self || /[?&]nointro\b/.test(q)) return;
+      var back = /(login|forgot|password|profile)/i.test((document.referrer || '').split('?')[0]);
+      if (back && !/[?&]intro\b/.test(q)) return;
+      d.classList.add('su-intro');
+      setTimeout(function () { d.classList.remove('su-intro'); }, 8000);
+    })();
+  </script>
+
   <style>
     :root {
       --bg: #090d1f;
@@ -222,5 +236,6 @@
 
     <footer class="footer">StepUp &middot; Placement &amp; Recruitment Platform</footer>
   </main>
+  <script src="intro/intro.js"></script>
 </body>
 </html>
