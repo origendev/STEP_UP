@@ -99,20 +99,29 @@ function studentHasBacklogs(student) {
   return Number.isFinite(arrears) && arrears > 0;
 }
 
-function isStudentEligibleForJob(student, job) {
+function getJobEligibilityReasons(student, job) {
   const departments = Array.isArray(job.eligible_departments) ? job.eligible_departments : [];
   const batches = Array.isArray(job.eligible_batches) ? job.eligible_batches : [];
   const requiredSkills = Array.isArray(job.required_skills) ? job.required_skills : [];
-  const studentSkills = new Set((Array.isArray(student.skills) ? student.skills : []).map(skill => String(skill).toLowerCase()));
-  return Number(student.study_year) >= 3 &&
-    departments.includes(student.department) &&
-    (!batches.length || batches.includes(String(student.graduation_year))) &&
-    (job.min_cgpa == null || (student.cgpa != null && Number(student.cgpa) >= Number(job.min_cgpa))) &&
-    (job.backlogs_allowed || !studentHasBacklogs(student)) &&
-    requiredSkills.every(skill => studentSkills.has(String(skill).toLowerCase()));
+  const studentSkills = new Set((Array.isArray(student.skills) ? student.skills : []).map(skill => String(skill).trim().toLowerCase()));
+  const reasons = [];
+  if (Number(student.study_year) < 3) reasons.push('Jobs are open for students in year 3 or above.');
+  if (!departments.includes(student.department)) reasons.push(`Eligible departments: ${departments.join(', ') || 'not specified'}.`);
+  if (batches.length && !batches.includes(String(student.graduation_year))) reasons.push(`Eligible graduation years: ${batches.join(', ')}.`);
+  if (job.min_cgpa != null && (student.cgpa == null || Number(student.cgpa) < Number(job.min_cgpa))) {
+    reasons.push(`Minimum CGPA required: ${job.min_cgpa}.`);
+  }
+  if (!job.backlogs_allowed && studentHasBacklogs(student)) reasons.push('Current arrears are not allowed.');
+  const missingSkills = requiredSkills.filter(skill => !studentSkills.has(String(skill).trim().toLowerCase()));
+  if (missingSkills.length) reasons.push(`Required skills: ${missingSkills.join(', ')}.`);
+  return reasons;
 }
 
-async function notifyEligibleStudentsAboutJob(db, jobId, notificationVersion) {
+function isStudentEligibleForJob(student, job) {
+  return getJobEligibilityReasons(student, job).length === 0;
+}
+
+async function notifyStudentsAboutApprovedJob(db, jobId, notificationVersion) {
   const jobResult = await db.query(
     `SELECT j.id,j.title,j.apply_before,j.min_cgpa,j.backlogs_allowed,j.eligible_batches,j.required_skills,
             ARRAY(SELECT jd.department FROM job_departments jd WHERE jd.job_id=j.id) AS eligible_departments,
@@ -126,16 +135,15 @@ async function notifyEligibleStudentsAboutJob(db, jobId, notificationVersion) {
   if (!job) return;
   const students = await db.query(
     `SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details
-     FROM students WHERE study_year >= 3`
+     FROM students`
   );
   for (const student of students.rows) {
-    if (!isStudentEligibleForJob(student, job)) continue;
     await createNotification(db, {
       recipientRole: 'student',
       recipientId: student.id,
       type: 'job',
       title: `New job: ${job.title}`,
-      message: `${job.company_name} has posted a new opportunity that matches your profile.`,
+      message: `${job.company_name} posted an approved opportunity. Review the eligibility criteria and apply before the deadline.`,
       jobId: job.id,
       dedupeKey: `job-${job.id}-approved-${notificationVersion}-student-${student.id}`
     });
@@ -2209,7 +2217,7 @@ async function materializeLegacyNotifications(studentId) {
      WHERE j.approval_status='Approved' AND c.admin_status='Active'
        AND j.apply_before>=CURRENT_DATE`
   );
-  for (const job of jobs.rows) await notifyEligibleStudentsAboutJob(pool, job.id, job.notification_version);
+  for (const job of jobs.rows) await notifyStudentsAboutApprovedJob(pool, job.id, job.notification_version);
 
   const applications = await pool.query(
     `SELECT a.id,a.job_id,a.status,a.updated_at,j.title,c.name AS company_name
@@ -2458,7 +2466,7 @@ app.patch('/api/admin/jobs/:id', requireAdmin, async (req, res) => {
           dedupeKey: `job-decision-${r.rows[0].id}-${r.rows[0].reviewed_at.toISOString()}`
         });
         if (approvalStatus === 'Approved') {
-          await notifyEligibleStudentsAboutJob(client, r.rows[0].id, r.rows[0].reviewed_at);
+          await notifyStudentsAboutApprovedJob(client, r.rows[0].id, r.rows[0].reviewed_at);
         }
         await client.query('COMMIT');
         await logAdminActivity(req, `Job ${approvalStatus.toLowerCase()}`, 'job', req.params.id, `${r.rows[0].title}${note ? ` — ${note}` : ''}`);
@@ -3791,16 +3799,20 @@ app.get('/api/company/applications/:id/resume', requireCompany, async (req, res)
 
 app.get('/api/jobs', requireStudent, async (req, res) => {
   try {
-    let where = '';
-    const params = [];
     const student = await pool.query('SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details FROM students WHERE id=$1',[req.student.studentId]);
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
-    if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
-    where = " WHERE j.approval_status='Approved' AND c.admin_status='Active' AND j.apply_before>=CURRENT_DATE";
-    const r = await pool.query(`${publicJobSelect}${where} ORDER BY COALESCE(j.reviewed_at,j.created_at) DESC`, params);
+    const r = await pool.query(
+      `${publicJobSelect}
+       WHERE j.approval_status='Approved' AND c.admin_status='Active' AND j.apply_before>=CURRENT_DATE
+       ORDER BY COALESCE(j.reviewed_at,j.created_at) DESC`
+    );
 
     res.json({
-      data: r.rows.filter(job => isStudentEligibleForJob(student.rows[0], job))
+      data: r.rows.map(job => ({
+        ...job,
+        eligible_to_apply: isStudentEligibleForJob(student.rows[0], job),
+        eligibility_reasons: getJobEligibilityReasons(student.rows[0], job)
+      }))
     });
   } catch (e) {
     console.error(e);
@@ -3817,22 +3829,25 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
 
 app.get('/api/jobs/:id', requireStudent, async (req, res) => {
   try {
-    const params = [req.params.id];
-    let where = " WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active' AND j.apply_before>=CURRENT_DATE";
     const student = await pool.query('SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details FROM students WHERE id=$1',[req.student.studentId]);
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
-    if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
-    const r = await pool.query(`${publicJobSelect}${where}`, params);
+    const r = await pool.query(
+      `${publicJobSelect}
+       WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active' AND j.apply_before>=CURRENT_DATE`,
+      [req.params.id]
+    );
 
-    if (!r.rows[0] || !isStudentEligibleForJob(student.rows[0], r.rows[0])) {
+    if (!r.rows[0]) {
       return res.status(404).json({
         error: 'Job listing not found.'
       });
     }
 
-    res.json({
-      data: r.rows[0]
-    });
+    res.json({ data: {
+      ...r.rows[0],
+      eligible_to_apply: isStudentEligibleForJob(student.rows[0], r.rows[0]),
+      eligibility_reasons: getJobEligibilityReasons(student.rows[0], r.rows[0])
+    } });
   } catch (e) {
     console.error(e);
 

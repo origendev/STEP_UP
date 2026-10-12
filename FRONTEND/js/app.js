@@ -6,7 +6,7 @@
    This is the only script index.html loads.
 ============================================================ */
 
-import * as router from './core/router.js?v=20260930d';
+import * as router from './core/router.js?v=20261012b';
 import * as theme  from './core/theme.js';
 import { clearSession } from './core/api.js';
 import { esc } from './core/dom.js';
@@ -14,7 +14,7 @@ import { getUser, USER_EVENT } from './core/user.js';
 
 import { mount as mountHome } from './pages/home.js?v=20261005b';
 import { mount as mountProfile } from './pages/profile.js';
-import { mount as mountJobs } from './pages/jobs.js?v=20261012a';
+import { mount as mountJobs } from './pages/jobs.js?v=20261012b';
 import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261008c';
 import { mount as mountSkills } from './pages/skills.js?v=20261009f';
 import { mount as mountProgress } from './pages/progress.js';
@@ -24,7 +24,7 @@ import { mount as mountRound2 } from './pages/round2.js';
 import { mount as mountSettings } from './pages/settings.js?v=20261005e';
 import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261008a';
 import * as prefs from './core/prefs.js';
-import * as notifications from './core/notifications.js?v=20261012a';
+import * as notifications from './core/notifications.js?v=20261012b';
 
 /* Route name -> pages/<name>.html + its mount function */
 router.register('home',         mountHome);

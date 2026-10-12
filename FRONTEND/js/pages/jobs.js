@@ -120,11 +120,12 @@ function cardHTML(group){
     <div class="company-pills">
       <span class="company-pill">◉ ${esc(j.salary || 'Compensation on listing')}</span>
       <span class="company-pill">▣ ${esc(j.workMode || 'Hybrid')}</span>
+      ${j.eligible_to_apply===false?'<span class="company-pill" title="Review job details to see which requirements are unmet">Eligibility requirements not met</span>':'<span class="company-pill">Eligible to apply</span>'}
     </div>
     <div class="company-open-roles">▣ ${count} Open Role${count===1?'':'s'}</div>
     <div class="company-card-footer">
       <button class="view-details-btn" data-details="${esc(String(j.id))}">View Details ›</button>
-      <button class="apply-job-btn ${appliedJobIds.has(String(j.id))?'applied':''}" data-apply="${esc(String(j.id))}">${appliedJobIds.has(String(j.id))?'Applied':'Apply'}</button>
+      <button class="apply-job-btn ${appliedJobIds.has(String(j.id))?'applied':''}" data-apply="${esc(String(j.id))}" ${j.eligible_to_apply===false&&!appliedJobIds.has(String(j.id))?'disabled title="Review job details for eligibility requirements"':''}>${appliedJobIds.has(String(j.id))?'Applied':j.eligible_to_apply===false?'Not eligible':'Apply'}</button>
       <button class="company-save-btn ${saved?'saved':''}" data-save="${esc(String(j.id))}">${saved?'Saved':'Save'}</button>
     </div>
   </article>`;
