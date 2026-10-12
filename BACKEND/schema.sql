@@ -41,6 +41,18 @@ CREATE TABLE IF NOT EXISTS jobs (
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS industry TEXT NOT NULL DEFAULT 'IT';
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS location TEXT;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS description TEXT;
+-- Additive migrations for databases created by older versions of StepUp.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS stipend TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_date DATE;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_tag TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Eligible';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_class TEXT NOT NULL DEFAULT 'status-amber';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS batch TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode TEXT;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'eligible';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 -- Existing listings are grandfathered in as approved; all new submissions default to pending.
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_note TEXT;

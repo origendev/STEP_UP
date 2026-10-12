@@ -380,6 +380,22 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    -- Keep older deployed databases compatible with the current company job form.
+    -- CREATE TABLE IF NOT EXISTS does not add columns to an already-existing table.
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS stipend TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_date DATE;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_tag TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Eligible';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_class TEXT NOT NULL DEFAULT 'status-amber';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS batch TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS location TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'eligible';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
     -- Approval is tracked per job listing, not per company. Existing jobs remain visible.
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_note TEXT;
@@ -1689,8 +1705,13 @@ app.post(
       res.status(201).json({ data: r.rows[0] });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
-      console.error(e);
-      res.status(500).json({ error: 'Could not publish the job.' });
+      console.error('Failed to publish company job:', {
+        message: e?.message,
+        code: e?.code,
+        detail: e?.detail,
+        constraint: e?.constraint
+      });
+      res.status(500).json({ error: 'Could not publish the job. Please check the required fields and try again. If it continues, contact the administrator.' });
     } finally {
       client.release();
     }
@@ -1713,7 +1734,7 @@ app.patch(
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
              status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,requirements=$14,category=$15,
              interview_rounds=$16,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
-         WHERE id=$16 AND company_id=$17
+         WHERE id=$17 AND company_id=$18
          RETURNING *`,
         [
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
