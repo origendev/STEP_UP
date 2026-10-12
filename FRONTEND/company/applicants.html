@@ -34,6 +34,11 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
 .review-metrics small{display:block;color:#9eafd0;font-size:10px;font-weight:700;letter-spacing:.045em;text-transform:uppercase}
 .review-metrics strong{display:block;margin-top:7px;color:#f5f8ff;font-size:18px;font-weight:800;overflow-wrap:anywhere}
 .review-warning{display:flex;gap:9px;align-items:flex-start;margin:12px 0;padding:11px 12px;border:1px solid #72562a;border-radius:10px;background:#2b2318;color:#ffd58a;font-size:12px;line-height:1.55}
+.review-integrity-details{margin:12px 0;border:1px solid #34496f;border-radius:10px;background:#0b1427;color:#dce6fa;font-size:12px}
+.review-integrity-details summary{padding:11px 12px;font-weight:800;cursor:pointer}
+.review-integrity-details ul{list-style:none;margin:0;padding:0 12px 10px}
+.review-integrity-details li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #263653}
+.review-integrity-details time{flex:0 0 auto;color:#9eafd0}
 .review-card label{display:block;margin-top:14px;color:#dce6fa;font-size:12px;font-weight:800}
 .review-card textarea{display:block;width:100%;min-height:82px;resize:vertical;border:1px solid #34496f;border-radius:10px;padding:12px;margin:8px 0 14px;background:#091225;color:#f4f7ff;font:500 13px/1.5 Inter, sans-serif;outline:none;box-sizing:border-box}
 .review-card textarea::placeholder{color:#7184a7}
@@ -67,12 +72,12 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
   <section id="applicantList" class="applicant-list"><div class="empty">Loading applicants…</div></section>
   <section class="assessment-panel" id="roundConfigurationPanel">
     <h2>Recruitment rounds</h2>
-    <p class="panel-sub">Publish the job first, review applications, and shortlist at least one student. You can then configure optional interview or assessment rounds here. These rounds appear only in shortlisted students' Progress pages.</p>
+    <p class="panel-sub">Publish the job first, review applications, and shortlist at least one student. Set each round's question count and time limit here; these settings are enforced in the student's Progress-page assessment.</p>
     <div id="roundConfigMessage" class="review-empty" role="status">Loading this job's recruitment setup…</div>
     <div id="roundConfigBuilder" class="round-config-builder"></div>
     <div class="review-actions"><button class="pass" type="button" id="addRecruitmentRound">+ Add round</button><button class="hold" type="button" id="saveRecruitmentRounds">Save rounds</button></div>
   </section>
-  <section class="assessment-panel"><h2>Assessment verification</h2><p class="panel-sub">Review submitted test scores and integrity events. Verify each round before the next round is unlocked.</p><div id="assessmentReviews" class="applicant-list"><div class="review-empty" role="status">Loading submitted assessments…</div></div></section>
+  <section class="assessment-panel"><h2>Assessment verification</h2><p class="panel-sub">Review submitted scores and integrity signals. No camera or microphone recordings are stored; device/focus signals can be mistaken and should be reviewed before deciding.</p><div id="assessmentReviews" class="applicant-list"><div class="review-empty" role="status">Loading submitted assessments…</div></div></section>
 </main>
 <script>
 const API=window.STEPUP_API_BASE_URL||'http://localhost:3000/api';
@@ -199,6 +204,7 @@ async function loadAssessmentReviews() {
       const correct=(a.correct_count===null||a.correct_count===undefined||a.correct_count==='')?null:Number(a.correct_count);
       const total=(a.total_questions===null||a.total_questions===undefined||a.total_questions==='')?null:Number(a.total_questions);
       const violations=(a.violation_count===null||a.violation_count===undefined||a.violation_count==='')?null:Number(a.violation_count);
+      const integrityEvents=Array.isArray(a.integrity_events)?a.integrity_events:[];
       const submitted=a.submitted_at?new Date(a.submitted_at).toLocaleString():'Submission time not recorded';
       const statusLabel=a.company_verified?(a.company_decision||'Verified'):(a.company_decision==='Needs review'?'Needs review':'Pending verification');
       const locked=Boolean(a.company_verified);
@@ -210,7 +216,8 @@ async function loadAssessmentReviews() {
           <div><small>Integrity events</small><strong>${violations===null?'Not recorded':esc(violations)}</strong></div>
           <div><small>Auto-submitted</small><strong>${a.auto_submitted===true?'Yes':a.auto_submitted===false?'No':'Not recorded'}</strong></div>
         </div>
-        ${violations!==null&&violations>0?'<div class="review-warning"><span aria-hidden="true">⚠</span><span>Integrity events were recorded. Review the evidence and attempt details before making a decision.</span></div>':''}
+        ${violations!==null&&violations>0?`<div class="review-warning"><span aria-hidden="true">⚠</span><span>${esc(violations)} integrity irregularit${violations===1?'y was':'ies were'} recorded. Camera and microphone streams are not recorded or stored.</span></div>`:''}
+        ${integrityEvents.length?`<details class="review-integrity-details"><summary>View integrity event details</summary><ul>${integrityEvents.map(event=>`<li><span>${esc(event.reason||'Integrity event')}</span><time>${event.at&&!Number.isNaN(new Date(event.at).getTime())?esc(new Date(event.at).toLocaleString()):'Time not recorded'}</time></li>`).join('')}</ul></details>`:''}
         <label for="feedback-${esc(a.attempt_id)}">Recruiter feedback <span style="font-weight:500;color:#9eafd0">(optional, but recommended for a fail/review decision)</span></label>
         <textarea rows="3" id="feedback-${esc(a.attempt_id)}" placeholder="Record verification notes, concerns, or the reason for your decision…" ${locked?'disabled':''}>${esc(a.company_feedback||'')}</textarea>
         <div class="review-actions">${locked?`<span class="review-meta">Decision saved${a.company_verified_at?' · '+esc(new Date(a.company_verified_at).toLocaleString()):''}. Contact your placement administrator if this decision needs correction.</span>`:`<button class="pass" data-verify="${esc(a.attempt_id)}" data-decision="Pass">✓ Verify &amp; Pass</button><button class="fail" data-verify="${esc(a.attempt_id)}" data-decision="Fail">✕ Verify &amp; Fail</button><button class="hold" data-verify="${esc(a.attempt_id)}" data-decision="Needs review">Needs review</button>`}</div>

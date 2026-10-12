@@ -92,39 +92,106 @@ function openAssessmentShell(title, subtitle) {
   document.querySelector('#prAssessmentModal')?.remove();
   const modal=document.createElement('div'); modal.id='prAssessmentModal'; modal.className='pr-modal-backdrop'; modal.innerHTML=`<section class="pr-assessment-modal" role="dialog" aria-modal="true" aria-labelledby="prAssessmentTitle"><header><div><span class="pr-eyebrow">STEP_UP SECURE ASSESSMENT</span><h2 id="prAssessmentTitle">${esc(title)}</h2><p>${esc(subtitle||'Read the instructions before continuing.')}</p></div><button type="button" class="pr-modal-close" data-close-assessment aria-label="Close">×</button></header><div class="pr-modal-body" id="prAssessmentBody"><div class="pr-loading"><span class="pr-spinner"></span><p>Preparing your assessment securely…</p></div></div></section>`; document.body.append(modal); return modal;
 }
-function installIntegrityMonitoring(modal, attemptId, onViolation) {
-  let active=true, sending=false;
-  const flag=async reason=>{ if(!active||sending)return; sending=true; try{const r=await api(`/student/assessments/${attemptId}/violation`,{method:'POST',body:JSON.stringify({reason})}); onViolation(r.data||{}); }catch(e){console.warn('Could not record assessment event',e);} finally{sending=false;} };
+function installIntegrityMonitoring(modal, attemptId, stream, onViolation) {
+  let active=true, pending=Promise.resolve();
+  const flag=reason=>{
+    if(!active)return;
+    pending=pending.then(async()=>{
+      const r=await api(`/student/assessments/${attemptId}/violation`,{method:'POST',body:JSON.stringify({reason})});
+      onViolation(r.data||{});
+    }).catch(error=>onViolation(null,error));
+  };
   const prevent=e=>{ if(active){e.preventDefault(); flag('Blocked clipboard/context-menu action');} };
   const visibility=()=>{if(active&&document.hidden)flag('Assessment tab became hidden');};
   const blur=()=>{if(active)flag('Assessment window lost focus');};
   const fullscreen=()=>{if(active&&!document.fullscreenElement)flag('Exited fullscreen during assessment');};
-  const beforeUnload=e=>{if(active){e.preventDefault();e.returnValue='Your assessment is in progress. Leaving may affect your attempt.';return e.returnValue;}};
+  const beforeUnload=e=>{if(active){flag('Attempted to leave or reload during assessment');e.preventDefault();e.returnValue='Your assessment is in progress. Leaving may affect your attempt.';return e.returnValue;}};
   const key=e=>{if(active&&((e.ctrlKey||e.metaKey)&&['c','v','x','p','s'].includes(e.key.toLowerCase()))){e.preventDefault();flag('Blocked copy/paste/print/save shortcut');} if(active&&e.key==='Escape'){e.preventDefault();flag('Escape key pressed during assessment');}};
+  const reportedTracks=new Set();
+  const checkTrack=track=>{
+    if((track.readyState==='ended'||track.muted)&&!reportedTracks.has(track)){
+      reportedTracks.add(track);
+      flag(`${track.kind==='video'?'Camera':'Microphone'} was disabled or disconnected`);
+    }
+  };
+  const tracks=stream.getTracks(), trackListeners=new Map();
+  tracks.forEach(track=>{
+    const listener=()=>checkTrack(track);
+    trackListeners.set(track,listener);
+    track.addEventListener('mute',listener);track.addEventListener('ended',listener);
+  });
   document.addEventListener('contextmenu',prevent); document.addEventListener('copy',prevent); document.addEventListener('paste',prevent); document.addEventListener('cut',prevent); document.addEventListener('visibilitychange',visibility); window.addEventListener('blur',blur); document.addEventListener('fullscreenchange',fullscreen); window.addEventListener('beforeunload',beforeUnload); document.addEventListener('keydown',key);
-  return ()=>{active=false;document.removeEventListener('contextmenu',prevent);document.removeEventListener('copy',prevent);document.removeEventListener('paste',prevent);document.removeEventListener('cut',prevent);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('blur',blur);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('beforeunload',beforeUnload);document.removeEventListener('keydown',key);};
+  return ()=>{active=false;document.removeEventListener('contextmenu',prevent);document.removeEventListener('copy',prevent);document.removeEventListener('paste',prevent);document.removeEventListener('cut',prevent);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('blur',blur);document.removeEventListener('fullscreenchange',fullscreen);window.removeEventListener('beforeunload',beforeUnload);document.removeEventListener('keydown',key);tracks.forEach(track=>{const listener=trackListeners.get(track);track.removeEventListener('mute',listener);track.removeEventListener('ended',listener);});};
 }
 async function startAssessment(applicationId, roundIndex, roundName) {
   const modal=openAssessmentShell(roundName,'Timed assessment · Keep this window active · Your progress is saved by the server.');
-  const body=modal.querySelector('#prAssessmentBody'); let cleanup=()=>{};
-  try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch { /* Fullscreen may be blocked by browser settings; monitoring still applies. */ }
-  const close=()=>{cleanup();modal.remove();};
+  const body=modal.querySelector('#prAssessmentBody');
+  let cleanup=()=>{}, stream=null, locked=false, enteredFullscreen=false;
+  const exitFullscreen=()=>{
+    if(enteredFullscreen&&document.fullscreenElement){
+      document.exitFullscreen().catch(error=>console.warn('Could not exit assessment fullscreen',error));
+      enteredFullscreen=false;
+    }
+  };
+  const close=()=>{if(locked)return;cleanup();stream?.getTracks().forEach(track=>track.stop());exitFullscreen();modal.remove();};
   modal.addEventListener('click',e=>{if(e.target===modal||e.target.closest('[data-close-assessment]'))close();});
-  try {
-    const {data}=await api('/student/assessments/start',{method:'POST',body:JSON.stringify({applicationId:Number(applicationId),roundIndex:Number(roundIndex)})});
-    let questions=data.questions||[], answers=data.savedAnswers||{}, current=0, seconds=Math.max(60,Number(data.remainingSeconds||data.durationSeconds||1800)), submitting=false;
-    const formatTime=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-    const render=()=>{
-      const q=questions[current]; if(!q){body.innerHTML='<p>No questions were returned. Please contact the placement team.</p>';return;}
-      body.innerHTML=`<div class="pr-test-toolbar"><span>QUESTION ${current+1} OF ${questions.length}</span><span class="pr-test-timer" id="prTestTimer">${formatTime(seconds)}</span></div><div class="pr-test-progress"><span style="width:${((current+1)/questions.length)*100}%"></span></div><div class="pr-question"><span class="pr-question-tag">${esc(q.topic||'Assessment')}</span><h3>${esc(q.question)}</h3><div class="pr-options">${(q.options||[]).map((opt,i)=>`<label class="pr-option ${answers[q.id]===i?'is-picked':''}"><input type="radio" name="prAnswer" value="${i}" ${answers[q.id]===i?'checked':''}><span class="pr-option-letter">${String.fromCharCode(65+i)}</span><span>${esc(opt)}</span></label>`).join('')}</div></div><div class="pr-test-footer"><button class="pr-secondary-action" type="button" id="prPrevious" ${current===0?'disabled':''}>Previous</button><span>${Object.keys(answers).length} answered</span>${current<questions.length-1?'<button class="pr-primary-action" type="button" id="prNext">Next question →</button>':'<button class="pr-primary-action" type="button" id="prSubmit">Submit assessment</button>'}</div><p class="pr-test-warning">Integrity monitoring is active. Repeated focus/tab violations may automatically submit this attempt.</p>`;
-      body.querySelectorAll('input[name="prAnswer"]').forEach(el=>el.addEventListener('change',async()=>{answers[q.id]=Number(el.value);try{await api(`/student/assessments/${data.attemptId}/answer`,{method:'PUT',body:JSON.stringify({questionId:q.id,answerIndex:answers[q.id]})});render();}catch(e){const warning=body.querySelector('.pr-test-warning');if(warning)warning.textContent=`Answer could not be saved: ${e.message||'Please retry.'}`;}}));
-      body.querySelector('#prPrevious')?.addEventListener('click',()=>{current=Math.max(0,current-1);render();}); body.querySelector('#prNext')?.addEventListener('click',()=>{current=Math.min(questions.length-1,current+1);render();}); body.querySelector('#prSubmit')?.addEventListener('click',()=>submit(false));
-    };
-    const submit=async auto=>{if(submitting)return;submitting=true;try{const r=await api(`/student/assessments/${data.attemptId}/submit`,{method:'POST',body:JSON.stringify({answers,autoSubmitted:auto})});cleanup();body.innerHTML=`<div class="pr-result-state"><div class="pr-result-icon">✓</div><span class="pr-eyebrow">ASSESSMENT SUBMITTED</span><h3>Submission recorded</h3><p>Your score: <strong>${esc(String(r.data.score))}%</strong> · ${esc(String(r.data.correct_count))} of ${esc(String(r.data.total_questions))} correct.</p><p class="pr-muted">Your result has been saved. Progress updates according to the company's qualifying criteria.</p><button class="pr-primary-action" type="button" data-close-assessment>Return to Progress</button></div>`;modal.querySelectorAll('[data-close-assessment]').forEach(b=>b.addEventListener('click',()=>{modal.remove();loadApplicationsRef?.();}));}catch(e){submitting=false;alert(e.message||'Could not submit assessment.');}};
-    let loadApplicationsRef=null;
-    cleanup=installIntegrityMonitoring(modal,data.attemptId,violation=>{const box=body.querySelector('.pr-test-warning');if(box)box.textContent=`Integrity event recorded (${violation.violationCount||'updated'}). ${violation.autoSubmitted?'The attempt was submitted due to repeated violations.':'Please remain on this assessment screen.'}`;if(violation.autoSubmitted)submit(true);});
-    render(); const timer=setInterval(()=>{seconds--;const el=body.querySelector('#prTestTimer');if(el)el.textContent=formatTime(Math.max(0,seconds));if(seconds<=0){clearInterval(timer);submit(true);}},1000); const previousCleanup=cleanup;cleanup=()=>{clearInterval(timer);previousCleanup();};
-  } catch(e) { body.innerHTML=`<div class="pr-error-state"><h3>Assessment unavailable</h3><p>${esc(e.message||'Please try again later.')}</p><button class="pr-secondary-action" type="button" data-close-assessment>Close</button></div>`; modal.querySelectorAll('[data-close-assessment]').forEach(b=>b.addEventListener('click',close)); }
+  const showPreflight=message=>{
+    body.innerHTML=`<div class="pr-proctor-consent"><h3>Before you begin</h3><p>This test requires camera and microphone access to check that both remain active. Video and audio are processed only in this browser: they are not recorded, saved, or sent to the company. Only integrity event counts, descriptions, and timestamps are reported.</p><label><input id="prProctorConsent" type="checkbox"> I understand and agree to the live camera and microphone check.</label><p class="pr-proctor-error" role="alert">${message?esc(message):''}</p><button class="pr-primary-action" id="prBeginAssessment" type="button" disabled>Enable camera &amp; microphone and begin</button><button class="pr-secondary-action" type="button" data-close-assessment>Cancel</button></div>`;
+    const consent=body.querySelector('#prProctorConsent'), button=body.querySelector('#prBeginAssessment');
+    consent.addEventListener('change',()=>{button.disabled=!consent.checked;});
+    button.addEventListener('click',async()=>{
+      if(!consent.checked)return;
+      locked=true;button.disabled=true;modal.classList.add('is-locked');
+      try {
+        if(!navigator.mediaDevices?.getUserMedia)throw new Error('Camera and microphone access requires a supported browser on HTTPS or localhost.');
+        stream=await navigator.mediaDevices.getUserMedia({audio:true,video:true});
+        try { if(!document.fullscreenElement&&document.documentElement.requestFullscreen){await document.documentElement.requestFullscreen();enteredFullscreen=Boolean(document.fullscreenElement);} } catch {}
+        const {data}=await api('/student/assessments/start',{method:'POST',body:JSON.stringify({applicationId:Number(applicationId),roundIndex:Number(roundIndex)})});
+        let questions=data.questions||[], answers=data.savedAnswers||{}, current=questions.findIndex(question=>answers[question.id]===undefined), seconds=Math.max(0,Number(data.remainingSeconds??data.durationSeconds??1800)), submitting=false, timer=null;
+        if(current<0)current=Math.max(0,questions.length-1);
+        const formatTime=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+        const deviceActive=kind=>stream.getTracks().some(track=>track.kind===kind&&track.readyState==='live'&&!track.muted);
+        const updateDeviceStatus=()=>{
+          const camera=body.querySelector('[data-media-state="video"]'), microphone=body.querySelector('[data-media-state="audio"]');
+          if(camera)camera.textContent=deviceActive('video')?'Active':'Unavailable';
+          if(microphone)microphone.textContent=deviceActive('audio')?'Active':'Unavailable';
+        };
+        const mediaStatus=()=>`<aside class="pr-proctor-status"><video class="pr-proctor-preview" autoplay playsinline muted></video><span><b>Camera</b> <span data-media-state="video">${deviceActive('video')?'Active':'Unavailable'}</span> · <b>Microphone</b> <span data-media-state="audio">${deviceActive('audio')?'Active':'Unavailable'}</span><small>Live device check only · no recording</small></span></aside>`;
+        const render=()=>{
+          const q=questions[current]; if(!q){body.innerHTML='<p>No questions were returned. Please contact the placement team.</p>';return;}
+          body.innerHTML=`${mediaStatus()}<div class="pr-test-toolbar"><span>QUESTION ${current+1} OF ${questions.length}</span><span class="pr-test-timer" id="prTestTimer">${formatTime(seconds)}</span></div><div class="pr-test-progress"><span style="width:${((current+1)/questions.length)*100}%"></span></div><div class="pr-question"><span class="pr-question-tag">${esc(q.topic||'Assessment')}</span><h3>${esc(q.question)}</h3><div class="pr-options">${(q.options||[]).map((opt,i)=>`<label class="pr-option ${answers[q.id]===i?'is-picked':''}"><input type="radio" name="prAnswer" value="${i}" ${answers[q.id]===i?'checked':''}><span class="pr-option-letter">${String.fromCharCode(65+i)}</span><span>${esc(opt)}</span></label>`).join('')}</div></div><div class="pr-test-footer"><button class="pr-secondary-action" type="button" id="prPrevious" ${current===0?'disabled':''}>Previous</button><span>${Object.keys(answers).length} answered</span>${current<questions.length-1?'<button class="pr-primary-action" type="button" id="prNext">Next question →</button>':'<button class="pr-primary-action" type="button" id="prSubmit">Submit assessment</button>'}</div><p class="pr-test-warning" role="status">${data.resumed?'Resumed your existing attempt with saved answers and remaining time. ':''}Integrity monitoring is active. Repeated irregularities may automatically submit this attempt.</p>`;
+          const preview=body.querySelector('.pr-proctor-preview'); if(preview)preview.srcObject=stream;
+          body.querySelectorAll('input[name="prAnswer"]').forEach(el=>el.addEventListener('change',async()=>{answers[q.id]=Number(el.value);try{await api(`/student/assessments/${data.attemptId}/answer`,{method:'PUT',body:JSON.stringify({questionId:q.id,answerIndex:answers[q.id]})});render();}catch(e){const warning=body.querySelector('.pr-test-warning');if(warning)warning.textContent=`Answer could not be saved: ${e.message||'Please retry.'}`;}}));
+          body.querySelector('#prPrevious')?.addEventListener('click',()=>{current=Math.max(0,current-1);render();}); body.querySelector('#prNext')?.addEventListener('click',()=>{current=Math.min(questions.length-1,current+1);render();}); body.querySelector('#prSubmit')?.addEventListener('click',()=>submit(false));
+        };
+        const submit=async auto=>{
+          if(submitting)return;submitting=true;
+          try {
+            const r=await api(`/student/assessments/${data.attemptId}/submit`,{method:'POST',body:JSON.stringify({answers,autoSubmitted:auto})});
+            cleanup();stream?.getTracks().forEach(track=>track.stop());exitFullscreen();locked=false;modal.classList.remove('is-locked');
+            body.innerHTML=`<div class="pr-result-state"><div class="pr-result-icon">✓</div><span class="pr-eyebrow">ASSESSMENT SUBMITTED</span><h3>Submission recorded</h3><p>Your score: <strong>${esc(String(r.data.score))}%</strong> · ${esc(String(r.data.correct_count))} of ${esc(String(r.data.total_questions))} correct.</p><p class="pr-muted">Your score and integrity summary have been saved.</p><button class="pr-primary-action" type="button" data-close-assessment>Return to Progress</button></div>`;
+            modal.querySelectorAll('[data-close-assessment]').forEach(b=>b.addEventListener('click',()=>{close();loadApplicationsRef?.();}));
+          } catch(e) {
+            submitting=false;const warning=body.querySelector('.pr-test-warning');if(warning)warning.textContent=`Submission failed: ${e.message||'Please retry.'}`;
+          }
+        };
+        cleanup=installIntegrityMonitoring(modal,data.attemptId,stream,(violation,error)=>{
+          const box=body.querySelector('.pr-test-warning');
+          if(error){if(box)box.textContent=`Could not report an integrity event: ${error.message||'Please check your connection.'}`;return;}
+          if(box)box.textContent=`Integrity irregularity recorded (${violation.violationCount||'updated'}). ${violation.autoSubmitted?'The attempt was submitted due to repeated irregularities.':'Please remain on this assessment screen.'}`;
+          if(violation.autoSubmitted)submit(true);
+        });
+        render();
+        timer=setInterval(()=>{seconds--;const el=body.querySelector('#prTestTimer');if(el)el.textContent=formatTime(Math.max(0,seconds));updateDeviceStatus();if(seconds<=0){clearInterval(timer);submit(true);}},1000);
+        const stopMonitoring=cleanup;
+        cleanup=()=>{clearInterval(timer);stopMonitoring();};
+      } catch(e) {
+        stream?.getTracks().forEach(track=>track.stop());stream=null;exitFullscreen();locked=false;modal.classList.remove('is-locked');
+        showPreflight(e.message||'Could not enable the camera and microphone or start the assessment.');
+      }
+    });
+  };
+  showPreflight('');
 }
 let loadApplicationsRef=null;
 export function mount() {

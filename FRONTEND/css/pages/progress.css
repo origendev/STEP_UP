@@ -1563,6 +1563,18 @@
 #view-progress .pr-round-title strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f2f5ff;font-size:15px;font-weight:700;line-height:1.3;}
 #view-progress .pr-round-title small{order:3;color:#8799bd;font-size:11px;}
 #view-progress .pr-round-state{order:2;justify-self:start;width:max-content;padding:4px 9px;font-size:10px;font-weight:650;}
+
+.pr-assessment-modal.is-locked .pr-modal-close{display:none;}
+.pr-assessment-modal .pr-proctor-consent h3{margin:0 0 10px;color:#f3f6ff;font-size:18px;}
+.pr-assessment-modal .pr-proctor-consent p{color:#a9b9d8;font-size:12px;line-height:1.6;}
+.pr-assessment-modal .pr-proctor-consent label{display:flex;align-items:flex-start;gap:9px;margin:16px 0;color:#dce6fa;font-size:12px;line-height:1.5;}
+.pr-assessment-modal .pr-proctor-consent label input{margin-top:2px;accent-color:#79a7ff;}
+.pr-assessment-modal .pr-proctor-error{min-height:18px;color:#ffb4c3!important;}
+.pr-assessment-modal .pr-proctor-consent button{margin:6px 8px 0 0;}
+.pr-assessment-modal .pr-proctor-consent button:disabled{opacity:.45;cursor:not-allowed;}
+.pr-proctor-status{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:10px;border:1px solid rgba(125,153,211,.18);border-radius:10px;background:rgba(10,19,39,.62);color:#cbd8f0;font-size:11px;}
+.pr-proctor-preview{width:92px;height:58px;border-radius:7px;background:#050a16;object-fit:cover;}
+.pr-proctor-status small{display:block;margin-top:5px;color:#8799bd;font-size:9px;}
 #view-progress .pr-round-state.ready{color:#b9d0ff;background:rgba(74,115,184,.2);}
 #view-progress .pr-round-state.upcoming{color:#8fa1c3;background:rgba(99,116,150,.17);}
 #view-progress .pr-round-state.passed{color:#75e0b6;background:rgba(30,170,121,.15);}
