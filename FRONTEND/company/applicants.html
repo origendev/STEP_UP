@@ -16,7 +16,39 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
 .profile-full{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
 .profile-section{border:1px solid var(--line);border-radius:10px;background:var(--lilac-bg);padding:12px;margin-top:9px}
 .profile-section h3{margin:0 0 9px;font-size:12.5px}.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px}.profile-row{display:grid;grid-template-columns:150px 1fr;gap:8px;font-size:10.5px;line-height:1.45}.profile-row span{color:var(--ink-soft)}.profile-row strong{overflow-wrap:anywhere}.profile-sub{margin:8px 0 0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--white);font-size:10.5px}.profile-list{margin:0;padding-left:18px;font-size:10.5px}.profile-photo{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);float:right}.resume-box button:disabled{opacity:.45;cursor:not-allowed}@media(max-width:800px){.profile-grid{grid-template-columns:1fr}.profile-row{grid-template-columns:120px 1fr}}
-.review-card{border:1px solid var(--line);border-radius:13px;padding:15px;background:var(--white)}.review-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.review-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.review-metrics div{padding:10px;background:var(--surface,#f7f7fb);border-radius:8px}.review-metrics small{display:block;color:var(--ink-soft);font-size:10px}.review-metrics strong{font-size:13px}.review-card textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;margin:8px 0}.review-actions{display:flex;gap:8px;flex-wrap:wrap}.review-actions button{border:0;border-radius:8px;padding:9px 12px;font-weight:800}.review-actions .pass{background:#dcfce7;color:#166534}.review-actions .fail{background:#fee2e2;color:#991b1b}.review-actions .hold{background:#fef3c7;color:#92400e}@media(max-width:640px){.review-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}\n</style>
+/* Assessment review: explicit colors prevent theme variables from making text unreadable. */
+.assessment-panel{margin-top:24px;padding:22px;border:1px solid #263653;border-radius:18px;background:#0d1528;color:#edf3ff;box-shadow:0 14px 34px rgba(0,0,0,.16)}
+.assessment-panel h2{margin:0;font-size:22px;letter-spacing:-.025em;color:#f4f7ff}
+.assessment-panel .panel-sub{margin:8px 0 18px;color:#9eafd0;font-size:13px;line-height:1.6}
+.review-card{border:1px solid #2a3b5d;border-radius:15px;padding:19px;background:linear-gradient(145deg,#131f37,#101a30);color:#edf3ff;box-shadow:0 8px 20px rgba(0,0,0,.12)}
+.review-card+.review-card{margin-top:12px}
+.review-top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid #263653}
+.review-student{font-size:16px;font-weight:800;letter-spacing:-.015em;color:#f6f8ff}
+.review-meta{margin-top:5px;color:#9eafd0;font-size:12px;line-height:1.55}
+.review-status{display:inline-flex;align-items:center;gap:6px;border:1px solid #72562a;border-radius:999px;padding:6px 10px;background:#332817;color:#ffd58a;font-size:11px;font-weight:800;white-space:nowrap}
+.review-status.pass{border-color:#236a55;background:#12372f;color:#8de5bf}
+.review-status.fail{border-color:#793e50;background:#3a1c2a;color:#ffb4c3}
+.review-status.needs-review{border-color:#72562a;background:#332817;color:#ffd58a}
+.review-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:15px 0}
+.review-metrics>div{min-width:0;padding:13px;border:1px solid #2a3b5d;border-radius:11px;background:#0b1427;color:#edf3ff}
+.review-metrics small{display:block;color:#9eafd0;font-size:10px;font-weight:700;letter-spacing:.045em;text-transform:uppercase}
+.review-metrics strong{display:block;margin-top:7px;color:#f5f8ff;font-size:18px;font-weight:800;overflow-wrap:anywhere}
+.review-warning{display:flex;gap:9px;align-items:flex-start;margin:12px 0;padding:11px 12px;border:1px solid #72562a;border-radius:10px;background:#2b2318;color:#ffd58a;font-size:12px;line-height:1.55}
+.review-card label{display:block;margin-top:14px;color:#dce6fa;font-size:12px;font-weight:800}
+.review-card textarea{display:block;width:100%;min-height:82px;resize:vertical;border:1px solid #34496f;border-radius:10px;padding:12px;margin:8px 0 14px;background:#091225;color:#f4f7ff;font:500 13px/1.5 Inter, sans-serif;outline:none;box-sizing:border-box}
+.review-card textarea::placeholder{color:#7184a7}
+.review-card textarea:focus{border-color:#79a7ff;box-shadow:0 0 0 3px rgba(121,167,255,.14)}
+.review-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:4px}
+.review-actions button{border:1px solid transparent;border-radius:9px;padding:10px 14px;font-size:12px;font-weight:800;cursor:pointer;transition:transform .15s,filter .15s}
+.review-actions button:hover:not(:disabled){filter:brightness(1.06);transform:translateY(-1px)}
+.review-actions button:disabled{opacity:.55;cursor:wait}
+.review-actions .pass{background:#c9f7df;color:#075d3d}
+.review-actions .fail{background:#ffe0e6;color:#9c1c3a}
+.review-actions .hold{background:#ffedbd;color:#805500}
+.review-empty{padding:28px 18px;border:1px dashed #34496f;border-radius:12px;text-align:center;color:#a9bad8;font-size:13px;line-height:1.6}
+.review-empty button{margin-top:12px;border:1px solid #3a5683;border-radius:9px;background:#172747;color:#eaf1ff;padding:9px 12px;font-weight:800;cursor:pointer}
+@media(max-width:760px){.review-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.assessment-panel{padding:16px}.review-card{padding:14px}}
+@media(max-width:420px){.review-metrics strong{font-size:16px}.review-actions button{flex:1 1 100%}}\n</style>
 <script src="../js/config.js"></script>
 </head>
 <body>
@@ -30,7 +62,7 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
     <div class="company-chip" id="companyName">Company</div>
   </div>
   <div id="message" class="message"></div>
-  <section id="applicantList" class="applicant-list"><div class="empty">Loading applicants…</div></section><section class="panel" style="margin-top:22px"><h2>Assessment verification</h2><p class="panel-sub">Review submitted test scores and integrity flags. Verify each round before the next round is unlocked.</p><div id="assessmentReviews" class="applicant-list"><div class="empty">Loading submitted assessments…</div></div></section>
+  <section id="applicantList" class="applicant-list"><div class="empty">Loading applicants…</div></section><section class="assessment-panel"><h2>Assessment verification</h2><p class="panel-sub">Review submitted test scores and integrity events. Verify each round before the next round is unlocked.</p><div id="assessmentReviews" class="applicant-list"><div class="review-empty" role="status">Loading submitted assessments…</div></div></section>
 </main>
 <script>
 const API=window.STEPUP_API_BASE_URL||'http://localhost:3000/api';
@@ -125,8 +157,69 @@ function render(){
 }
 
 let assessmentReviews=[];
-async function loadAssessmentReviews(){const host=$('assessmentReviews');try{assessmentReviews=await api('/company/jobs/'+encodeURIComponent(jobId)+'/assessments')||[];host.innerHTML=assessmentReviews.length?assessmentReviews.map(a=>`<article class="review-card"><div class="review-top"><div><strong>${esc(a.student_name)}</strong><div style="font-size:12px;color:var(--ink-soft);margin-top:4px">${esc(a.round_name)} · Round ${Number(a.round_index)+1} · Submitted ${a.submitted_at?new Date(a.submitted_at).toLocaleString():'-'}</div></div><span class="status ${a.company_verified?String(a.company_decision).toLowerCase():'pending'}">${esc(a.company_decision||'Pending verification')}</span></div><div class="review-metrics"><div><small>Score</small><strong>${Number(a.score||0)}%</strong></div><div><small>Correct</small><strong>${Number(a.correct_count||0)} / ${Number(a.total_questions||0)}</strong></div><div><small>Integrity events</small><strong>${Number(a.violation_count||0)}</strong></div><div><small>Auto-submitted</small><strong>${a.auto_submitted?'Yes':'No'}</strong></div></div>${Number(a.violation_count)>0?'<p style="color:#b45309;font-size:12px">Integrity events were recorded. Review before verifying this round.</p>':''}<label style="display:block;font-size:12px;font-weight:700">Recruiter feedback<textarea rows="2" id="feedback-${a.attempt_id}" placeholder="Feedback or verification notes">${esc(a.company_feedback||'')}</textarea></label><div class="review-actions"><button class="pass" data-verify="${a.attempt_id}" data-decision="Pass">Verify & Pass</button><button class="fail" data-verify="${a.attempt_id}" data-decision="Fail">Verify & Fail</button><button class="hold" data-verify="${a.attempt_id}" data-decision="Needs review">Needs review</button></div></article>`).join(''):'<div class="empty">No submitted assessments to verify yet.</div>';host.querySelectorAll('[data-verify]').forEach(b=>b.onclick=()=>verifyAssessment(b.dataset.verify,b.dataset.decision));}catch(e){host.innerHTML=`<div class="empty">${esc(e.message)}</div>`;}}
-async function verifyAssessment(id,decision){try{const feedback=$('feedback-'+id)?.value||'';await api('/company/assessments/'+encodeURIComponent(id)+'/verify',{method:'PATCH',body:JSON.stringify({decision,feedback})});msg(`Assessment marked ${decision}.`,'ok');await loadAssessmentReviews();}catch(e){msg(e.message);}}
+function metricValue(v, suffix='') {
+  if (v === null || v === undefined || v === '') return 'Not recorded';
+  return `${esc(v)}${suffix}`;
+}
+function decisionClass(a) {
+  if (!a.company_verified) return 'needs-review';
+  const d=String(a.company_decision||'').toLowerCase();
+  return d==='pass'?'pass':d==='fail'?'fail':'needs-review';
+}
+function reviewEmpty(message, retry=false) {
+  return `<div class="review-empty" role="status">${esc(message)}${retry?'<br><button type="button" data-retry-assessments>Retry loading</button>':''}</div>`;
+}
+async function loadAssessmentReviews() {
+  const host=$('assessmentReviews');
+  if(!host) return;
+  if(!jobId){host.innerHTML=reviewEmpty('Open applicants from a specific job to review its submitted assessments.');return;}
+  host.innerHTML=reviewEmpty('Loading submitted assessments…');
+  try {
+    const data=await api('/company/jobs/'+encodeURIComponent(jobId)+'/assessments');
+    assessmentReviews=Array.isArray(data)?data:[];
+    if(!assessmentReviews.length){host.innerHTML=reviewEmpty('No submitted assessments are available for this job yet. This panel will update when a student submits a configured test.');return;}
+    host.innerHTML=assessmentReviews.map(a=>{
+      const score=a.score===null||a.score===undefined||a.score===''?null:Number(a.score);
+      const correct=(a.correct_count===null||a.correct_count===undefined||a.correct_count==='')?null:Number(a.correct_count);
+      const total=(a.total_questions===null||a.total_questions===undefined||a.total_questions==='')?null:Number(a.total_questions);
+      const violations=(a.violation_count===null||a.violation_count===undefined||a.violation_count==='')?null:Number(a.violation_count);
+      const submitted=a.submitted_at?new Date(a.submitted_at).toLocaleString():'Submission time not recorded';
+      const statusLabel=a.company_verified?(a.company_decision||'Verified'):(a.company_decision==='Needs review'?'Needs review':'Pending verification');
+      const locked=Boolean(a.company_verified);
+      return `<article class="review-card">
+        <div class="review-top"><div><div class="review-student">${esc(a.student_name||'Student')}</div><div class="review-meta">${esc(a.round_name||'Assessment')} · Round ${Number(a.round_index??0)+1}<br>Submitted ${esc(submitted)}</div></div><span class="review-status ${decisionClass(a)}">${esc(statusLabel)}</span></div>
+        <div class="review-metrics">
+          <div><small>Score</small><strong>${score===null?'Not recorded':metricValue(Number.isFinite(score)?score:a.score,'%')}</strong></div>
+          <div><small>Correct answers</small><strong>${correct===null||total===null?'Not recorded':`${esc(correct)} / ${esc(total)}`}</strong></div>
+          <div><small>Integrity events</small><strong>${violations===null?'Not recorded':esc(violations)}</strong></div>
+          <div><small>Auto-submitted</small><strong>${a.auto_submitted===true?'Yes':a.auto_submitted===false?'No':'Not recorded'}</strong></div>
+        </div>
+        ${violations!==null&&violations>0?'<div class="review-warning"><span aria-hidden="true">⚠</span><span>Integrity events were recorded. Review the evidence and attempt details before making a decision.</span></div>':''}
+        <label for="feedback-${esc(a.attempt_id)}">Recruiter feedback <span style="font-weight:500;color:#9eafd0">(optional, but recommended for a fail/review decision)</span></label>
+        <textarea rows="3" id="feedback-${esc(a.attempt_id)}" placeholder="Record verification notes, concerns, or the reason for your decision…" ${locked?'disabled':''}>${esc(a.company_feedback||'')}</textarea>
+        <div class="review-actions">${locked?`<span class="review-meta">Decision saved${a.company_verified_at?' · '+esc(new Date(a.company_verified_at).toLocaleString()):''}. Contact your placement administrator if this decision needs correction.</span>`:`<button class="pass" data-verify="${esc(a.attempt_id)}" data-decision="Pass">✓ Verify &amp; Pass</button><button class="fail" data-verify="${esc(a.attempt_id)}" data-decision="Fail">✕ Verify &amp; Fail</button><button class="hold" data-verify="${esc(a.attempt_id)}" data-decision="Needs review">Needs review</button>`}</div>
+      </article>`;
+    }).join('');
+    host.querySelectorAll('[data-verify]').forEach(b=>b.onclick=()=>verifyAssessment(b.dataset.verify,b.dataset.decision,b));
+  } catch(e) {
+    host.innerHTML=reviewEmpty(`Could not load submitted assessments: ${e.message||'Unknown error'}.`,true);
+    host.querySelector('[data-retry-assessments]')?.addEventListener('click',loadAssessmentReviews);
+  }
+}
+async function verifyAssessment(id,decision,button) {
+  if(button?.disabled)return;
+  const feedback=$('feedback-'+id)?.value||'';
+  const original=button?.textContent;
+  if(button){button.disabled=true;button.textContent='Saving decision…';}
+  try {
+    await api('/company/assessments/'+encodeURIComponent(id)+'/verify',{method:'PATCH',body:JSON.stringify({decision,feedback})});
+    msg(`Assessment decision saved: ${decision}. The student's Progress page will reflect the result after it refreshes.`,'ok');
+    await loadAssessmentReviews();
+  } catch(e) {
+    msg(`Could not save assessment decision: ${e.message||'Unknown error'}. Please retry.`);
+    if(button){button.disabled=false;button.textContent=original||'Retry decision';}
+  }
+}
 async function updateStatus(id,status){
   try{
     await api('/company/applications/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});
