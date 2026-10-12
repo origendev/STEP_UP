@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   location TEXT,
   work_mode TEXT,
   description TEXT NOT NULL,
+  requirements TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'eligible',
   interview_rounds TEXT NOT NULL DEFAULT 'Not specified',
   approval_status TEXT NOT NULL DEFAULT 'Pending',
@@ -156,4 +157,10 @@ CREATE TABLE IF NOT EXISTS resume_ai_analysis (
 CREATE INDEX IF NOT EXISTS idx_resume_ai_analysis_analyzed_at
   ON resume_ai_analysis(analyzed_at DESC);
 
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
+
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_decision TEXT;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_feedback TEXT;
+ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_verified_at TIMESTAMPTZ;
