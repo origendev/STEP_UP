@@ -8,6 +8,7 @@ const ICON = {
   announcement: '<path d="m3 11 18-5v12L3 13z"/><path d="M7 14l2 6h4l-2-6"/>',
   reminder: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
   learning: '<path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
+  status: '<path d="M20 6 9 17l-5-5"/><circle cx="12" cy="12" r="10"/>',
 };
 
 function loadState() {
