@@ -380,10 +380,14 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    -- Keep older deployed databases compatible with the current company job form.
-    -- CREATE TABLE IF NOT EXISTS does not add columns to an already-existing table.
+    -- Backward-compatible migrations for databases created by older STEP_UP versions.
+    -- CREATE TABLE IF NOT EXISTS does not add missing columns to an existing table.
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_id BIGINT REFERENCES companies(id) ON DELETE CASCADE;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS title TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_type TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS stipend TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_before DATE;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_date DATE;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_tag TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Eligible';
@@ -391,9 +395,11 @@ async function ensureSchema() {
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS batch TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS location TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode TEXT;
-    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'eligible';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'eligible';
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
     -- Approval is tracked per job listing, not per company. Existing jobs remain visible.
@@ -1709,9 +1715,11 @@ app.post(
         message: e?.message,
         code: e?.code,
         detail: e?.detail,
-        constraint: e?.constraint
+        constraint: e?.constraint,
+        table: e?.table,
+        column: e?.column
       });
-      res.status(500).json({ error: 'Could not publish the job. Please check the required fields and try again. If it continues, contact the administrator.' });
+      res.status(500).json({ error: 'Could not publish the job. The server could not save this listing. Please retry; if it continues, contact the administrator.' });
     } finally {
       client.release();
     }
