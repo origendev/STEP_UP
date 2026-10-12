@@ -271,9 +271,7 @@ function validateJob(b) {
   for (const k of [
     'title',
     'jobType',
-    'applyBefore',
-    'description',
-    'interviewRounds'
+    'applyBefore'
   ]) {
     if (!clean(b[k])) {
       return `${k} is required.`;
@@ -1698,7 +1696,7 @@ app.post(
           req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
           b.applyBefore, clean(b.visitDate) || null, clean(b.visitTag) || null, clean(b.status) || 'Eligible',
           clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
-          clean(b.description), clean(b.requirements)||'', clean(b.category) || 'eligible', clean(b.interviewRounds)
+          clean(b.description) || '', clean(b.requirements)||'', clean(b.category) || 'eligible', clean(b.interviewRounds) || 'Not specified'
         ]
       );
       const departments = normalizeEligibleDepartments(b.eligibleDepartments);
@@ -1740,14 +1738,14 @@ app.patch(
       const r = await client.query(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
-             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,requirements=$14,category=$15,
-             interview_rounds=$16,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
-         WHERE id=$17 AND company_id=$18
+             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,category=$13,
+             approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
+         WHERE id=$14 AND company_id=$15
          RETURNING *`,
         [
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
           clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
-          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.requirements)||'',clean(b.category)||'eligible',clean(b.interviewRounds),
+          clean(b.location)||null,clean(b.workMode)||null,clean(b.category)||'eligible',
           req.params.id,req.company.companyId
         ]
       );
@@ -1773,6 +1771,46 @@ app.patch(
     }
   }
 );
+
+/* Configure recruitment rounds only after at least one applicant is shortlisted. */
+app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
+  const jobId = Number(req.params.id);
+  if (!Number.isSafeInteger(jobId) || jobId < 1) return res.status(400).json({ error: 'Invalid job ID.' });
+  const raw = req.body?.rounds;
+  if (!Array.isArray(raw)) return res.status(400).json({ error: 'Rounds must be provided as a list.' });
+  if (raw.length > 10) return res.status(400).json({ error: 'A job can have at most 10 recruitment rounds.' });
+  const rounds = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i] || {};
+    const name = clean(r.name || r.title || `Round ${i + 1}`);
+    const type = clean(r.type || 'Online test');
+    const mode = clean(r.mode || 'Online');
+    const duration = Number(r.duration ?? r.durationMinutes ?? 30);
+    const cutoff = Number(String(r.cutoff ?? r.passingScore ?? 60).replace('%', ''));
+    const questionCount = /interview|discussion|assignment/i.test(type) ? 0 : Number(r.questionCount ?? r.question_count ?? 10);
+    if (!name || name.length > 120) return res.status(400).json({ error: `Round ${i + 1}: provide a name of at most 120 characters.` });
+    if (!Number.isFinite(duration) || duration < 5 || duration > 240) return res.status(400).json({ error: `Round ${i + 1}: duration must be between 5 and 240 minutes.` });
+    if (!Number.isFinite(cutoff) || cutoff < 0 || cutoff > 100) return res.status(400).json({ error: `Round ${i + 1}: passing score must be between 0 and 100.` });
+    if (!Number.isFinite(questionCount) || questionCount < 0 || questionCount > 100 || (!/interview|discussion|assignment/i.test(type) && questionCount < 1)) return res.status(400).json({ error: `Round ${i + 1}: question count must be between 1 and 100 for tests.` });
+    rounds.push({
+      name, type, mode, duration, questionCount, cutoff,
+      passingScore: `${cutoff}%`, order: i + 1,
+      topics: String(r.topics || '').trim().slice(0, 1500),
+      instructions: String(r.instructions || '').trim().slice(0, 3000)
+    });
+  }
+  try {
+    const job = await pool.query('SELECT id FROM jobs WHERE id=$1 AND company_id=$2', [jobId, req.company.companyId]);
+    if (!job.rows[0]) return res.status(404).json({ error: 'Job not found for this company.' });
+    const shortlisted = await pool.query("SELECT 1 FROM job_applications WHERE job_id=$1 AND status IN ('Shortlisted','Selected') LIMIT 1", [jobId]);
+    if (!shortlisted.rows[0]) return res.status(409).json({ error: 'Shortlist at least one applicant before configuring recruitment rounds.' });
+    const saved = await pool.query('UPDATE jobs SET interview_rounds=$1,updated_at=NOW() WHERE id=$2 AND company_id=$3 RETURNING id,title,interview_rounds,updated_at', [JSON.stringify(rounds), jobId, req.company.companyId]);
+    res.json({ data: saved.rows[0] });
+  } catch (e) {
+    console.error('Could not save recruitment rounds:', { message: e?.message, code: e?.code, constraint: e?.constraint });
+    res.status(500).json({ error: 'Could not save recruitment rounds. Please retry or check the backend logs.' });
+  }
+});
 
 app.delete(
   '/api/company/jobs/:id',
@@ -3286,8 +3324,8 @@ app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) =
 
 app.patch('/api/company/applications/:id', requireCompany, async (req, res) => {
   const status = clean(req.body.status);
-  if (!['Applied','Selected','Rejected','Waitlisted'].includes(status)) {
-    return res.status(400).json({ error: 'Application status must be Applied, Selected, Rejected or Waitlisted.' });
+  if (!['Applied','Shortlisted','Selected','Rejected','Waitlisted'].includes(status)) {
+    return res.status(400).json({ error: 'Application status must be Applied, Shortlisted, Selected, Rejected or Waitlisted.' });
   }
   try {
     const r = await pool.query(

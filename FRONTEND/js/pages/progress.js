@@ -27,7 +27,7 @@ function progressMarkup(app) {
   const rounds=parseRounds(app.interview_rounds), status=String(app.status||'Applied'), active=ACTIVE_STATUSES.includes(status.toLowerCase());
   const attempts=Array.isArray(app.assessment_attempts)?app.assessment_attempts:[];
   if(!active) return `<div class="pr-state-gate"><span class="pr-gate-icon">◷</span><div><strong>Your recruitment journey will unlock after shortlisting.</strong><p>Current status: <b>${esc(status)}</b>. We'll update this area when the company records a decision.</p></div></div>`;
-  if(!rounds.length) return `<div class="pr-state-gate"><span class="pr-gate-icon">ⓘ</span><div><strong>You are shortlisted.</strong><p>The company has not configured rounds for this role yet. Check again later or contact the recruiter.</p></div></div>`;
+  if(!rounds.length) return `<div class="pr-state-gate"><span class="pr-gate-icon">ⓘ</span><div><strong>You are shortlisted.</strong><p>You are shortlisted. The company has not uploaded interview rounds for this role. Your application status is saved; refresh this page after the recruiter adds rounds.</p></div></div>`;
   const passed = index => { const a=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted'); if(!a || a.company_verified!==true || a.company_decision!=='Pass')return false; const threshold=Number(String(rounds[index]?.passingScore??rounds[index]?.passing_score??rounds[index]?.cutoff??60).replace('%','')); return Number(a.score)>=threshold; };
   const completed = rounds.filter((r,i)=>passed(i)).length;
   const pct=Math.round(completed/rounds.length*100);
