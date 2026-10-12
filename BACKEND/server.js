@@ -1988,7 +1988,9 @@ app.get('/api/student/notifications', requireStudent, async (req, res) => {
     let jobsResult = { rows: [] };
     if (Number(student.study_year) >= 3) {
       jobsResult = await pool.query(
-        `SELECT j.id, j.title, c.name AS company_name, COALESCE(j.reviewed_at,j.created_at) AS created_at
+        `SELECT j.id, j.title, c.name AS company_name,
+                COALESCE(j.reviewed_at,j.created_at) AS created_at,
+                FLOOR(EXTRACT(EPOCH FROM COALESCE(j.reviewed_at,j.created_at)) * 1000)::BIGINT AS notification_version
          FROM jobs j
          JOIN companies c ON c.id=j.company_id
          WHERE j.approval_status='Approved'
@@ -2048,7 +2050,7 @@ app.get('/api/student/notifications', requireStudent, async (req, res) => {
         goto: 'home'
       })),
       ...jobsResult.rows.map(j => ({
-        id: `job-${j.id}`,
+        id: `job-${j.id}-${j.notification_version}`,
         type: 'job',
         title: `New job: ${j.title}`,
         text: `${j.company_name} has posted a new opportunity.`,
@@ -3378,7 +3380,7 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
     if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
     params.push(student.rows[0].department);
     where = " WHERE j.approval_status='Approved' AND c.admin_status='Active' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)";
-    const r = await pool.query(`${publicJobSelect}${where} ORDER BY j.created_at DESC`, params);
+    const r = await pool.query(`${publicJobSelect}${where} ORDER BY COALESCE(j.reviewed_at,j.created_at) DESC`, params);
 
     res.json({
       data: r.rows

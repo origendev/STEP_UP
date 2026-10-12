@@ -115,5 +115,9 @@ export function init() {
 
   refresh();
   window.setInterval(refresh, 60000);
+  window.addEventListener('focus', refresh);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refresh();
+  });
   paintDot();
 }

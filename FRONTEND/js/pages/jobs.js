@@ -7,6 +7,7 @@ let allJobs = [];
 let appliedJobIds = new Set();
 let state = { search:'', industry:'All', sort:'Latest' };
 const SAVED_KEY = 'stepupSavedJobs';
+let refreshTimer = null;
 
 function savedIds(){
   try{return new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || '[]').map(String));}
@@ -69,17 +70,12 @@ async function loadJobs(){
     if(!res.ok) throw new Error(`Jobs API returned ${res.status}`);
     const result=await res.json();
     allJobs=Array.isArray(result.data) ? result.data.map(normalise) : [];
-    console.table(allJobs.map(j => ({
-  id: j.id,
-  companyId: j.companyId,
-  company: j.companyName,
-  title: j.jobTitle,
-  industry: j.industry
-})));
   }catch(err){
     console.error(err);
-    grid.innerHTML='<div class="jobs-error">Jobs could not be loaded right now. Make sure the StepUp backend is running and your team is using the shared database.</div>';
-    $('#jobsCount').textContent='Unable to load companies';
+    if(grid && document.body.dataset.route === 'jobs'){
+      grid.innerHTML='<div class="jobs-error">Jobs could not be loaded right now. Make sure the StepUp backend is running and your team is using the shared database.</div>';
+      $('#jobsCount').textContent='Unable to load companies';
+    }
     return;
   }
   render();
@@ -136,6 +132,7 @@ function cardHTML(group){
 
 function render(){
   const groups=groupByCompany(filtered()), grid=$('#jobsGrid');
+  if(!grid) return;
   $('#jobsCount').textContent=`Showing ${groups.length} of ${new Set(allJobs.map(j=>j.companyId)).size} companies`;
   grid.innerHTML=groups.length ? groups.map(cardHTML).join('') : '<div class="jobs-empty">No companies or roles match your search.</div>';
   grid.querySelectorAll('[data-details]').forEach(btn=>btn.addEventListener('click',()=>{
@@ -161,6 +158,7 @@ function render(){
         appliedJobIds.add(jobId);
         showApplyToast('Application submitted successfully!', true);
       }
+
       render();
     }catch(err){ btn.disabled=false; showApplyToast(err.message, false); }
   }));
@@ -169,6 +167,15 @@ function render(){
     set.has(id)?set.delete(id):set.add(id); persistSaved(set); render();
   }));
 }
+
+function refreshJobsIfVisible(){
+  if(document.body.dataset.route !== 'jobs' || document.visibilityState !== 'visible') return;
+  loadJobs();
+  loadApplications();
+}
+
+window.addEventListener('focus', refreshJobsIfVisible);
+document.addEventListener('visibilitychange', refreshJobsIfVisible);
 
 function bindEvents(){
   const search=$('#jobSearch');
@@ -190,5 +197,7 @@ export function mount(){
   state={search:'',industry:'All',sort:'Latest'};
   bindEvents();
   $('#jobsGrid').innerHTML='<div class="jobs-empty">Loading companies…</div>';
+  if(refreshTimer) window.clearInterval(refreshTimer);
+  refreshTimer=window.setInterval(refreshJobsIfVisible,60000);
   Promise.all([loadApplications(), loadJobs()]);
 }
