@@ -385,6 +385,7 @@ async function ensureSchema() {
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_note TEXT;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements JSONB NOT NULL DEFAULT '{}'::jsonb;
     ALTER TABLE jobs ALTER COLUMN approval_status SET DEFAULT 'Pending';
     CREATE INDEX IF NOT EXISTS idx_jobs_approval_status ON jobs(approval_status, created_at DESC);
 
@@ -1636,14 +1637,14 @@ app.post(
       await client.query('BEGIN');
       const r = await client.query(
         `INSERT INTO jobs
-         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,approval_status,approval_note,reviewed_at,reviewed_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Pending',NULL,NULL,NULL)
+         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,requirements,approval_status,approval_note,reviewed_at,reviewed_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,'Pending',NULL,NULL,NULL)
          RETURNING *`,
         [
           req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
           b.applyBefore, clean(b.visitDate) || null, clean(b.visitTag) || null, clean(b.status) || 'Eligible',
           clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
-          clean(b.description), clean(b.category) || 'eligible', clean(b.interviewRounds)
+          clean(b.description), clean(b.category) || 'eligible', clean(b.interviewRounds), JSON.stringify(b.requirements || {})
         ]
       );
       const departments = normalizeEligibleDepartments(b.eligibleDepartments);
@@ -1679,13 +1680,13 @@ app.patch(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
              status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,category=$14,
-             interview_rounds=$15,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
-         WHERE id=$16 AND company_id=$17
+             interview_rounds=$15,requirements=$16::jsonb,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
+         WHERE id=$17 AND company_id=$18
          RETURNING *`,
         [
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
           clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
-          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.category)||'eligible',clean(b.interviewRounds),
+          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.category)||'eligible',clean(b.interviewRounds),JSON.stringify(b.requirements || {}),
           req.params.id,req.company.companyId
         ]
       );
@@ -1763,6 +1764,7 @@ const publicJobSelect = `
     j.location,
     j.work_mode,
     j.description,
+    j.requirements,
     j.category,
     j.interview_rounds,
     COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments,
@@ -1996,7 +1998,7 @@ app.delete('/api/admin/companies/:id', requireAdmin, async (req, res) => {
 app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
-      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.approval_status,j.approval_note,j.reviewed_at,j.reviewed_by,j.created_at,j.updated_at,
+      SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.requirements,j.category,j.interview_rounds,j.approval_status,j.approval_note,j.reviewed_at,j.reviewed_by,j.created_at,j.updated_at,
              c.name AS company_name, COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments, COUNT(a.id)::int AS applicant_count
       FROM jobs j JOIN companies c ON c.id=j.company_id LEFT JOIN job_applications a ON a.job_id=j.id
       GROUP BY j.id,c.name ORDER BY j.created_at DESC
@@ -2686,7 +2688,7 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
   try {
     const r = await pool.query(
       `SELECT a.id,a.job_id,a.status,a.applied_at,a.updated_at,
-              j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.location,j.work_mode,j.interview_rounds,
+              j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.location,j.work_mode,j.interview_rounds,j.requirements,
               c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
