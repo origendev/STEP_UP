@@ -1,0 +1,1514 @@
+/* ============================================================
+   progress.css — Placement Progress Page
+============================================================ */
+
+
+/* ------------------------------------------------------------
+   Main page
+------------------------------------------------------------ */
+
+#view-progress {
+  width: 100%;
+  min-height: 100%;
+  background: #e9eef2;
+  box-sizing: border-box;
+}
+
+
+/* ------------------------------------------------------------
+   Top placement information
+------------------------------------------------------------ */
+
+.placement-info {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 40px;
+  padding: 22px 28px 26px;
+  background: #f1f5f7;
+  box-sizing: border-box;
+}
+
+.placement-info-item {
+  min-width: 0;
+}
+
+.info-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: #172b4d;
+  margin-bottom: 10px;
+}
+
+.info-value {
+  font-size: 16px;
+  font-weight: 500;
+  color: #202833;
+  line-height: 1.35;
+}
+
+.info-subvalue {
+  margin-top: 5px;
+  font-size: 10px;
+  color: #66727e;
+}
+
+
+/* ------------------------------------------------------------
+   Round cards
+------------------------------------------------------------ */
+
+.placement-rounds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  padding: 21px 28px 28px;
+  box-sizing: border-box;
+}
+
+.round-card {
+  min-height: 330px;
+  padding: 18px 19px;
+  background: #dcebf8;
+  border: 1px solid #c7d8e7;
+  border-radius: 13px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* ------------------------------------------------------------
+   Completed Round 1
+------------------------------------------------------------ */
+
+.round-completed {
+  border-color: #5c9fc9;
+  background: #dcebf8;
+}
+
+
+/* ------------------------------------------------------------
+   Status pills
+------------------------------------------------------------ */
+
+.round-status {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.status-completed {
+  background: #b9def5;
+  color: #164b70;
+}
+
+.status-dark {
+  background: #294775;
+  color: #ffffff;
+}
+
+.status-check {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: -7px;
+  border-radius: 50%;
+  background: #1687c5;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+
+/* ------------------------------------------------------------
+   Round titles
+------------------------------------------------------------ */
+
+.round-card h2 {
+  margin: 18px 0 20px;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 750;
+  color: #111820;
+}
+
+
+/* ------------------------------------------------------------
+   Date / time information
+------------------------------------------------------------ */
+
+.round-details {
+  margin-bottom: 21px;
+}
+
+.round-details p {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #1d2730;
+}
+
+.round-details p:last-child {
+  margin-bottom: 0;
+}
+
+.round-details strong {
+  font-weight: 800;
+}
+
+
+/* ------------------------------------------------------------
+   Description
+------------------------------------------------------------ */
+
+.round-description {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #29343e;
+}
+
+
+/* ------------------------------------------------------------
+   Start Round 2 button
+------------------------------------------------------------ */
+
+.round-button {
+  width: 100%;
+  margin-top: auto;
+  padding: 11px 16px;
+  border: none;
+  border-radius: 9px;
+  background: #233f70;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.round-button:hover {
+  opacity: 0.9;
+}
+
+.round-button span {
+  margin-left: 4px;
+  font-size: 15px;
+  line-height: 0;
+}
+
+
+/* ------------------------------------------------------------
+   Responsive layout
+------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+
+  .placement-info {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .placement-rounds {
+    grid-template-columns: 1fr;
+  }
+
+  .round-card {
+    min-height: 300px;
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .placement-info {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 18px 20px 22px;
+  }
+
+  .placement-rounds {
+    padding: 18px 20px 24px;
+  }
+
+  .round-card {
+    min-height: auto;
+  }
+
+}
+
+/* ============================================================
+   NEW PLACEMENT ROUND PROGRESS
+   StepUp theme
+============================================================ */
+
+.progress-placement-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin: 18px 0 20px;
+}
+
+.progress-info-item {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.progress-info-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  letter-spacing: 0.5px;
+}
+
+.progress-info-item strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.progress-info-item small {
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+
+/* ------------------------------------------------------------
+   Placement rounds
+------------------------------------------------------------ */
+
+.progress-rounds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  width: 100%;
+}
+
+.progress-round-card {
+  min-height: 300px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+
+/* ------------------------------------------------------------
+   Round status
+------------------------------------------------------------ */
+
+.progress-round-status {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.progress-round-status.completed {
+  background: var(--violet-100);
+  color: var(--violet-600);
+}
+
+.progress-round-status.waiting {
+  background: var(--violet-100);
+  color: var(--violet-600);
+}
+
+
+/* ------------------------------------------------------------
+   Round title
+------------------------------------------------------------ */
+
+.progress-round-card h3 {
+  margin: 18px 0 16px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 750;
+  color: var(--ink);
+}
+
+
+/* ------------------------------------------------------------
+   Round details
+------------------------------------------------------------ */
+
+.progress-round-details {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 16px;
+}
+
+.progress-round-details p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.progress-round-details strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+
+/* ------------------------------------------------------------
+   Round description
+------------------------------------------------------------ */
+
+.progress-round-description {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+
+/* ------------------------------------------------------------
+   Start Round button
+------------------------------------------------------------ */
+
+.progress-round-button {
+  margin-top: auto;
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--violet-500);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.progress-round-button:hover {
+  opacity: 0.9;
+}
+
+.progress-round-button span {
+  margin-left: 4px;
+  font-size: 14px;
+}
+
+
+/* ------------------------------------------------------------
+   Responsive
+------------------------------------------------------------ */
+
+@media (max-width: 980px) {
+
+  .progress-placement-info {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .progress-rounds {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+
+@media (max-width: 680px) {
+
+  .progress-placement-info {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-rounds {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+/* ------------------------------------------------------------
+   Progress page dark theme fix
+------------------------------------------------------------ */
+
+#view-progress {
+  background: transparent;
+}
+
+#view-progress .section-heading h2 {
+  color: var(--ink);
+}
+
+#view-progress .section-heading p {
+  color: #6b6780 !important;
+  opacity: 1 !important;
+}
+
+/* ============================================================
+   ROUND 1 ASSESSMENT UI
+============================================================ */
+
+.round1-assessment {
+  margin-top: 28px;
+  padding-bottom: 40px;
+}
+
+/* Top bar */
+
+.round1-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  margin-bottom: 20px;
+
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+
+  box-shadow: 0 6px 20px rgba(36, 26, 77, 0.06);
+}
+
+.round1-topbar strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.round1-timer {
+  padding: 9px 14px;
+  border-radius: 10px;
+
+  background: #f6f3ff;
+  color: #5f36e8;
+
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.round1-timer strong {
+  color: #4c2fc4;
+  margin-left: 5px;
+}
+
+/* Question card */
+
+.round1-question-card {
+  padding: 34px;
+  min-height: 330px;
+
+  border: 1px solid var(--line);
+  border-radius: 18px;
+
+  background: #ffffff;
+
+  box-shadow: 0 8px 28px rgba(36, 26, 77, 0.07);
+}
+
+.round1-question-number {
+  display: inline-flex;
+  align-items: center;
+
+  padding: 7px 12px;
+  margin-bottom: 18px;
+
+  border-radius: 8px;
+
+  background: #efe9fd;
+  color: #5f36e8;
+
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.round1-question-card h3 {
+  margin: 0 0 26px;
+
+  max-width: 850px;
+
+  color: var(--ink);
+  font-size: 21px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+/* Options */
+
+.round1-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.round1-option {
+  width: 100%;
+  min-height: 58px;
+
+  padding: 15px 18px;
+
+  border: 1px solid var(--line);
+  border-radius: 12px;
+
+  background: #faf9ff;
+  color: var(--ink);
+
+  font-size: 15px;
+  font-weight: 500;
+
+  text-align: left;
+  cursor: pointer;
+
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.round1-option:hover {
+  border-color: #7c5cf0;
+  background: #f6f3ff;
+  transform: translateY(-1px);
+}
+
+.round1-option.selected {
+  border-color: #5f36e8;
+  background: #efe9fd;
+  color: #4c2fc4;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px rgba(95, 54, 232, 0.08);
+}
+
+/* Navigation */
+
+.round1-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  margin-top: 20px;
+}
+
+.round1-secondary {
+    background: var(--white) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+
+.round1-secondary:hover:not(:disabled) {
+    background: var(--violet-100) !important;
+  border-color: #7c5cf0 !important;
+}
+
+.round1-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Submit */
+
+.round1-submit-area {
+  display: flex;
+  justify-content: center;
+
+  margin-top: 24px;
+}
+
+.round1-submit {
+  min-width: 190px;
+}
+
+/* Mobile */
+
+@media (max-width: 700px) {
+
+  .round1-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .round1-question-card {
+    padding: 24px;
+  }
+
+  .round1-options {
+    grid-template-columns: 1fr;
+  }
+
+  .round1-question-card h3 {
+    font-size: 18px;
+  }
+
+}
+
+/* Compact Round 1 sizing */
+
+.round1-assessment {
+  margin-top: 20px;
+}
+
+.round1-topbar {
+  padding: 13px 18px;
+  margin-bottom: 14px;
+  border-radius: 13px;
+}
+
+.round1-timer {
+  padding: 7px 11px;
+  font-size: 13px;
+}
+
+.round1-question-card {
+  padding: 24px;
+  min-height: 250px;
+  border-radius: 15px;
+}
+
+.round1-question-number {
+  padding: 5px 9px;
+  margin-bottom: 13px;
+  font-size: 12px;
+}
+
+.round1-question-card h3 {
+  margin-bottom: 18px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.round1-options {
+  gap: 10px;
+}
+
+.round1-option {
+  min-height: 46px;
+  padding: 11px 14px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+.round1-navigation {
+  margin-top: 14px;
+}
+
+.round1-submit-area {
+  margin-top: 16px;
+}
+
+/* ============================================================
+   ROUND 1 — FINAL COMPACT LAYOUT
+============================================================ */
+
+.round1-assessment {
+  max-width: 1100px;
+  margin: 20px auto 40px;
+}
+
+.round1-topbar {
+  padding: 12px 18px;
+  margin-bottom: 14px;
+}
+
+.round1-question-card {
+  padding: 24px 28px;
+  min-height: 0;
+}
+
+.round1-question-card h3 {
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+.round1-options {
+  gap: 10px;
+}
+
+.round1-option {
+  min-height: 48px;
+  padding: 11px 16px;
+  font-size: 14px;
+}
+
+.round1-navigation {
+  justify-content: center;
+  gap: 12px;
+}
+
+.round1-navigation .progress-round-button {
+  width: 140px;
+  min-width: 140px;
+}
+
+.round1-submit-area {
+  justify-content: center;
+}
+
+.round1-submit {
+  width: 200px !important;
+  min-width: 200px;
+}
+
+/* Make Round 1 options more compact */
+
+.round1-options {
+  max-width: 850px;
+  margin: 0 auto;
+}
+
+.round1-option {
+  min-height: 46px;
+}
+
+/* Make Round 1 question card more compact */
+
+.round1-question-card {
+  max-width: 850px;
+  margin: 0 auto;
+}
+
+/* Match Round 1 top bar width with question card */
+
+.round1-topbar {
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Align Round 1 heading with assessment card */
+
+#view-round1 .section-heading {
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Keep Round 1 controls on one line */
+
+.round1-navigation {
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.round1-submit-area {
+  display: contents;
+}
+
+.round1-navigation .progress-round-button,
+.round1-submit {
+  width: auto !important;
+  min-width: 140px;
+}
+
+/* Round 1 controls aligned with question card */
+
+.round1-navigation {
+  max-width: 850px;
+  margin: 16px auto 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.round1-navigation::before {
+  content: "";
+}
+
+.round1-navigation .round1-secondary,
+.round1-navigation #round1Next {
+  width: 140px;
+  min-width: 140px;
+}
+
+.round1-submit-area {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+}
+
+.round1-submit {
+  width: 160px !important;
+  min-width: 160px !important;
+}
+
+/* ============================================================
+   ROUND 1 CONTROLS
+============================================================ */
+
+.round1-controls {
+  width: 850px;
+  max-width: 100%;
+  margin: 16px auto 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.round1-navigation {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.round1-navigation .progress-round-button {
+  width: 140px;
+  min-width: 140px;
+}
+
+.round1-submit-area {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.round1-submit {
+  width: 160px !important;
+  min-width: 160px !important;
+}
+
+/* Round 1 navigation button sizing */
+
+.round1-navigation .progress-round-button {
+  width: 105px;
+  min-width: 105px;
+  padding: 10px 14px;
+}
+
+.round1-navigation .round1-secondary {
+  background: #ffffff !important;
+  color: var(--ink) !important;
+  border: 1px solid #d8d2ee !important;
+}
+
+.round1-navigation .round1-secondary:hover:not(:disabled) {
+  background: #f6f3ff !important;
+  border-color: #7c5cf0 !important;
+}
+
+.round1-navigation .round1-secondary:disabled {
+  opacity: 1 !important;
+  background: #f6f3ff !important;
+  color: #8b86a3 !important;
+  border: 1px solid #ddd7f2 !important;
+  cursor: not-allowed;
+}
+
+.round1-navigation .progress-round-button {
+  width: 105px !important;
+  min-width: 105px !important;
+  max-width: 105px !important;
+  box-sizing: border-box;
+}
+
+.round1-navigation #round1Next {
+  width: 90px !important;
+  min-width: 90px !important;
+  max-width: 90px !important;
+}
+
+.round1-navigation #round1Previous,
+.round1-navigation #round1Next {
+  width: 105px !important;
+  min-width: 105px !important;
+  max-width: 105px !important;
+  height: 52px !important;
+  box-sizing: border-box;
+}
+
+.round1-navigation #round1Previous,
+.round1-navigation #round1Next {
+  width: 105px !important;
+  min-width: 105px !important;
+  max-width: 105px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 8px 12px !important;
+  box-sizing: border-box;
+}
+
+/* ============================================================
+   ROUND 1 RESULT UPDATE
+============================================================ */
+
+.round1-result-update {
+  max-width: 850px;
+  margin: 0 auto 18px;
+
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  align-items: stretch;
+
+  overflow: hidden;
+
+    background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+
+  box-shadow: 0 6px 20px rgba(36, 26, 77, 0.06);
+}
+
+.round1-result-left {
+  padding: 20px 24px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  background: #241a4d;
+  color: #ffffff;
+}
+
+.round1-result-left span {
+  margin-bottom: 6px;
+
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+
+  opacity: 0.75;
+}
+
+.round1-result-left strong {
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+.round1-result-right {
+  padding: 20px 24px;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.round1-result-right strong {
+  color: var(--ink);
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.round1-result-right p {
+  margin: 0;
+
+    color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Align result banner with the round cards */
+
+.round1-result-update {
+  width: 100%;
+  max-width: none;
+  margin: 0 0 18px;
+  box-sizing: border-box;
+}
+
+.round1-result-update {
+  min-height: 120px;
+}
+
+.round1-result-left {
+  background: #5f36e8;
+}
+
+
+
+.company-info h3 {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+
+.company-role {
+    font-size: 12px;
+}
+
+.company-ctc {
+    padding-left: 16px;
+}
+
+.company-ctc span {
+    font-size: 10px;
+}
+
+.company-ctc strong {
+    font-size: 14px;
+}
+
+
+
+#appliedCompaniesView .company-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+}
+
+#appliedCompaniesView .company-info h3 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+#appliedCompaniesView .company-info p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+#appliedCompaniesView .company-ctc {
+    margin-left: auto;
+    padding-left: 30px;
+    text-align: right;
+}
+
+#appliedCompaniesView .company-ctc span {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--ink-soft);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+#appliedCompaniesView .company-ctc strong {
+    display: block;
+    color: var(--violet-600);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+/* ============================================================
+   My Applications
+============================================================ */
+
+.progress-applications {
+  margin-top: 28px;
+}
+
+.progress-applications .section-heading {
+  margin-bottom: 14px;
+}
+
+.application-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.application-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1.5fr;
+  align-items: center;
+  min-height: 62px;
+  padding: 0 14px;
+  background: #ffffff;
+  border: 1px solid #e7e1fb;
+  border-radius: 14px;
+  box-shadow: 0 3px 10px rgba(36, 26, 77, 0.06);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.application-row:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(36, 26, 77, 0.10);
+}
+
+.application-company strong {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.application-role,
+.application-ctc {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.application-status {
+  justify-self: end;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.application-status.in-progress {
+  background: #dff1ff;
+  color: #39749a;
+}
+
+.application-status.completed {
+  background: #dff4e4;
+  color: #438052;
+}
+
+.application-status.scheduled {
+  background: #fff0d2;
+  color: #a77a27;
+}
+
+.application-status.applied {
+  background: #eeeeee;
+  color: #333333;
+}
+
+.application-status.awaiting {
+  background: #e5e5e9;
+  color: #444444;
+}
+
+.progress-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.progress-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+
+
+
+
+
+
+
+/* Make application rows use the standard theme card styling variables */
+.application-row {
+  background-color: var(--white) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--text-main, inherit) !important;
+}
+
+.application-row:hover {
+  background-color: var(--surface-hover, var(--white)) !important;
+}
+
+
+/* ============================================================
+   Round 1 assessment — dark theme
+============================================================ */
+
+:root[data-theme="dark"] .round1-topbar,
+:root[data-theme="dark"] .round1-question-card {
+  background: var(--white);
+}
+
+:root[data-theme="dark"] .round1-timer {
+  background: var(--violet-100);
+  color: var(--violet-300);
+}
+
+:root[data-theme="dark"] .round1-timer strong {
+  color: #ffffff;
+}
+
+:root[data-theme="dark"] .round1-question-number {
+  background: var(--violet-100);
+  color: var(--violet-300);
+}
+
+:root[data-theme="dark"] .round1-option {
+  background: var(--lilac-bg);
+}
+
+:root[data-theme="dark"] .round1-option:hover {
+  background: var(--violet-100);
+  border-color: var(--violet-500);
+}
+
+:root[data-theme="dark"] .round1-option.selected {
+  background: var(--violet-100);
+  border-color: var(--violet-500);
+  color: #ffffff;
+}
+
+/* Previous button */
+:root[data-theme="dark"] .round1-navigation .round1-secondary {
+  background: var(--white) !important;
+  border: 1px solid var(--line) !important;
+}
+
+:root[data-theme="dark"] .round1-navigation .round1-secondary:hover:not(:disabled) {
+  background: var(--violet-100) !important;
+  border-color: var(--violet-500) !important;
+}
+
+:root[data-theme="dark"] .round1-navigation .round1-secondary:disabled {
+  background: var(--violet-100) !important;
+  color: var(--ink-soft) !important;
+  border: 1px solid var(--line) !important;
+}
+
+/* ============================================================
+   Round 2 — Coding Assessment IDE
+============================================================ */
+
+.round2-ide{
+  max-width:1200px; margin:24px auto 0;
+  background:#0b1220; color:#e5e7eb;
+  border:1px solid #1e293b; border-radius:16px; overflow:hidden;
+  font-size:14px;
+}
+
+/* buttons and selects */
+.r2-btn, .r2-select{
+  background:#111b2e; color:#e5e7eb; border:1px solid #1e2b44;
+  border-radius:10px; padding:9px 14px; font:inherit; font-size:13.5px;
+  cursor:pointer;
+}
+.r2-btn:hover{ background:#16233b; }
+.r2-select{ min-width:110px; }
+.r2-btn-blue{ color:#60a5fa; background:#0f1d3a; }
+.r2-btn-save{ background:#1e3a8a; border-color:#1e3a8a; color:#bfdbfe; }
+.r2-icon-btn{ padding:9px 11px; }
+
+/* row 1 */
+.r2-header{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:14px 18px; border-bottom:1px solid #1e293b; flex-wrap:wrap;
+}
+.r2-header-left, .r2-header-right{ display:flex; align-items:center; gap:10px; }
+.r2-logo{
+  width:36px; height:36px; border-radius:10px; background:#3b5bf0;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; color:#fff; font-size:13px;
+}
+.r2-title{ font-size:20px; color:#fff; }
+.r2-file{
+  font-size:13px; color:#94a3b8; border:1px solid #1e2b44;
+  border-radius:999px; padding:6px 12px;
+}
+.r2-label{ color:#cbd5e1; font-size:13.5px; }
+
+/* row 2 */
+.r2-actions{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 18px; border-bottom:1px solid #1e293b;
+}
+.r2-actions-left{ display:flex; align-items:center; gap:10px; }
+.r2-divider{ width:1px; height:22px; background:#1e293b; }
+.r2-run{
+  background:#16a34a; color:#fff; border:none; border-radius:10px;
+  padding:12px 26px; font:inherit; font-weight:700; font-size:15px; cursor:pointer;
+}
+.r2-run:hover{ background:#15803d; }
+
+/* body */
+.r2-body{ display:flex; min-height:420px; }
+
+.r2-explorer{
+  width:200px; flex-shrink:0; padding:16px;
+  border-right:1px solid #1e293b; background:#0a1020;
+}
+.r2-explorer.collapsed{ display:none; }
+.r2-explorer-title{ font-size:12px; letter-spacing:1px; color:#94a3b8; font-weight:700; }
+.r2-explorer-empty{ margin-top:14px; font-size:12.5px; color:#475569; }
+
+/* editor */
+.r2-editor-wrap{ position:relative; display:flex; flex:1; min-width:0; }
+.r2-lines, .r2-editor{
+  font-family:"Consolas","Courier New",monospace;
+  font-size:13.5px; line-height:22px; padding-top:8px;
+}
+.r2-lines{
+  width:46px; flex-shrink:0; text-align:right; padding-right:12px;
+  color:#475569; background:#0d1424; user-select:none; overflow:hidden;
+}
+.r2-editor{
+  flex:1; min-width:0; border:none; outline:none; resize:none;
+  background:transparent; color:#e5e7eb; padding-left:12px; padding-right:130px;
+  white-space:pre; overflow:auto; tab-size:4;
+}
+.r2-ai{
+  position:absolute; top:8px; right:10px;
+  background:#2563eb; color:#fff; border:none; border-radius:8px;
+  padding:7px 12px; font:inherit; font-size:13px; font-weight:600; cursor:pointer;
+}
+
+/* output */
+.r2-terminal{ border-top:1px solid #1e293b; padding:14px 18px; background:#070d19; }
+.r2-terminal-title{ font-size:12px; letter-spacing:1px; color:#94a3b8; font-weight:700; margin-bottom:8px; }
+.r2-terminal pre{
+  margin:0; min-height:60px; white-space:pre-wrap; color:#e5e7eb;
+  font-family:"Consolas","Courier New",monospace; font-size:13.5px;
+}
+
+.round2-controls{ max-width:1200px; margin:16px auto 0; display:flex; justify-content:flex-end; }
+
+@media (max-width:680px){
+  .r2-header, .r2-actions{ flex-direction:column; align-items:stretch; }
+  .r2-explorer{ display:none; }
+}
+/* In-place recruitment timeline on the existing My Applied Jobs page */
+.progress-applied-list{display:grid;gap:12px}
+.progress-applied-card{border-radius:18px;overflow:hidden}
+.progress-applied-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.progress-applied-meta>div{min-width:0;padding:10px 12px;border:1px solid var(--line,rgba(139,153,190,.2));border-radius:10px;background:var(--surface-2,rgba(5,10,30,.45))}
+.progress-applied-meta small{display:block;color:var(--ink-soft,#929fbd);font-size:10px;margin-bottom:4px}
+.progress-applied-meta strong{font-size:12px;overflow-wrap:anywhere}
+.progress-applied-status{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:750;white-space:nowrap;background:rgba(91,125,255,.15);color:#8eabff}
+.progress-applied-status.selected{background:rgba(35,190,132,.14);color:#51d9a3}
+.progress-applied-status.rejected{background:rgba(245,89,113,.14);color:#ff8798}
+.progress-applied-empty{padding:28px 18px;text-align:center;border:1px dashed var(--line,rgba(139,153,190,.25));border-radius:14px;color:var(--ink-soft,#9ba7c5)}
+.progress-applied-empty p{margin:7px 0 12px}
+.pr-toggle{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:14px;padding:12px 2px 4px;border:0;border-top:1px solid var(--line,rgba(139,153,190,.2));background:transparent;color:var(--accent,#9b8cff);font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.pr-inline-progress{margin-top:8px}
+.pr-inline-progress[hidden]{display:none}
+.progress-rounds-panel{padding:16px 0 2px}
+.pr-panel-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.pr-panel-title h4{margin:0;color:var(--ink,#f3f5ff);font-size:15px}
+.pr-panel-title p{margin:5px 0 0;color:var(--ink-soft,#929fbd);font-size:11px}
+.pr-round-count{flex-shrink:0;padding:5px 9px;border-radius:999px;background:rgba(132,112,255,.16);color:#b4a7ff;font-size:10px;font-weight:800}
+.pr-round-timeline{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.pr-round-item{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:0 0 18px}
+.pr-round-item:not(:last-child)::after{content:"";position:absolute;left:13px;top:29px;bottom:0;width:2px;background:var(--line,rgba(139,153,190,.22))}
+.pr-round-marker{position:relative;z-index:1;display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:rgba(127,140,170,.15);border:1px solid var(--line,rgba(139,153,190,.28));color:var(--ink-soft,#a8b2ce);font-size:11px;font-weight:800}
+.pr-round-item.is-current .pr-round-marker{background:linear-gradient(135deg,#5c80ff,#8b5cf6);border-color:transparent;color:white;box-shadow:0 0 0 4px rgba(110,105,255,.12)}
+.pr-round-content{min-width:0;padding:12px 13px;border:1px solid var(--line,rgba(139,153,190,.22));border-radius:12px;background:var(--surface-2,rgba(5,10,30,.32))}
+.pr-round-item.is-current .pr-round-content{border-color:rgba(122,130,255,.48);background:rgba(100,105,220,.08)}
+.pr-round-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pr-round-head h4{margin:0;color:var(--ink,#f3f5ff);font-size:12px;line-height:1.4}
+.pr-round-head small{display:block;margin-top:4px;color:var(--ink-soft,#929fbd);font-size:10px}
+.pr-round-state{flex-shrink:0;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:800}
+.pr-round-state.ready{color:#91b4ff;background:rgba(79,124,255,.15)}
+.pr-round-state.upcoming{color:var(--ink-soft,#9ba7c5);background:rgba(130,145,175,.12)}
+.pr-round-topics{margin:9px 0 0;color:var(--ink-soft,#a3afcc);font-size:11px;line-height:1.55;white-space:pre-line}
+.pr-round-action{display:inline-flex;align-items:center;gap:8px;margin-top:11px;padding:8px 12px;border:0;border-radius:8px;background:linear-gradient(135deg,#4d7cff,#7656ed);color:#fff;font-size:11px;font-weight:750;cursor:pointer}
+.pr-round-action:hover{filter:brightness(1.08)}
+.pr-progress-note{margin:4px 0 0;color:var(--ink-soft,#8e9ab9);font-size:10px;line-height:1.5}
+.progress-rounds-gate{display:flex;align-items:flex-start;gap:12px;margin-top:14px;padding:14px;border:1px solid var(--line,rgba(139,153,190,.22));border-radius:12px;background:var(--surface-2,rgba(5,10,30,.28))}
+.pr-gate-icon{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:9px;background:rgba(127,140,255,.14);color:#aaa3ff;font-size:17px}
+.progress-rounds-gate strong{display:block;color:var(--ink,#eef1ff);font-size:12px;line-height:1.5}
+.progress-rounds-gate p{margin:5px 0 0;color:var(--ink-soft,#9ba7c5);font-size:11px;line-height:1.55}
+@media(max-width:650px){.progress-applied-meta{grid-template-columns:1fr}.pr-round-head{flex-direction:column;gap:7px}.pr-round-state{align-self:flex-start}}
+
+/* ============================================================
+   STEP_UP PROGRESS — refined dark-glass UI and assessment experience
+============================================================ */
+#view-progress{font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif;color:#eef3ff;background:transparent;padding-bottom:36px;}
+#view-progress .section-heading{margin:26px 0 18px;padding:0 2px;}
+#view-progress .section-heading h2{font-size:clamp(22px,2.2vw,30px);font-weight:760;letter-spacing:-.7px;color:#f4f6ff;margin:0 0 7px;}
+#view-progress .section-heading p{font-size:13px;line-height:1.6;color:#9eaccb;margin:0;}
+#view-progress .progress-applied-list{display:grid;gap:18px;}
+#view-progress .progress-applied-card{position:relative;overflow:hidden;padding:22px 24px 20px;border:1px solid rgba(131,157,219,.18);border-radius:19px;background:linear-gradient(135deg,rgba(20,30,58,.96),rgba(15,23,46,.97));box-shadow:0 14px 36px rgba(0,0,0,.16);color:#eef3ff;transition:border-color .2s,transform .2s;}
+#view-progress .progress-applied-card:hover{border-color:rgba(103,147,255,.38);}
+#view-progress .pr-card-accent{position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,#68a1ff,#8c6aff);opacity:.9;}
+#view-progress .progress-applied-top{align-items:center;gap:18px;}
+#view-progress .pr-card-label,.pr-eyebrow{display:block;color:#7ea9ff;font-size:10px;font-weight:800;letter-spacing:1.25px;margin-bottom:7px;}
+#view-progress .progress-applied-card h3{font-size:17px;line-height:1.35;letter-spacing:-.25px;color:#f7f8ff;font-weight:750;}
+#view-progress .progress-applied-card p{font-size:12.5px;color:#a8b5d3;line-height:1.6;}
+#view-progress .progress-applied-status{padding:7px 12px;border:1px solid rgba(119,149,213,.18);font-size:11px;letter-spacing:.1px;white-space:nowrap;background:rgba(75,109,186,.17);color:#9fc0ff;}
+#view-progress .progress-applied-status.selected{background:rgba(26,176,126,.13);border-color:rgba(65,211,162,.24);color:#72e0b8;}
+#view-progress .progress-applied-status.rejected{background:rgba(235,93,111,.12);border-color:rgba(235,93,111,.22);color:#ff9ca8;}
+#view-progress .progress-applied-status.waitlisted{background:rgba(245,178,67,.12);color:#ffd28a;}
+#view-progress .progress-applied-meta{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:17px;}
+#view-progress .progress-applied-meta div{padding:12px 14px;background:rgba(5,12,30,.43);border:1px solid rgba(131,157,219,.14);border-radius:12px;min-width:0;}
+#view-progress .progress-applied-meta small{font-size:10px;letter-spacing:.25px;color:#8798bd;}
+#view-progress .progress-applied-meta strong{font-size:12.5px;line-height:1.45;color:#f0f4ff;overflow-wrap:anywhere;}
+#view-progress .pr-toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;margin-top:19px;padding:13px 0 2px;background:none;border:0;border-top:1px solid rgba(131,157,219,.13);color:#86b3ff;font:700 12px Inter,"Segoe UI",sans-serif;cursor:pointer;text-align:left;}
+#view-progress .pr-inline-progress{margin-top:16px;}
+#view-progress .pr-recruitment-panel{padding:21px;border:1px solid rgba(112,148,222,.18);border-radius:17px;background:linear-gradient(145deg,rgba(12,22,47,.82),rgba(17,28,57,.72));}
+#view-progress .pr-panel-title{display:flex;align-items:center;justify-content:space-between;gap:20px;}
+#view-progress .pr-panel-title h4{font-size:18px;letter-spacing:-.35px;color:#f2f5ff;margin:0 0 5px;font-weight:750;}
+#view-progress .pr-panel-title p{margin:0;font-size:12px;color:#94a4c8;}
+#view-progress .pr-progress-ring{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 66px;width:66px;height:66px;border-radius:50%;border:3px solid rgba(104,153,255,.45);background:rgba(67,110,214,.13);}
+#view-progress .pr-progress-ring strong{font-size:16px;color:#e9f0ff;}
+#view-progress .pr-progress-ring small{font-size:8px;color:#9eafd2;text-transform:uppercase;letter-spacing:.7px;}
+#view-progress .pr-progress-track{height:5px;margin:18px 0 20px;background:rgba(137,158,204,.15);border-radius:20px;overflow:hidden;}
+#view-progress .pr-progress-track span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#5a9bff,#9a79ff);transition:width .3s ease;}
+#view-progress .pr-round-timeline{list-style:none;margin:0;padding:0;display:grid;gap:12px;}
+#view-progress .pr-round-item{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;}
+#view-progress .pr-round-marker{display:flex;align-items:center;justify-content:center;width:31px;height:31px;margin-top:8px;border-radius:50%;border:1px solid rgba(130,153,201,.3);background:#172443;color:#a9b7d5;font-size:12px;font-weight:800;z-index:1;}
+#view-progress .pr-round-item.is-current .pr-round-marker{border-color:#6ea6ff;background:rgba(64,123,234,.23);color:#cfe1ff;box-shadow:0 0 0 4px rgba(82,136,237,.08);}
+#view-progress .pr-round-item.is-complete .pr-round-marker{border-color:rgba(67,209,157,.4);background:rgba(28,159,116,.2);color:#75e2ba;}
+#view-progress .pr-round-content{min-width:0;padding:15px 16px;border:1px solid rgba(123,151,209,.16);border-radius:13px;background:rgba(23,36,68,.56);}
+#view-progress .pr-round-item.is-current .pr-round-content{border-color:rgba(93,149,255,.46);background:linear-gradient(135deg,rgba(28,52,97,.72),rgba(20,34,65,.76));}
+#view-progress .pr-round-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+#view-progress .pr-round-head h4{font-size:14px;font-weight:750;line-height:1.45;color:#f2f5ff;margin:0 0 4px;text-transform:none;}
+#view-progress .pr-round-head small{font-size:11px;color:#9eafd0;}
+#view-progress .pr-round-state{display:inline-flex;align-items:center;white-space:nowrap;padding:5px 9px;border-radius:20px;font-size:9.5px;font-weight:750;letter-spacing:.15px;}
+#view-progress .pr-round-state.ready{background:rgba(63,126,239,.16);color:#a8c9ff;}
+#view-progress .pr-round-state.upcoming{background:rgba(130,146,177,.12);color:#9aa9c7;}
+#view-progress .pr-round-state.passed{background:rgba(30,170,121,.15);color:#75e0b6;}
+#view-progress .pr-round-state.completed{background:rgba(239,176,66,.13);color:#ffd28a;}
+#view-progress .pr-round-topics{margin:9px 0 0!important;font-size:11.5px!important;color:#b2c0df!important;line-height:1.6!important;overflow-wrap:anywhere;}
+#view-progress .pr-round-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:14px;}
+#view-progress .pr-primary-action,#view-progress .pr-secondary-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:37px;padding:9px 13px;border-radius:9px;font:700 11.5px Inter,"Segoe UI",sans-serif;cursor:pointer;transition:transform .15s,background .15s,border-color .15s;}
+#view-progress .pr-primary-action{color:#fff;border:1px solid rgba(119,158,255,.5);background:linear-gradient(135deg,#3978ed,#6855db);box-shadow:0 5px 14px rgba(44,90,207,.17);}
+#view-progress .pr-primary-action:hover{transform:translateY(-1px);background:linear-gradient(135deg,#4a88ff,#7967ed);}
+#view-progress .pr-secondary-action{color:#bfd4ff;border:1px solid rgba(117,151,216,.25);background:rgba(70,98,153,.13);}
+#view-progress .pr-secondary-action:hover{background:rgba(70,110,190,.22);border-color:rgba(117,160,245,.45);}
+#view-progress button:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+#view-progress .pr-interview-note{font-size:11px;color:#a5b4d3;}
+#view-progress .pr-prep-panel{margin-top:13px;padding:15px;border:1px solid rgba(104,153,255,.18);border-radius:11px;background:rgba(7,15,33,.38);}
+#view-progress .pr-prep-panel h5{margin:0 0 8px;color:#eaf1ff;font-size:13px;}
+#view-progress .pr-prep-panel p,#view-progress .pr-prep-panel li{font-size:11.5px;color:#aebcda;line-height:1.65;}
+#view-progress .pr-prep-panel ul{padding-left:18px;margin:8px 0;}
+#view-progress .pr-muted{font-size:10.5px!important;color:#7f91b8!important;}
+#view-progress .pr-integrity-note{display:flex;gap:11px;margin-top:17px;padding:13px;border-radius:11px;background:rgba(78,105,160,.1);border:1px solid rgba(117,151,216,.14);}
+#view-progress .pr-integrity-note>span{font-size:19px;color:#91b8ff;}
+#view-progress .pr-integrity-note strong{font-size:11px;color:#dfe8ff;}
+#view-progress .pr-integrity-note p{font-size:10.5px;margin:4px 0 0;color:#95a6c8;}
+#view-progress .pr-state-gate{display:flex;align-items:flex-start;gap:12px;padding:16px;border-radius:12px;border:1px solid rgba(126,153,208,.17);background:rgba(24,38,70,.52);}
+#view-progress .pr-gate-icon{display:flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;border-radius:9px;background:rgba(89,130,216,.15);color:#9fc1ff;font-size:17px;}
+#view-progress .pr-state-gate strong{font-size:12px;color:#e6edff;}
+#view-progress .pr-state-gate p{margin:5px 0 0;font-size:11px;color:#9caccd;}
+#view-progress .progress-applied-empty{padding:36px 22px;border-radius:15px;border:1px dashed rgba(124,151,207,.25);background:rgba(17,27,53,.5);color:#9dadd0;}
+.pr-modal-backdrop{position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(3,7,18,.82);backdrop-filter:blur(12px);}
+.pr-assessment-modal{width:min(780px,100%);max-height:min(92vh,900px);overflow:auto;border:1px solid rgba(128,160,231,.3);border-radius:20px;background:#0f1932;color:#edf3ff;box-shadow:0 28px 90px rgba(0,0,0,.5);}
+.pr-assessment-modal>header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding:23px 25px;border-bottom:1px solid rgba(135,159,211,.16);background:linear-gradient(120deg,rgba(47,79,146,.27),rgba(50,35,111,.2));}
+.pr-assessment-modal header h2{margin:0 0 5px;font-size:20px;letter-spacing:-.45px;color:#f3f6ff;}
+.pr-assessment-modal header p{margin:0;color:#a8b7d6;font-size:11.5px;line-height:1.5;}
+.pr-modal-close{border:1px solid rgba(138,159,206,.22);background:rgba(108,131,178,.12);color:#d8e4ff;border-radius:9px;width:34px;height:34px;font-size:22px;cursor:pointer;}
+.pr-modal-body{padding:23px 25px;}
+.pr-test-toolbar{display:flex;align-items:center;justify-content:space-between;color:#a6b7d9;font-size:10px;font-weight:800;letter-spacing:.8px;}
+.pr-test-timer{padding:8px 11px;border-radius:9px;border:1px solid rgba(255,170,91,.25);background:rgba(203,112,47,.13);color:#ffd09b;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;}
+.pr-test-progress{height:5px;margin:16px 0 23px;background:rgba(141,159,201,.16);border-radius:10px;overflow:hidden;}
+.pr-test-progress span{display:block;height:100%;background:linear-gradient(90deg,#589dff,#9a79ff);}
+.pr-question{padding:20px;border:1px solid rgba(127,156,218,.17);border-radius:14px;background:rgba(26,41,76,.48);}
+.pr-question-tag{font-size:10px;font-weight:800;letter-spacing:.65px;text-transform:uppercase;color:#89b1ff;}
+.pr-question h3{font-size:17px;line-height:1.55;color:#f0f4ff;margin:12px 0 19px;}
+.pr-options{display:grid;gap:9px;}
+.pr-option{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid rgba(132,155,207,.2);border-radius:10px;background:rgba(8,16,35,.42);color:#c7d4ef;font-size:12px;line-height:1.5;cursor:pointer;}
+.pr-option:hover,.pr-option.is-picked{border-color:rgba(104,159,255,.6);background:rgba(58,101,183,.2);}
+.pr-option input{accent-color:#6d9eff;}
+.pr-option-letter{display:flex;align-items:center;justify-content:center;flex:0 0 25px;width:25px;height:25px;border-radius:7px;background:rgba(111,142,201,.16);color:#c5d8ff;font-weight:800;font-size:10px;}
+.pr-test-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:18px;}
+.pr-test-footer>span{font-size:10px;color:#98a9ca;}
+.pr-test-warning{margin:16px 0 0;padding:11px 12px;border-radius:9px;background:rgba(221,151,58,.09);border:1px solid rgba(221,151,58,.17);font-size:10.5px;line-height:1.5;color:#e8c58e;}
+.pr-loading,.pr-result-state,.pr-error-state{padding:28px 10px;text-align:center;}
+.pr-spinner{display:inline-block;width:22px;height:22px;border:2px solid rgba(133,164,231,.25);border-top-color:#8db5ff;border-radius:50%;animation:pr-spin .8s linear infinite;}
+@keyframes pr-spin{to{transform:rotate(360deg)}}
+.pr-result-icon{display:grid;place-items:center;width:54px;height:54px;margin:0 auto 16px;border-radius:50%;background:rgba(34,178,127,.16);color:#73e1b6;font-size:27px;}
+.pr-result-state h3{margin:8px 0;color:#f0f4ff;font-size:23px;}
+.pr-result-state p,.pr-error-state p{font-size:12px;color:#a9b9d8;line-height:1.6;}
+.pr-result-state strong{color:#9dc0ff;font-size:18px;}
+@media(max-width:700px){#view-progress .progress-applied-card{padding:18px 15px;}#view-progress .progress-applied-meta{grid-template-columns:1fr;gap:8px;}#view-progress .pr-recruitment-panel{padding:15px;}#view-progress .pr-round-content{padding:12px;}#view-progress .pr-round-head{flex-direction:column;gap:8px;}#view-progress .pr-round-actions{align-items:stretch;}#view-progress .pr-round-actions button{width:100%;}.pr-assessment-modal>header,.pr-modal-body{padding:18px 16px;}.pr-test-footer{flex-wrap:wrap;}.pr-test-footer>span{order:3;width:100%;text-align:center;}}

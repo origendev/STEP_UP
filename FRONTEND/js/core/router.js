@@ -1,0 +1,166 @@
+/* ============================================================
+   router.js — hash based router
+
+   Responsibilities:
+     1. fetch the HTML partial for a route from /pages
+     2. inject it into #app
+     3. run that page's mount() function so its JS binds to the
+        freshly injected DOM
+     4. keep the nav link highlight and the URL hash in sync
+
+   Register pages from js/app.js with register(name, mountFn).
+============================================================ */
+
+const routes = {};     // name -> mount function (may be undefined for static pages)
+
+let appEl = null;
+let currentRoute = null;
+let defaultRoute = 'home';
+
+/** Register a page and its optional mount function. */
+export function register(name, mount){
+  routes[name] = mount || null;
+}
+
+/** Fetch the current page partial. */
+async function loadHTML(name){
+  const res = await fetch(`pages/${name}.html`, { cache: 'no-store' });
+  if(!res.ok) throw new Error(`Could not load pages/${name}.html (${res.status})`);
+
+  return res.text();
+}
+
+/** Highlight the matching nav link. */
+function setActiveLink(name){
+  document.querySelectorAll('.navlink').forEach(link => {
+    link.classList.toggle('active', link.dataset.tab === name);
+  });
+  moveBubble();
+}
+
+/** Glide the glass bubble behind the active nav link. */
+let bubble = null;
+function moveBubble(instant = false){
+  const bar = document.getElementById('navlinks');
+  const active = bar && bar.querySelector('.navlink.active');
+  if(!bar) return;
+  if(!bubble) bubble = bar.querySelector('.nav-bubble');   // the module can be loaded twice; share one bubble
+  if(!bubble){
+    bubble = document.createElement('span');
+    bubble.className = 'nav-bubble';
+    bar.prepend(bubble);
+  }
+  if(!active){ bubble.classList.remove('ready'); return; }
+  const first = !bubble.classList.contains('ready');
+  if(instant || first) bubble.classList.add('no-anim');
+  bubble.style.width  = active.offsetWidth  + 'px';
+  bubble.style.height = active.offsetHeight + 'px';
+  bubble.style.borderRadius = getComputedStyle(active).borderRadius;
+  bubble.style.transform = `translate(${active.offsetLeft}px, ${active.offsetTop}px)`;
+  bubble.classList.add('ready');
+  if(instant || first){ bubble.offsetWidth; bubble.classList.remove('no-anim'); }
+}
+window.addEventListener('resize', () => moveBubble(true));
+new MutationObserver(() => moveBubble(true)).observe(document.documentElement, { attributes:true, attributeFilter:['data-nav'] });
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => moveBubble(true));
+
+/** Swap to a route. Called by nav clicks, [data-goto] elements and the hash. */
+export async function navigate(name, { updateHash = true } = {}){
+  // Jobs and Progress are authenticated student features.
+  if((name === 'jobs' || name === 'progress') && !localStorage.getItem('stepupStudentToken')){
+    location.href = 'student-login.html';
+    return;
+  }
+
+  // Keep the Jobs button visible for every student, but lock the Jobs page
+  // until the student reaches 3rd year.
+  let requestedName = name;
+
+  if(name === 'jobs'){
+    try{
+      const student = JSON.parse(localStorage.getItem('stepupStudent') || '{}');
+      const studyYear = Number(student.study_year ?? student.studyYear ?? 0);
+      if(studyYear < 3){
+        name = 'jobs-locked';
+      }
+    }catch{
+      name = 'jobs-locked';
+    }
+  }
+
+  if(name === 'progress'){
+    try{
+      const student = JSON.parse(localStorage.getItem('stepupStudent') || '{}');
+      const studyYear = Number(student.study_year ?? student.studyYear ?? 0);
+      if(studyYear < 3){
+        name = 'home';
+      }
+    }catch{
+      name = 'home';
+    }
+  }
+
+  // Keep the URL aligned with the page that was actually granted.
+  requestedName = name;
+
+  if(!(name in routes)) name = defaultRoute;
+  if(name === currentRoute) return;
+
+  setActiveLink(name);   // highlight the tab that was touched straight away
+  document.body.dataset.route = name;   // lets CSS show page-specific widgets (e.g. the home chatbot)
+
+  try{
+    appEl.innerHTML = await loadHTML(name);
+  }catch(err){
+    console.error(err);
+    setActiveLink(currentRoute);
+    appEl.innerHTML = `
+      <div class="empty-state">
+        <h3>Couldn't load this page</h3>
+        <p>${err.message}. If you opened index.html directly, start a local
+        server instead — in VS Code, right click index.html and pick "Open with Live Server".</p>
+      </div>`;
+    return;
+  }
+
+  currentRoute = name;
+  setActiveLink(name);
+
+  // Run the page's own JS against the DOM that was just injected
+  const mount = routes[name];
+  if(typeof mount === 'function') mount();
+
+  // Anything inside the new page that jumps to another page
+  bindGotoLinks();
+
+  if(updateHash && window.location.hash.slice(2) !== requestedName){
+    history.pushState(null, '', `#/${requestedName}`);
+  }
+  window.scrollTo({ top:0, behavior:'instant' });
+}
+
+/** Wire up [data-goto="jobs"] style shortcuts inside a page. */
+function bindGotoLinks(){
+  appEl.querySelectorAll('[data-goto]').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => navigate(el.dataset.goto));
+  });
+}
+
+function routeFromHash(){
+  return window.location.hash.replace(/^#\/?/, '') || defaultRoute;
+}
+
+/** Start the router. Call once, after all pages are registered. */
+export function start({ mountSelector = '#app', fallback = 'home' } = {}){
+  appEl = document.querySelector(mountSelector);
+  defaultRoute = fallback;
+
+  document.querySelectorAll('.navlink').forEach(link => {
+    link.addEventListener('click', () => navigate(link.dataset.tab));
+  });
+
+  window.addEventListener('popstate', () => navigate(routeFromHash(), { updateHash:false }));
+
+  navigate(routeFromHash(), { updateHash:false });
+}

@@ -1,0 +1,133 @@
+/* Jobs/company discovery — uses the existing StepUp theme tokens. */
+.jobs-page{padding-top:18px;}
+.jobs-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:20px 0 24px;}
+.jobs-hero h1{margin:0;font-size:29px;letter-spacing:-.035em;}
+.jobs-hero p{margin:8px 0 0;color:var(--ink-soft);font-size:14px;}
+.jobs-company-portal{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--white);color:var(--violet-700);font-size:13px;font-weight:700;white-space:nowrap;box-shadow:var(--shadow-card);}
+.jobs-company-portal:hover{background:var(--violet-100);}
+.jobs-toolbar{padding:18px 20px;margin-bottom:22px;}
+.jobs-toolbar-top{display:flex;gap:12px;align-items:center;}
+.jobs-sort-stack{display:flex;flex-direction:column;align-items:stretch;gap:8px;flex:0 0 172px;}
+.jobs-search-wide{height:44px;display:flex;align-items:center;gap:9px;flex:1;border:1px solid var(--line);border-radius:11px;background:var(--lilac-bg);padding:0 14px;}
+.search-symbol{font-size:24px;line-height:1;color:var(--ink-soft);transform:rotate(-20deg);}
+.jobs-search-wide input{border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;width:100%;}
+.jobs-search-wide input::placeholder{color:var(--ink-soft);}
+.jobs-sort summary{min-width:145px;justify-content:space-between;border-radius:11px;padding:12px 14px;}
+.jobs-saved-button{align-self:flex-end;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:7px 15px;border:1px solid var(--line);border-radius:999px;background:var(--white);color:var(--ink-soft);font:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:background .15s ease,color .15s ease,border-color .15s ease;}
+.jobs-saved-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.jobs-saved-button:hover,.jobs-saved-button.active{background:var(--violet-100);color:var(--violet-700);border-color:var(--violet-300);}
+.jobs-toolbar-bottom{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.industry-label{font-size:12.5px;font-weight:700;color:var(--ink-soft);}
+.industry-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.industry-chips .chip{padding:7px 15px;border-radius:999px;border:1px solid var(--line);background:var(--white);font-weight:600;font-size:12px;color:var(--ink-soft);}
+.industry-chips .chip:hover{background:var(--violet-100);}
+.industry-chips .chip.active{background:var(--violet-600);border-color:var(--violet-600);color:#fff;}
+.jobs-count{display:none;}
+.jobs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;}
+.company-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px 20px 18px;box-shadow:var(--shadow-card);min-height:305px;display:flex;flex-direction:column;}
+.company-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.company-identity{display:flex;align-items:center;gap:11px;min-width:0;}
+.company-logo{width:50px;height:50px;border-radius:12px;background:var(--violet-100);color:var(--violet-700);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 auto;}
+.company-name{font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.company-meta{margin-top:3px;color:var(--ink-soft);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.company-description{margin:18px 0 16px;color:var(--ink-soft);font-size:13px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:61px;}
+.company-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.company-pill{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:8px;background:var(--lilac-bg);font-size:11.5px;font-weight:700;color:var(--ink-soft);}
+.company-open-roles{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:7px 10px;border-radius:8px;background:var(--green-bg);color:var(--green);font-size:11.5px;font-weight:800;width:max-content;}
+.company-card-footer{margin-top:auto;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:9px;}
+.view-details-btn{flex:1;border:0;border-radius:9px;padding:11px 12px;background:var(--violet-600);color:#fff;font-size:13px;font-weight:800;}.apply-job-btn{border:1px solid var(--violet-300);border-radius:9px;padding:10px 12px;background:var(--white);color:var(--violet-700);font-size:12px;font-weight:800;white-space:nowrap}.apply-job-btn:hover{background:var(--violet-100)}.apply-job-btn.applied{background:var(--green-bg);border-color:#bfe9d3;color:var(--green)}.apply-job-btn:disabled{opacity:.65;cursor:wait;}
+.view-details-btn:hover{background:var(--violet-700);}
+.jobs-empty{grid-column:1/-1;padding:70px 20px;text-align:center;background:var(--white);border:1px dashed var(--line);border-radius:var(--radius-lg);color:var(--ink-soft);}
+.jobs-error{grid-column:1/-1;padding:16px;border-radius:12px;background:var(--rose-bg);color:var(--rose);font-size:13px;}
+@media(max-width:980px){.jobs-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:680px){.jobs-hero{align-items:flex-start;flex-direction:column;}.jobs-toolbar-top{flex-direction:column;align-items:stretch;}.jobs-sort-stack{width:100%;flex-basis:auto;}.jobs-sort{width:100%;}.jobs-grid{grid-template-columns:1fr;}.company-card{min-height:0;}}
+
+
+.jobs-apply-toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,18px);opacity:0;z-index:9999;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:800;box-shadow:0 12px 30px rgba(24,20,54,.16);pointer-events:none;transition:opacity .2s ease,transform .2s ease}.jobs-apply-toast.show{opacity:1;transform:translate(-50%,0)}.jobs-apply-toast.ok{background:var(--green-bg);color:var(--green);border:1px solid #bfe9d3}.jobs-apply-toast.error{background:var(--rose-bg);color:var(--rose);border:1px solid #f0c5d2}
+
+/* ============================================================
+   Locked Jobs page — 1st/2nd year students
+============================================================ */
+.jobs-locked-page {
+  min-height: calc(100vh - 90px);
+  display: grid;
+  place-items: center;
+  padding: 42px 24px 70px;
+}
+.jobs-locked-card {
+  width: min(760px, 100%);
+  text-align: center;
+  padding: 48px 42px;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 28px;
+  background: rgba(255,255,255,.045);
+  box-shadow: 0 24px 70px rgba(0,0,0,.22);
+  backdrop-filter: blur(18px);
+}
+.jobs-lock-icon {
+  width: 76px; height: 76px; margin: 0 auto 20px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  font-size: 31px;
+}
+.jobs-locked-badge {
+  display: inline-block;
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  opacity: .65;
+}
+.jobs-locked-card h1 {
+  margin: 0 auto 14px;
+  max-width: 650px;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.08;
+}
+.jobs-locked-lead {
+  max-width: 610px;
+  margin: 0 auto 30px;
+  line-height: 1.7;
+  opacity: .72;
+}
+.jobs-journey {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 28px 0;
+}
+.journey-step {
+  min-height: 92px;
+  padding: 15px 10px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.045);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.journey-step span { font-size: 17px; }
+.journey-step strong { display: block; font-size: 13px; }
+.journey-step small { display: block; margin-top: 3px; opacity: .55; font-size: 11px; }
+.journey-step.done { border: 1px solid rgba(255,255,255,.13); }
+.journey-step.locked { opacity: .58; }
+.jobs-locked-message {
+  display: grid; gap: 6px;
+  margin: 25px auto;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.055);
+  text-align: left;
+}
+.jobs-locked-message strong { font-size: 14px; }
+.jobs-locked-message span { font-size: 13px; line-height: 1.55; opacity: .68; }
+.jobs-locked-back {
+  border: 0;
+  border-radius: 13px;
+  padding: 13px 22px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+@media (max-width: 700px) {
+  .jobs-locked-card { padding: 34px 20px; }
+  .jobs-journey { grid-template-columns: repeat(2, 1fr); }
+}
