@@ -147,14 +147,17 @@ async function downloadResume(id){
   }catch(e){msg(e.message);}
 }
 async function load(){
-  if(!jobId){$('applicantList').innerHTML='<div class="empty">No job was selected.</div>';return;}
+  if(!jobId){$('applicantList').innerHTML='<div class="empty">No job was selected.</div>'; $('assessmentReviews').innerHTML='<div class="empty">Open applicants from a specific job to review its submitted assessments.</div>';return;}
   try{
     const company=await api('/company/me'); $('companyName').textContent=company.name;
     applicants=await api('/company/jobs/'+encodeURIComponent(jobId)+'/applications')||[];
     $('jobTitle').textContent=applicants[0]?.job_title||'Job Applicants';
     $('jobSub').textContent=`${applicants.length} applicant${applicants.length===1?'':'s'} for this job`;
     render();
-  }catch(e){msg(e.message);$('applicantList').innerHTML='<div class="empty">Applicants could not be loaded.</div>';}
+    // Load submitted tests after the job and company context are known. Without this call,
+    // the verification panel remains stuck on its initial loading placeholder forever.
+    await loadAssessmentReviews();
+  }catch(e){msg(e.message);$('applicantList').innerHTML='<div class="empty">Applicants could not be loaded.</div>'; const host=$('assessmentReviews'); if(host)host.innerHTML=`<div class="empty">Could not load applicants: ${esc(e.message)}</div>`;}
 }
 $('logout').onclick=()=>{localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('company-login.html');};
 load();

@@ -28,15 +28,16 @@ function progressMarkup(app) {
   const attempts=Array.isArray(app.assessment_attempts)?app.assessment_attempts:[];
   if(!active) return `<div class="pr-state-gate"><span class="pr-gate-icon">◷</span><div><strong>Your recruitment journey will unlock after shortlisting.</strong><p>Current status: <b>${esc(status)}</b>. We'll update this area when the company records a decision.</p></div></div>`;
   if(!rounds.length) return `<div class="pr-state-gate"><span class="pr-gate-icon">ⓘ</span><div><strong>You are shortlisted.</strong><p>The company has not configured rounds for this role yet. Check again later or contact the recruiter.</p></div></div>`;
-  const passed = index => { const a=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted'); if(!a)return false; const threshold=Number(String(rounds[index]?.passingScore??rounds[index]?.passing_score??60).replace('%','')); return Number(a.score)>=threshold; };
-  const completed = rounds.filter((r,i)=>attempts.some(a=>Number(a.round_index)===i&&a.status==='submitted')).length;
+  const passed = index => { const a=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted'); if(!a || a.company_verified!==true || a.company_decision!=='Pass')return false; const threshold=Number(String(rounds[index]?.passingScore??rounds[index]?.passing_score??rounds[index]?.cutoff??60).replace('%','')); return Number(a.score)>=threshold; };
+  const completed = rounds.filter((r,i)=>passed(i)).length;
   const pct=Math.round(completed/rounds.length*100);
   const list=rounds.map((r,i)=>{
     const name=r.name||`Round ${i+1}`, topics=roundTopics(r), meta=[roundType(r),roundDuration(r)].filter(Boolean).join(' · '), test=isTest(r);
     const attempt=attempts.find(a=>Number(a.round_index)===i), done=attempt?.status==='submitted';
     const previousPassed=i===0||passed(i-1); const available=!done&&previousPassed;
-    const state=done?(passed(i)?'Passed':'Completed'):available?(i===0?'Ready to start':'Unlocked'):'Locked';
-    const stateClass=done?(passed(i)?'passed':'completed'):available?'ready':'upcoming';
+    const attemptSubmitted=done && attempt.status==='submitted';
+    const state=done?(passed(i)?'Passed':(attempt.company_verified===true&&attempt.company_decision==='Fail'?'Not passed':'Awaiting company verification')):available?(i===0?'Ready to start':'Unlocked'):'Locked';
+    const stateClass=done?(passed(i)?'passed':(attempt.company_verified===true&&attempt.company_decision==='Fail'?'completed':'pending')):available?'ready':'upcoming';
     let action='';
     if(test&&done) action=`<button type="button" class="pr-secondary-action" data-result-id="${esc(attempt.id)}">View result · ${esc(String(attempt.score??0))}%</button>`;
     else if(test&&available) action=`<button type="button" class="pr-primary-action" data-start-round="${i}" data-application-id="${esc(app.id)}">Start assessment <span>→</span></button>`;

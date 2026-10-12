@@ -2758,7 +2758,7 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
       `SELECT a.id,a.job_id,a.status,a.applied_at,a.updated_at,
               j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.location,j.work_mode,j.interview_rounds,
               c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',aa.score,'correct_count',aa.correct_count,'total_questions',aa.total_questions,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',aa.score,'correct_count',aa.correct_count,'total_questions',aa.total_questions,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'company_verified',aa.company_verified,'company_decision',aa.company_decision,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
        JOIN companies c ON c.id=j.company_id
