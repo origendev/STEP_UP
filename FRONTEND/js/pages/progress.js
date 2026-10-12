@@ -54,7 +54,28 @@ function applicationCard(app) {
   const selected=ACTIVE_STATUSES.includes(String(status).toLowerCase());
   const history=Array.isArray(app.status_history)?app.status_history:[];
   const historyMarkup=history.length?`<details class="pr-status-history"><summary>Application decision history (${history.length})</summary><ul>${history.map(item=>`<li><b>${esc(item.status)}</b> · ${esc(new Date(item.created_at).toLocaleString())}</li>`).join('')}</ul></details>`:'';
-  return `<article class="card progress-applied-card ${selected?'has-recruitment':''}" data-application-card="${esc(app.id)}"><div class="pr-card-accent"></div><div class="progress-applied-top"><div><span class="pr-card-label">${selected?'RECRUITMENT IN PROGRESS':'APPLICATION TRACKER'}</span><h3>${esc(company)}</h3><p>${esc(title)}</p></div><span class="progress-applied-status ${statusClass(status)}">${esc(status)}</span></div><div class="progress-applied-meta"><div><small>Role</small><strong>${esc(title)}</strong></div><div><small>Compensation</small><strong>${esc(salary)}</strong></div><div><small>Application status</small><strong>${esc(status)}</strong></div><div><small>Job review</small><strong>${esc(app.approval_status||'Approved')}</strong></div></div>${historyMarkup}${selected?`<button type="button" class="pr-toggle" aria-expanded="true" data-toggle-progress="${esc(app.id)}">Hide recruitment progress <span>⌃</span></button><div class="pr-inline-progress" data-progress-content="${esc(app.id)}">${progressMarkup(app)}</div>`:`<div class="pr-inline-progress">${progressMarkup(app)}</div>`}</article>`;
+  const detailsId=`application-progress-${String(app.id).replace(/[^a-zA-Z0-9_-]/g,'')}`;
+  const appliedDate=app.applied_at?new Date(app.applied_at).toLocaleDateString(): 'Date unavailable';
+  return `<article class="card progress-applied-card ${selected?'has-recruitment':''}" data-application-card="${esc(app.id)}">
+    <div class="pr-card-accent"></div>
+    <button type="button" class="pr-application-summary" data-toggle-progress="${esc(app.id)}" aria-expanded="false" aria-controls="${esc(detailsId)}">
+      <span class="pr-summary-role"><strong>${esc(company)}</strong><span>${esc(title)}</span></span>
+      <span class="pr-summary-date"><small>Applied</small><strong>${esc(appliedDate)}</strong></span>
+      <span class="progress-applied-status ${statusClass(status)}">${esc(status)}</span>
+      <span class="pr-summary-expand"><span data-toggle-label>View details</span><span class="pr-summary-chevron" aria-hidden="true">⌄</span></span>
+    </button>
+    <div class="pr-application-details" id="${esc(detailsId)}" data-progress-content="${esc(app.id)}" hidden>
+      <div class="progress-applied-meta">
+        <div><small>Role</small><strong>${esc(title)}</strong></div>
+        <div><small>Compensation</small><strong>${esc(salary)}</strong></div>
+        <div><small>Application status</small><strong>${esc(status)}</strong></div>
+        <div><small>Job review</small><strong>${esc(app.approval_status||'Approved')}</strong></div>
+        <div><small>Applied on</small><strong>${esc(app.applied_at?new Date(app.applied_at).toLocaleString():'Date unavailable')}</strong></div>
+      </div>
+      ${historyMarkup}
+      <div class="pr-inline-progress">${progressMarkup(app)}</div>
+    </div>
+  </article>`;
 }
 function openAssessmentShell(title, subtitle) {
   document.querySelector('#prAssessmentModal')?.remove();
@@ -100,7 +121,7 @@ export function mount() {
   let requestVersion=0;
   async function loadApplications(){loadApplicationsRef=loadApplications;const version=++requestVersion;list.innerHTML='<div class="progress-applied-empty"><span class="pr-spinner"></span><p>Loading your recruitment journey…</p></div>';try{const result=await api('/student/applications',{headers:{Accept:'application/json'}});if(version!==requestVersion)return;const apps=Array.isArray(result.data)?result.data:[];list.innerHTML=apps.length?apps.map(applicationCard).join(''):'<div class="progress-applied-empty"><strong>No applications yet</strong><p>Jobs you apply for will appear here with their recruitment progress.</p><button type="button" class="pr-primary-action" data-open-jobs>Explore jobs →</button></div>';}catch(err){console.error(err);list.innerHTML=`<div class="progress-applied-empty"><strong>Applications could not be loaded</strong><p>${esc(err.message||'Please sign in again and retry.')}</p><button type="button" class="pr-secondary-action" data-retry-progress>Retry</button></div>`;}}
   list.addEventListener('click',async event=>{
-    const toggle=event.target.closest('[data-toggle-progress]');if(toggle){const content=list.querySelector(`[data-progress-content="${CSS.escape(toggle.dataset.toggleProgress)}"]`);if(content){const hidden=content.hidden;content.hidden=!hidden;toggle.setAttribute('aria-expanded',String(hidden));toggle.innerHTML=hidden?'Hide recruitment progress <span>⌃</span>':'View recruitment progress <span>⌄</span>'; }return;}
+    const toggle=event.target.closest('[data-toggle-progress]');if(toggle){const content=list.querySelector(`[data-progress-content="${CSS.escape(toggle.dataset.toggleProgress)}"]`);if(content){const expanded=content.hidden;content.hidden=!expanded;toggle.setAttribute('aria-expanded',String(expanded));toggle.closest('.progress-applied-card')?.classList.toggle('is-expanded',expanded);const label=toggle.querySelector('[data-toggle-label]');if(label)label.textContent=expanded?'Hide details':'View details';const chevron=toggle.querySelector('.pr-summary-chevron');if(chevron)chevron.textContent=expanded?'⌃':'⌄';}return;}
     const prep=event.target.closest('[data-prep-round]');if(prep){const idx=prep.dataset.prepRound, panel=list.querySelector(`[data-prep-panel="${CSS.escape(idx)}"]`);if(!panel)return;panel.hidden=!panel.hidden;if(!panel.hidden&&!panel.dataset.loaded){panel.dataset.loaded='1';try{const card=prep.closest('[data-application-card]');const appId=card?.dataset.applicationCard;const result=await api('/student/assessments/prepare',{method:'POST',body:JSON.stringify({applicationId:Number(appId),roundIndex:Number(idx)})});panel.innerHTML=`<h5>${esc(result.data.title||'Your AI preparation plan')}</h5><p>${esc(result.data.summary||'Focus on the core competencies for this round.')}</p><ul>${(result.data.tasks||[]).map(t=>`<li>${esc(t)}</li>`).join('')}</ul><p class="pr-muted">AI suggestions are preparation guidance, not a hiring decision.</p>`;}catch(e){panel.innerHTML=`<p>${esc(e.message||'Preparation plan unavailable.')}</p>`;panel.dataset.loaded='';}}return;}
     const resultBtn=event.target.closest('[data-result-id]');if(resultBtn){try{const r=await api(`/student/assessments/${resultBtn.dataset.resultId}/result`);const d=r.data;const modal=openAssessmentShell('Assessment result',d.round_name||'Completed round');modal.querySelector('#prAssessmentBody').innerHTML=`<div class="pr-result-state"><div class="pr-result-icon">✓</div><span class="pr-eyebrow">SAVED RESULT</span><h3>${esc(String(d.score))}%</h3><p>${esc(String(d.correct_count))} of ${esc(String(d.total_questions))} correct answers</p><p class="pr-muted">Integrity events recorded: ${esc(String(d.violation_count||0))}${d.auto_submitted?' · Automatically submitted':''}</p><button class="pr-primary-action" data-close-assessment type="button">Close</button></div>`;modal.querySelector('[data-close-assessment]').addEventListener('click',()=>modal.remove());}catch(e){alert(e.message||'Could not load result.');}return;}
     const start=event.target.closest('[data-start-round]');if(start){startAssessment(start.dataset.applicationId,start.dataset.startRound,start.closest('.pr-round-content')?.querySelector('h4')?.textContent||'Assessment');return;}
