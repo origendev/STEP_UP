@@ -43,7 +43,8 @@ export function init() {
   let isOpen = false;
 
   const visible = () => notifications.filter(n => !state.cleared.includes(n.id));
-  const unread = () => visible().filter(n => !state.seen.includes(n.id));
+  const isRead = n => Boolean(n.readAt) || state.seen.includes(n.id);
+  const unread = () => visible().filter(n => !isRead(n));
   const paintDot = () => btn.classList.toggle('has-dot', unread().length > 0);
 
   function render() {
@@ -55,7 +56,7 @@ export function init() {
         <button class="np-item ${fresh.has(n.id) ? 'new' : ''}" data-np-go="${esc(n.goto || 'home')}" data-np-id="${esc(n.id)}">
           <span class="np-ic"><svg viewBox="0 0 24 24">${ICON[n.type] || ICON.reminder}</svg></span>
           <span class="np-body"><b>${esc(n.title)}</b><span>${esc(n.text || '')}</span><small>${esc(formatTime(n.time))}</small></span>
-          ${!state.seen.includes(n.id) ? '<i class="np-new" aria-label="Unread"></i>' : ''}
+          ${!isRead(n) ? '<i class="np-new" aria-label="Unread"></i>' : ''}
         </button>`).join('') : '<div class="np-empty">You are all caught up.</div>'}</div>`;
   }
   async function refresh() {
@@ -63,7 +64,7 @@ export function init() {
       const result = await api('/student/notifications');
       const incoming = Array.isArray(result.data) ? result.data : [];
       const oldIds = new Set(notifications.map(n => n.id));
-      incoming.forEach(n => { if (!oldIds.has(n.id) && !state.seen.includes(n.id)) fresh.add(n.id); });
+      incoming.forEach(n => { if (!oldIds.has(n.id) && !isRead(n)) fresh.add(n.id); });
       notifications = incoming;
       // Forget dismissed IDs that no longer exist in the server feed.
       const known = new Set(notifications.map(n => n.id));
@@ -82,6 +83,11 @@ export function init() {
     fresh = new Set(unread().map(n => n.id));
     state.seen = [...new Set([...state.seen, ...visible().map(n => n.id)])];
     saveState(state);
+    const ids = visible().map(n => Number(n.id)).filter(Number.isSafeInteger);
+    if (ids.length) {
+      api('/student/notifications/read', { method:'PATCH', body:JSON.stringify({ ids }) })
+        .catch(error => console.warn('Could not persist notification read state:', error.message));
+    }
     render();
     panel.classList.add('open');
     btn.setAttribute('aria-expanded', 'true');

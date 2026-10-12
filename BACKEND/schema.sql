@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS jobs (
   description TEXT NOT NULL,
   requirements TEXT NOT NULL DEFAULT '',
   category TEXT NOT NULL DEFAULT 'eligible',
+  required_skills TEXT[] NOT NULL DEFAULT '{}',
+  eligible_batches TEXT[] NOT NULL DEFAULT '{}',
+  vacancies INTEGER NOT NULL DEFAULT 1,
+  min_cgpa NUMERIC(4,2),
+  backlogs_allowed BOOLEAN NOT NULL DEFAULT FALSE,
   interview_rounds TEXT NOT NULL DEFAULT 'Not specified',
   approval_status TEXT NOT NULL DEFAULT 'Pending',
   approval_note TEXT,
@@ -58,6 +63,11 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'eligible';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS required_skills TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS eligible_batches TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vacancies INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_cgpa NUMERIC(4,2);
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS backlogs_allowed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
@@ -127,6 +137,7 @@ CREATE INDEX IF NOT EXISTS idx_students_email ON students(email);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS study_year INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE students DROP CONSTRAINT IF EXISTS students_study_year_check;
 ALTER TABLE students ADD CONSTRAINT students_study_year_check CHECK (study_year BETWEEN 1 AND 4);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS password_reset_otps (
   id BIGSERIAL PRIMARY KEY,
@@ -155,6 +166,42 @@ CREATE TABLE IF NOT EXISTS job_applications (
 
 CREATE INDEX IF NOT EXISTS idx_job_applications_job_id ON job_applications(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_applications_student_id ON job_applications(student_id);
+
+CREATE TABLE IF NOT EXISTS job_approval_history (
+  id BIGSERIAL PRIMARY KEY,
+  job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  approval_status TEXT NOT NULL CHECK (approval_status IN ('Pending','Approved','Rejected')),
+  approval_note TEXT,
+  changed_by_role TEXT NOT NULL,
+  changed_by_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_job_approval_history_job ON job_approval_history(job_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS application_status_history (
+  id BIGSERIAL PRIMARY KEY,
+  application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  changed_by_role TEXT NOT NULL,
+  changed_by_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_application_status_history_app ON application_status_history(application_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGSERIAL PRIMARY KEY,
+  recipient_role TEXT NOT NULL CHECK (recipient_role IN ('student','company','admin')),
+  recipient_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  job_id BIGINT REFERENCES jobs(id) ON DELETE CASCADE,
+  application_id BIGINT REFERENCES job_applications(id) ON DELETE CASCADE,
+  dedupe_key TEXT UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  read_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_role, recipient_id, created_at DESC);
 
 -- The exact PDF uploaded by the student.
 CREATE TABLE IF NOT EXISTS student_resumes (
