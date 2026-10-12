@@ -53,3 +53,11 @@
  .profile-setup-card.full{grid-column:auto;}
  .profile-setup-header{align-items:flex-start;flex-direction:column;}
 }
+
+/* StepUp logo on the dark login pages: white plate so the dark "Step" lettering stays readable */
+.auth-logo-plate{
+  display:inline-flex; align-items:center; justify-content:center;
+  background:#fff; border-radius:18px; padding:10px 22px;
+  box-shadow:0 10px 30px rgba(105,77,255,.28);
+}
+.auth-logo{ display:block; height:56px; width:auto; }
