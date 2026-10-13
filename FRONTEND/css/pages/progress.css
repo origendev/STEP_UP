@@ -1599,3 +1599,187 @@
   #view-progress .pr-round-chevron{flex-basis:25px;width:25px;height:25px;}
   #view-progress .pr-rounds-empty{margin-left:46px;}
 }
+
+/* Light, high-contrast recruitment progress surface */
+#view-progress{
+  padding:8px clamp(16px,3vw,40px) 44px;
+  color:#273247;
+  font-family:Inter,"Segoe UI",system-ui,sans-serif;
+}
+#view-progress .section-heading{margin:22px 0 22px;padding:0 2px;}
+#view-progress .section-heading h2{
+  color:#20283a;
+  font-size:clamp(25px,2.5vw,32px);
+  font-weight:700;
+  letter-spacing:-.8px;
+}
+#view-progress .section-heading p{color:#596579;font-size:14px;line-height:1.65;}
+#view-progress .progress-applied-list{gap:16px;}
+#view-progress .progress-applied-card{
+  border:1px solid #e2e6ef;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 24px rgba(40,52,79,.07);
+  color:#273247;
+}
+#view-progress .progress-applied-card:hover{border-color:#cbd5e5;}
+#view-progress .progress-applied-card.is-expanded{
+  border-color:#c8d1e1;
+  box-shadow:0 12px 30px rgba(40,52,79,.1);
+}
+#view-progress .pr-card-accent{width:4px;background:#7182c7;opacity:.8;}
+#view-progress .pr-application-summary{min-height:84px;padding:16px 22px 16px 26px;}
+#view-progress .pr-application-summary:hover{background:#f8f9fc;}
+#view-progress .pr-application-summary:focus-visible,
+#view-progress .pr-round-toggle:focus-visible{outline-color:#5669b1;}
+#view-progress .pr-summary-role strong{color:#20283a;font-size:14px;}
+#view-progress .pr-summary-role>span{color:#596579;font-size:13px;}
+#view-progress .pr-summary-date small{color:#69758a;font-size:10px;font-weight:700;}
+#view-progress .pr-summary-date strong{color:#344158;font-size:12px;}
+#view-progress .pr-summary-expand{color:#4b5e9c;font-size:12px;}
+#view-progress .pr-summary-chevron{
+  border-color:#dfe4ee;
+  background:#f5f6fa;
+  color:#46536b;
+}
+#view-progress .progress-applied-status{
+  border-color:#d9deea;
+  background:#f0f2f8;
+  color:#465576;
+  font-size:12px;
+}
+#view-progress .progress-applied-status.selected{
+  border-color:#b7e4cf;
+  background:#eaf7f0;
+  color:#16734a;
+}
+#view-progress .progress-applied-status.rejected{
+  border-color:#f0c8ce;
+  background:#fff0f1;
+  color:#a83243;
+}
+#view-progress .progress-applied-status.waitlisted{
+  border-color:#f0dfb8;
+  background:#fff8e8;
+  color:#805b12;
+}
+#view-progress .pr-application-details{
+  border-top-color:#e8ebf2;
+  background:#fbfcfe;
+}
+#view-progress .progress-applied-meta>div{
+  border-color:#e6e9f0;
+  background:#fff;
+}
+#view-progress .progress-applied-meta small{color:#69758a;}
+#view-progress .progress-applied-meta strong{color:#303c52;}
+#view-progress .pr-status-history{
+  border-color:#e4e8f0;
+  background:#fff;
+}
+#view-progress .pr-status-history summary{color:#46536b;}
+#view-progress .pr-status-history ul,
+#view-progress .pr-round-history{color:#596579;}
+#view-progress .pr-status-history li b,
+#view-progress .pr-round-history b{color:#303c52;}
+#view-progress .pr-recruitment-panel{
+  border-color:#e4e8f0;
+  background:#fff;
+  box-shadow:0 3px 12px rgba(40,52,79,.035);
+}
+#view-progress .pr-eyebrow{color:#596aab;}
+#view-progress .pr-panel-title h4{color:#20283a;font-size:19px;}
+#view-progress .pr-panel-title p{color:#647087;font-size:13px;}
+#view-progress .pr-progress-ring{
+  border-color:#cbd3ea;
+  background:#f5f6fb;
+}
+#view-progress .pr-progress-ring strong{color:#303e69;}
+#view-progress .pr-progress-ring small{color:#66718c;}
+#view-progress .pr-progress-track{background:#e9ecf3;}
+#view-progress .pr-progress-track span{background:linear-gradient(90deg,#6679bb,#8b83c9);}
+#view-progress .pr-round-item:not(:last-child)::after{background:#e4e8f0;}
+#view-progress .pr-round-marker{
+  border-color:#d9deea;
+  background:#fff;
+  color:#596579;
+}
+#view-progress .pr-round-item.is-current .pr-round-marker{
+  border-color:#8e9bc9;
+  background:#f0f2fb;
+  color:#40518f;
+  box-shadow:0 0 0 4px rgba(91,108,174,.08);
+}
+#view-progress .pr-round-item.is-complete .pr-round-marker{
+  border-color:#a9d7bf;
+  background:#edf8f1;
+  color:#16734a;
+}
+#view-progress .pr-round-content{border-bottom-color:#e8ebf2;}
+#view-progress .pr-round-item.is-current .pr-round-content{border-bottom-color:#e8ebf2;}
+#view-progress .pr-round-title strong{color:#28344a;font-size:15px;}
+#view-progress .pr-round-title small{color:#69758a;font-size:12px;}
+#view-progress .pr-round-toggle:hover .pr-round-title strong{color:#4b5e9c;}
+#view-progress .pr-round-chevron{color:#536078;}
+#view-progress .pr-round-toggle:hover .pr-round-chevron{background:#f0f2f7;}
+#view-progress .pr-round-state.ready{
+  background:#edf1fb;
+  color:#40518f;
+}
+#view-progress .pr-round-state.upcoming{
+  background:#f1f3f6;
+  color:#667085;
+}
+#view-progress .pr-round-state.passed{
+  background:#eaf7f0;
+  color:#16734a;
+}
+#view-progress .pr-round-state.completed{
+  background:#fff5df;
+  color:#805b12;
+}
+#view-progress .pr-round-state.pending{
+  background:#fff5df;
+  color:#805b12;
+}
+#view-progress .pr-round-topics{color:#596579!important;font-size:12px!important;}
+#view-progress .pr-interview-note{color:#596579;}
+#view-progress .pr-rounds-empty{
+  border-color:#dfe4ee;
+  background:#fafbfe;
+  color:#596579;
+}
+#view-progress .pr-integrity-note{
+  border-color:#e4e8f0;
+  background:#f7f8fb;
+}
+#view-progress .pr-integrity-note>span{color:#596aab;}
+#view-progress .pr-integrity-note strong{color:#303c52;}
+#view-progress .pr-integrity-note p{color:#596579;}
+#view-progress .pr-state-gate{
+  border-color:#e4e8f0;
+  background:#f7f8fb;
+}
+#view-progress .pr-gate-icon{background:#edf0fa;color:#4e609f;}
+#view-progress .pr-state-gate strong{color:#303c52;}
+#view-progress .pr-state-gate p{color:#596579;}
+#view-progress .progress-applied-empty{
+  border-color:#d9deea;
+  background:rgba(255,255,255,.78);
+  color:#596579;
+}
+#view-progress .progress-applied-empty strong{color:#303c52;}
+#view-progress .progress-applied-empty p{color:#596579;}
+#view-progress .pr-secondary-action{
+  border-color:#d8deea;
+  background:#f5f6fa;
+  color:#3f4d6b;
+}
+#view-progress .pr-secondary-action:hover{
+  border-color:#bfc9df;
+  background:#edf0f7;
+}
+@media(max-width:700px){
+  #view-progress{padding-right:14px;padding-left:14px;}
+  #view-progress .pr-application-summary{padding:14px 13px 14px 18px;}
+}
