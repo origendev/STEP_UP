@@ -26,7 +26,7 @@ const isTest = r => /aptitude|coding|programming|assessment|online test|written 
 function progressMarkup(app) {
   const rounds=parseRounds(app.interview_rounds), status=String(app.status||'Applied'), applicationActive=ACTIVE_STATUSES.includes(status.toLowerCase());
   const attempts=Array.isArray(app.assessment_attempts)?app.assessment_attempts:[];
-  const passed = index => { const a=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted'); if(!a || a.company_verified!==true || a.company_decision!=='Pass')return false; const threshold=Number(String(rounds[index]?.passingScore??rounds[index]?.passing_score??rounds[index]?.cutoff??60).replace('%','')); return Number(a.score)>=threshold; };
+  const passed = index => { const a=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted'); return Boolean(a&&a.company_verified===true&&a.company_decision==='Pass'); };
   const completed = rounds.filter((r,i)=>passed(i)).length;
   const notSelected=['rejected','not selected'].includes(status.toLowerCase());
   const applicationReviewed=['shortlisted','selected','interview','rejected','not selected','waitlisted'].includes(status.toLowerCase());
@@ -194,8 +194,10 @@ async function startAssessment(applicationId, roundIndex, roundName) {
   showPreflight('');
 }
 let loadApplicationsRef=null;
+let progressRefreshTimer=null;
 export function mount() {
   const list=document.getElementById('appliedJobsList'); if(!list)return;
+  if(progressRefreshTimer)clearInterval(progressRefreshTimer);
   let requestVersion=0;
   async function loadApplications(){loadApplicationsRef=loadApplications;const version=++requestVersion;list.innerHTML='<div class="progress-applied-empty"><span class="pr-spinner"></span><p>Loading your recruitment journey…</p></div>';try{const result=await api('/student/applications',{headers:{Accept:'application/json'}});if(version!==requestVersion)return;const apps=Array.isArray(result.data)?result.data:[];list.innerHTML=apps.length?apps.map(applicationCard).join(''):'<div class="progress-applied-empty"><strong>No applications yet</strong><p>Jobs you apply for will appear here with their recruitment progress.</p><button type="button" class="pr-primary-action" data-open-jobs>Explore jobs →</button></div>';}catch(err){console.error(err);list.innerHTML=`<div class="progress-applied-empty"><strong>Applications could not be loaded</strong><p>${esc(err.message||'Please sign in again and retry.')}</p><button type="button" class="pr-secondary-action" data-retry-progress>Retry</button></div>`;}}
   list.addEventListener('click',async event=>{
@@ -209,4 +211,5 @@ export function mount() {
   loadApplications();
   window.addEventListener('focus',loadApplications);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadApplications();});
+  progressRefreshTimer=setInterval(()=>{if(!list.isConnected){clearInterval(progressRefreshTimer);progressRefreshTimer=null;return;}if(!document.hidden)loadApplications();},15000);
 }

@@ -2002,9 +2002,12 @@ app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
         cutoff:Number(String(r.cutoff ?? r.passingScore ?? 60).replace('%','')),topics:r.topics||'',
         instructions:r.instructions||'',scheduledAt:r.scheduledAt||null,active:r.active!==false
       })));
-      if (signature(rounds) !== signature(parseConfiguredRounds(job.rows[0].interview_rounds))) {
+      const attemptedThrough = Math.max(...attempts.rows.map(row => Number(row.round_index)));
+      const configuredRounds = parseConfiguredRounds(job.rows[0].interview_rounds);
+      if (rounds.length <= attemptedThrough ||
+          signature(rounds.slice(0, attemptedThrough + 1)) !== signature(configuredRounds.slice(0, attemptedThrough + 1))) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'Recruitment rounds cannot be changed after an assessment attempt has started, to preserve recorded results.' });
+        return res.status(409).json({ error: 'Rounds with assessment attempts cannot be changed or removed, to preserve recorded results. You can add or edit rounds after the last round with an attempt.' });
       }
     }
     const saved = await client.query('UPDATE jobs SET interview_rounds=$1,updated_at=NOW() WHERE id=$2 AND company_id=$3 RETURNING id,title,interview_rounds,updated_at', [JSON.stringify(rounds), jobId, req.company.companyId]);
@@ -3609,7 +3612,7 @@ app.post('/api/student/assessments/start', requireStudent, async (req,res)=>{
     if(round.active===false)return res.status(403).json({error:'This recruitment round is not active yet.'});
     if(round.scheduledAt&&new Date(round.scheduledAt)>new Date())return res.status(403).json({error:`This round is scheduled for ${new Date(round.scheduledAt).toLocaleString()}.`});
     if(!/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name} ${round.type||round.mode||''}`))return res.status(400).json({error:'This round is not configured as an online assessment. The recruiter will schedule it.'});
-    if(roundIndex>0){const prior=await pool.query(`SELECT status,score,company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3`,[applicationId,req.student.studentId,roundIndex-1]);const requiredScore=Number(String(rounds[roundIndex-1].cutoff??rounds[roundIndex-1].passingScore??rounds[roundIndex-1].passing_score??60).replace('%',''));if(!prior.rows[0]||prior.rows[0].status!=='submitted'||Number(prior.rows[0].score)<requiredScore||prior.rows[0].company_verified!==true||prior.rows[0].company_decision!=='Pass')return res.status(403).json({error:`The previous round must be passed and verified by the company before this assessment unlocks. Required score: ${requiredScore}%.`});}
+    if(roundIndex>0){const prior=await pool.query(`SELECT status,company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3`,[applicationId,req.student.studentId,roundIndex-1]);if(!prior.rows[0]||prior.rows[0].status!=='submitted'||prior.rows[0].company_verified!==true||prior.rows[0].company_decision!=='Pass')return res.status(403).json({error:'The previous round must be passed and verified by the company before this assessment unlocks.'});}
     const existing=await pool.query('SELECT * FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3',[applicationId,req.student.studentId,roundIndex]);
     if(existing.rows[0]){const a=existing.rows[0];if(a.status==='submitted')return res.status(409).json({error:'This round has already been submitted. Retakes must be enabled by the recruiter.'});if(new Date(a.expires_at)<=new Date()){const result=await scoreAssessmentAttempt(a.id,req.student.studentId,true);return res.status(409).json({error:'Your previous attempt expired and was submitted automatically.',result});}const remaining=Math.max(1,Math.floor((new Date(a.expires_at)-Date.now())/1000));return res.json({data:{attemptId:a.id,roundName:a.round_name,questions:publicQuestions(a.questions),savedAnswers:a.answers||{},remainingSeconds:remaining,violationCount:a.violation_count,resumed:true}});}
     const questions=await generateAssessmentQuestions(round,row);
