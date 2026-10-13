@@ -1,4 +1,5 @@
-﻿<!doctype html>
+﻿```html
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -8,96 +9,96 @@
 </head>
 
 <body>
-    <div class="app-shell">
-        <div class="ambient ambient-one"></div>
-        <div class="ambient ambient-two"></div>
+<div class="app-shell">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
 
-        <aside class="sidebar">
-            <div class="brand">
-                <div class="brand-mark">S</div>
-                <div>
-                    <b>StepUp</b>
-                    <span>Admin Console</span>
-                </div>
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">S</div>
+            <div>
+                <b>StepUp</b>
+                <span>Admin Console</span>
             </div>
-
-            <nav id="nav">
-                <button class="nav active" data-section="overview">Overview</button>
-                <button class="nav" data-section="students">Students</button>
-                <button class="nav" data-section="companies">Companies</button>
-                <button class="nav" data-section="jobs">Jobs</button>
-                <button class="nav" data-section="notifications">Notifications</button>
-                <button class="nav" data-section="applications">Applications</button>
-                <button class="nav" data-section="drives">Placement Drives</button>
-                <button class="nav" data-section="announcements">Announcements</button>
-                <button class="nav" data-section="interviews">Interviews</button>
-                <button class="nav" data-section="analytics">Analytics</button>
-                <button class="nav" data-section="reports">Reports</button>
-                <button class="nav" data-section="activity">Activity Log</button>
-                <button class="nav" data-section="admins">Admin Roles</button>
-            </nav>
-
-            <div class="sidebar-bottom">
-                <button id="logout" class="logout">Log out</button>
-            </div>
-        </aside>
-
-        <main class="main">
-            <header class="topbar">
-                <div class="heading-wrap">
-                    <div class="eyebrow">ADMIN CONTROL CENTER</div>
-                    <h1 id="sectionTitle">Overview</h1>
-                    <p id="sectionSub">StepUp placement platform control center</p>
-                </div>
-
-                <div class="top-actions">
-                    <button id="themeToggleTop" class="icon-btn" type="button" aria-label="Toggle theme">
-                        <span id="themeIconTop">☾</span>
-                    </button>
-
-                    <div class="admin-chip">
-                        <div class="avatar" id="adminAvatar">SA</div>
-                        <div>
-                            <span id="adminName">Administrator</span>
-                            <small id="adminRole">Super Admin</small>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <div id="toast" class="toast"></div>
-
-            <section id="content">
-                <div class="stats" id="stats"></div>
-
-                <div class="panel overview-grid">
-                    <div>
-                        <h3>Platform Overview</h3>
-                        <div id="overviewText">Loading...</div>
-                    </div>
-
-                    <div>
-                        <h3>Quick Actions</h3>
-                        <div class="quick">
-                            <button data-go="students">Add Student</button>
-                            <button data-go="drives">Create Drive</button>
-                            <button data-go="announcements">Publish Announcement</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <div id="modal" class="modal hidden">
-        <div class="modal-card">
-            <button class="close" id="closeModal">×</button>
-            <h2 id="modalTitle">Form</h2>
-            <form id="modalForm"></form>
         </div>
-    </div>
 
-    <script src="../js/config.js"></script>
-    <script src="admin-dashboard.js"></script>
+        <nav id="nav">
+            <button class="nav active" data-section="overview">Overview</button>
+            <button class="nav" data-section="students">Students</button>
+            <button class="nav" data-section="companies">Companies</button>
+            <button class="nav" data-section="jobs">Jobs</button>
+            <button class="nav" data-section="announcements">Announcements</button>
+            <button class="nav" data-section="analytics">Analytics &amp; Reports</button>
+            <button class="nav" data-section="activity">Activity Log</button>
+            <button class="nav" data-section="admins">Admin Roles</button>
+        </nav>
+
+        <div class="sidebar-bottom">
+            <button id="logout" class="logout">Log out</button>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <div class="heading-wrap">
+                <div class="eyebrow">ADMIN CONTROL CENTER</div>
+                <h1 id="sectionTitle">Overview</h1>
+                <p id="sectionSub">StepUp placement platform control center</p>
+            </div>
+
+            <div class="top-actions">
+                <button
+                    id="themeToggleTop"
+                    class="icon-btn"
+                    type="button"
+                    aria-label="Toggle theme"
+                >
+                    <span id="themeIconTop">☾</span>
+                </button>
+
+                <div class="admin-chip">
+                    <div class="avatar" id="adminAvatar">SA</div>
+                    <div>
+                        <span id="adminName">Administrator</span>
+                        <small id="adminRole">Super Admin</small>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div id="toast" class="toast"></div>
+
+        <section id="content">
+            <div class="stats" id="stats"></div>
+
+            <div class="panel overview-grid">
+                <div>
+                    <h3>Platform Overview</h3>
+                    <div id="overviewText">Loading...</div>
+                </div>
+
+                <div>
+                    <h3>Quick Actions</h3>
+                    <div class="quick">
+                        <button data-go="students">Add Student</button>
+                        <button data-go="announcements">Publish Announcement</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div id="modal" class="modal hidden">
+    <div class="modal-card">
+        <button class="close" id="closeModal">×</button>
+        <h2 id="modalTitle">Form</h2>
+        <form id="modalForm"></form>
+    </div>
+</div>
+
+<script src="../js/config.js"></script>
+<script src="admin-dashboard.js"></script>
 </body>
 </html>
+```
