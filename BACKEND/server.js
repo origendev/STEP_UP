@@ -48,15 +48,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const frontendDir = path.join(__dirname, '../FRONTEND');
 
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5502,http://127.0.0.1:5502,http://localhost:5500,http://localhost:5501,http://localhost:8000')
-  .split(',')
-  .map(origin => origin.trim())
-  .filter(Boolean);
 app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS blocked origin: ${origin}`));
-  }
+  origin: process.env.FRONTEND_ORIGIN
+    ? process.env.FRONTEND_ORIGIN.split(',').map(s => s.trim())
+    : true
 }));
 
 app.use(express.json({ limit: '15mb' }));
@@ -68,6 +63,91 @@ const ELIGIBLE_DEPARTMENTS = ['CSE','IT','EEE','ECE','Mechanical','Civil'];
 function normalizeEligibleDepartments(value) {
   const values = Array.isArray(value) ? value : [];
   return [...new Set(values.map(clean).filter(Boolean))].filter(d => ELIGIBLE_DEPARTMENTS.includes(d));
+}
+
+function normalizeStringList(value) {
+  const values = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[,\n]/) : [];
+  return [...new Set(values.map(item => String(item).trim()).filter(Boolean))];
+}
+
+async function createNotification(db, notification) {
+  await db.query(
+    `INSERT INTO notifications
+       (recipient_role,recipient_id,type,title,message,job_id,application_id,dedupe_key)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT(dedupe_key) DO NOTHING`,
+    [
+      notification.recipientRole,
+      String(notification.recipientId),
+      notification.type,
+      notification.title,
+      notification.message,
+      notification.jobId || null,
+      notification.applicationId || null,
+      notification.dedupeKey || null
+    ]
+  );
+}
+
+function studentHasBacklogs(student) {
+  const profile = student.profile_details && typeof student.profile_details === 'object'
+    ? student.profile_details
+    : {};
+  const academics = Array.isArray(profile.academics) ? profile.academics : [];
+  const current = academics.find(row => /current/i.test(String(row?.level || ''))) || academics[0];
+  const arrears = Number(String(current?.arrears ?? 0).replace(/[^\d.-]/g, ''));
+  return Number.isFinite(arrears) && arrears > 0;
+}
+
+function getJobEligibilityReasons(student, job) {
+  const departments = Array.isArray(job.eligible_departments) ? job.eligible_departments : [];
+  const batches = Array.isArray(job.eligible_batches) ? job.eligible_batches : [];
+  const requiredSkills = Array.isArray(job.required_skills) ? job.required_skills : [];
+  const studentSkills = new Set((Array.isArray(student.skills) ? student.skills : []).map(skill => String(skill).trim().toLowerCase()));
+  const reasons = [];
+  if (Number(student.study_year) < 3) reasons.push('Jobs are open for students in year 3 or above.');
+  if (!departments.includes(student.department)) reasons.push(`Eligible departments: ${departments.join(', ') || 'not specified'}.`);
+  if (batches.length && !batches.includes(String(student.graduation_year))) reasons.push(`Eligible graduation years: ${batches.join(', ')}.`);
+  if (job.min_cgpa != null && (student.cgpa == null || Number(student.cgpa) < Number(job.min_cgpa))) {
+    reasons.push(`Minimum CGPA required: ${job.min_cgpa}.`);
+  }
+  if (!job.backlogs_allowed && studentHasBacklogs(student)) reasons.push('Current arrears are not allowed.');
+  const missingSkills = requiredSkills.filter(skill => !studentSkills.has(String(skill).trim().toLowerCase()));
+  if (missingSkills.length) reasons.push(`Required skills: ${missingSkills.join(', ')}.`);
+  return reasons;
+}
+
+function isStudentEligibleForJob(student, job) {
+  return getJobEligibilityReasons(student, job).length === 0;
+}
+
+async function notifyStudentsAboutApprovedJob(db, jobId, notificationVersion) {
+  const jobResult = await db.query(
+    `SELECT j.id,j.title,j.apply_before,j.min_cgpa,j.backlogs_allowed,j.eligible_batches,j.required_skills,
+            ARRAY(SELECT jd.department FROM job_departments jd WHERE jd.job_id=j.id) AS eligible_departments,
+            c.name AS company_name
+     FROM jobs j JOIN companies c ON c.id=j.company_id
+     WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'
+       AND j.apply_before >= CURRENT_DATE`,
+    [jobId]
+  );
+  const job = jobResult.rows[0];
+  if (!job) return;
+  const students = await db.query(
+    `SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details
+     FROM students`
+  );
+  for (const student of students.rows) {
+    await createNotification(db, {
+      recipientRole: 'student',
+      recipientId: student.id,
+      type: 'job',
+      title: `New job: ${job.title}`,
+      message: `${job.company_name} posted an approved opportunity. Review the eligibility criteria and apply before the deadline.`,
+      jobId: job.id,
+      dedupeKey: `job-${job.id}-approved-${notificationVersion}-student-${student.id}`
+    });
+  }
 }
 
 const newsArticleCache = new Map();
@@ -273,19 +353,17 @@ function requireCompany(req, res, next) {
 }
 
 function validateJob(b) {
-  for (const k of [
-    'title',
-    'jobType',
-    'applyBefore',
-    'description',
-    'interviewRounds'
-  ]) {
-    if (!clean(b[k])) {
-      return `${k} is required.`;
-    }
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.applyBefore)) {
+  if (!b || typeof b !== 'object' || Array.isArray(b)) return 'Job details are required.';
+  const title = clean(b.title);
+  const jobType = clean(b.jobType);
+  const workMode = clean(b.workMode);
+  if (!title) return 'Job title is required.';
+  if (title.length > 160) return 'Job title must be 160 characters or fewer.';
+  if (!['Full-time','Part-time','Internship','Summer Intern','Regular Intern','Contract'].includes(jobType)) return 'Choose a valid job type.';
+  if (!['On-site','Hybrid','Remote'].includes(workMode)) return 'Choose a valid work mode.';
+  if (!clean(b.location)) return 'Job location is required.';
+  if (!clean(b.applyBefore)) return 'Application deadline is required.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.applyBefore) || Number.isNaN(Date.parse(`${b.applyBefore}T00:00:00Z`)) || new Date(`${b.applyBefore}T00:00:00Z`).toISOString().slice(0,10) !== b.applyBefore) {
     return 'Apply-before date must be YYYY-MM-DD.';
   }
 
@@ -295,6 +373,15 @@ function validateJob(b) {
   ) {
     return 'Visit date must be YYYY-MM-DD.';
   }
+  const isInternship = /intern/i.test(jobType);
+  if (isInternship && !clean(b.stipend)) return 'Enter the stipend for this internship.';
+  if (!isInternship && !clean(b.salary)) return 'Enter the salary for this job.';
+  const vacancies = Number(b.vacancies);
+  if (!Number.isInteger(vacancies) || vacancies < 1) return 'Number of vacancies must be a positive whole number.';
+  if (b.minCgpa !== '' && b.minCgpa != null && (!Number.isFinite(Number(b.minCgpa)) || Number(b.minCgpa) < 0 || Number(b.minCgpa) > 10)) {
+    return 'Minimum CGPA must be between 0 and 10.';
+  }
+  if (typeof b.backlogsAllowed !== 'boolean') return 'Set whether current arrears are allowed.';
 
   const rawDepartments = Array.isArray(b.eligibleDepartments) ? b.eligibleDepartments.map(clean).filter(Boolean) : [];
   const departments = normalizeEligibleDepartments(rawDepartments);
@@ -304,6 +391,10 @@ function validateJob(b) {
   if (rawDepartments.some(d => !ELIGIBLE_DEPARTMENTS.includes(d))) {
     return 'Eligible departments contain an invalid value.';
   }
+  const requiredSkills = normalizeStringList(b.requiredSkills);
+  if (requiredSkills.some(skill => skill.length > 60)) return 'Each required skill must be 60 characters or fewer.';
+  const eligibleBatches = normalizeStringList(b.eligibleBatches);
+  if (eligibleBatches.some(batch => !/^\d{4}$/.test(batch))) return 'Eligible batches must be four-digit graduation years.';
 
   return null;
 }
@@ -381,9 +472,41 @@ async function ensureSchema() {
       work_mode TEXT,
       description TEXT NOT NULL,
       category TEXT NOT NULL DEFAULT 'eligible',
+      required_skills TEXT[] NOT NULL DEFAULT '{}',
+      eligible_batches TEXT[] NOT NULL DEFAULT '{}',
+      vacancies INTEGER NOT NULL DEFAULT 1,
+      min_cgpa NUMERIC(4,2),
+      backlogs_allowed BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    -- Backward-compatible migrations for databases created by older STEP_UP versions.
+    -- CREATE TABLE IF NOT EXISTS does not add missing columns to an existing table.
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS company_id BIGINT REFERENCES companies(id) ON DELETE CASCADE;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS title TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_type TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS stipend TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_before DATE;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_date DATE;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS visit_tag TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Eligible';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS status_class TEXT NOT NULL DEFAULT 'status-amber';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS batch TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS location TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS work_mode TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'eligible';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS required_skills TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS eligible_batches TEXT[] NOT NULL DEFAULT '{}';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS vacancies INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS min_cgpa NUMERIC(4,2);
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS backlogs_allowed BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
     -- Approval is tracked per job listing, not per company. Existing jobs remain visible.
     ALTER TABLE jobs ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'Approved';
@@ -487,6 +610,7 @@ async function ensureSchema() {
 
     ALTER TABLE jobs
       ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
+    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
 
     ALTER TABLE students
       ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -506,6 +630,74 @@ async function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_job_applications_student_id
       ON job_applications(student_id);
+
+    CREATE TABLE IF NOT EXISTS job_approval_history (
+      id BIGSERIAL PRIMARY KEY,
+      job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      approval_status TEXT NOT NULL CHECK (approval_status IN ('Pending','Approved','Rejected')),
+      approval_note TEXT,
+      changed_by_role TEXT NOT NULL,
+      changed_by_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_job_approval_history_job ON job_approval_history(job_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS application_status_history (
+      id BIGSERIAL PRIMARY KEY,
+      application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+      status TEXT NOT NULL,
+      changed_by_role TEXT NOT NULL,
+      changed_by_id TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_application_status_history_app ON application_status_history(application_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id BIGSERIAL PRIMARY KEY,
+      recipient_role TEXT NOT NULL CHECK (recipient_role IN ('student','company','admin')),
+      recipient_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      job_id BIGINT REFERENCES jobs(id) ON DELETE CASCADE,
+      application_id BIGINT REFERENCES job_applications(id) ON DELETE CASCADE,
+      dedupe_key TEXT UNIQUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      read_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_role, recipient_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS assessment_attempts (
+      id BIGSERIAL PRIMARY KEY,
+      application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+      student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      round_index INTEGER NOT NULL CHECK (round_index >= 0),
+      round_name TEXT NOT NULL,
+      questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+      answers JSONB NOT NULL DEFAULT '{}'::jsonb,
+      status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','submitted')),
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      submitted_at TIMESTAMPTZ,
+      duration_seconds INTEGER NOT NULL DEFAULT 1800,
+      score INTEGER,
+      correct_count INTEGER,
+      total_questions INTEGER,
+      violation_count INTEGER NOT NULL DEFAULT 0,
+      integrity_events JSONB NOT NULL DEFAULT '[]'::jsonb,
+      auto_submitted BOOLEAN NOT NULL DEFAULT FALSE,
+      company_verified BOOLEAN NOT NULL DEFAULT FALSE,
+      company_decision TEXT,
+      company_feedback TEXT,
+      company_verified_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(application_id, student_id, round_index)
+    );
+    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_verified BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_decision TEXT;
+    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_feedback TEXT;
+    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_verified_at TIMESTAMPTZ;
+    CREATE INDEX IF NOT EXISTS idx_assessment_attempts_student ON assessment_attempts(student_id, started_at DESC);
 
     CREATE TABLE IF NOT EXISTS student_resumes (
       student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
@@ -584,12 +776,6 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
-    CREATE TABLE IF NOT EXISTS workspace_notes (
-      student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
-      notes JSONB NOT NULL DEFAULT '[]'::jsonb,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
     CREATE TABLE IF NOT EXISTS admin_users (
       id BIGSERIAL PRIMARY KEY,
       admin_id TEXT NOT NULL UNIQUE,
@@ -606,54 +792,6 @@ async function ensureSchema() {
 
 
 }
-
-/* =========================================================
-   WORKSPACE NOTES — account-synced JSON note collection
-========================================================= */
-app.get('/api/student/workspace/notes', requireStudent, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT notes FROM workspace_notes WHERE student_id = $1', [req.student.studentId]);
-    res.json({ data: result.rows[0]?.notes || [] });
-  } catch (error) {
-    console.error('Workspace notes read failed:', error);
-    res.status(500).json({ error: 'Could not load Workspace notes.' });
-  }
-});
-
-app.put('/api/student/workspace/notes', requireStudent, async (req, res) => {
-  try {
-    const notes = req.body?.notes;
-    if (!Array.isArray(notes)) return res.status(400).json({ error: 'Notes must be an array.' });
-    if (Buffer.byteLength(JSON.stringify(notes), 'utf8') > 10 * 1024 * 1024) {
-      return res.status(413).json({ error: 'Notes are too large to sync. Remove some large screenshots and try again.' });
-    }
-    await pool.query(
-      `INSERT INTO workspace_notes (student_id, notes, updated_at) VALUES ($1, $2::jsonb, NOW())
-       ON CONFLICT (student_id) DO UPDATE SET notes = EXCLUDED.notes, updated_at = NOW()`,
-      [req.student.studentId, JSON.stringify(notes)]
-    );
-    res.json({ data: notes, message: 'Workspace notes saved.' });
-  } catch (error) {
-    console.error('Workspace notes save failed:', error);
-    res.status(500).json({ error: 'Could not save Workspace notes.' });
-  }
-});
-
-app.delete('/api/student/workspace/notes/:noteId', requireStudent, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT notes FROM workspace_notes WHERE student_id = $1', [req.student.studentId]);
-    const notes = (result.rows[0]?.notes || []).filter(note => note?.id !== req.params.noteId);
-    await pool.query(
-      `INSERT INTO workspace_notes (student_id, notes, updated_at) VALUES ($1, $2::jsonb, NOW())
-       ON CONFLICT (student_id) DO UPDATE SET notes = EXCLUDED.notes, updated_at = NOW()`,
-      [req.student.studentId, JSON.stringify(notes)]
-    );
-    res.json({ data: notes, message: 'Workspace note deleted.' });
-  } catch (error) {
-    console.error('Workspace note delete failed:', error);
-    res.status(500).json({ error: 'Could not delete Workspace note.' });
-  }
-});
 
 /* =========================================================
    HEALTH CHECK
@@ -1616,7 +1754,7 @@ app.patch(
   '/api/company/me',
   requireCompany,
   async (req, res) => {
-    const b = req.body;
+    const b = req.body || {};
 
     if (!clean(b.name)) {
       return res.status(400).json({
@@ -1695,14 +1833,16 @@ app.post(
       await client.query('BEGIN');
       const r = await client.query(
         `INSERT INTO jobs
-         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,approval_status,approval_note,reviewed_at,reviewed_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Pending',NULL,NULL,NULL)
+         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,required_skills,eligible_batches,vacancies,min_cgpa,backlogs_allowed,interview_rounds,approval_status,approval_note,reviewed_at,reviewed_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'Pending',NULL,NULL,NULL)
          RETURNING *`,
         [
           req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
           b.applyBefore, clean(b.visitDate) || null, clean(b.visitTag) || null, clean(b.status) || 'Eligible',
           clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
-          clean(b.description), clean(b.category) || 'eligible', clean(b.interviewRounds)
+          clean(b.description) || '', clean(b.category) || 'eligible', normalizeStringList(b.requiredSkills),
+          normalizeStringList(b.eligibleBatches), Number(b.vacancies), b.minCgpa === '' || b.minCgpa == null ? null : Number(b.minCgpa),
+          b.backlogsAllowed, clean(b.interviewRounds) || 'Not specified'
         ]
       );
       const departments = normalizeEligibleDepartments(b.eligibleDepartments);
@@ -1710,13 +1850,31 @@ app.post(
         `INSERT INTO job_departments (job_id,department) SELECT $1, UNNEST($2::text[])`,
         [r.rows[0].id, departments]
       );
+      await createNotification(client, {
+        recipientRole: 'admin', recipientId: 'all', type: 'job_pending',
+        title: 'Job submitted for approval',
+        message: `${clean(b.title)} is awaiting review.`,
+        jobId: r.rows[0].id, dedupeKey: `job-pending-${r.rows[0].id}-${r.rows[0].updated_at}`
+      });
+      await client.query(
+        `INSERT INTO job_approval_history(job_id,approval_status,changed_by_role,changed_by_id)
+         VALUES($1,'Pending','company',$2)`,
+        [r.rows[0].id, String(req.company.companyId)]
+      );
       await client.query('COMMIT');
       r.rows[0].eligible_departments = departments;
       res.status(201).json({ data: r.rows[0] });
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
-      console.error(e);
-      res.status(500).json({ error: 'Could not publish the job.' });
+      console.error('Failed to publish company job:', {
+        message: e?.message,
+        code: e?.code,
+        detail: e?.detail,
+        constraint: e?.constraint,
+        table: e?.table,
+        column: e?.column
+      });
+      res.status(500).json({ error: 'Could not publish the job. The server could not save this listing. Please retry; if it continues, contact the administrator.' });
     } finally {
       client.release();
     }
@@ -1727,7 +1885,7 @@ app.patch(
   '/api/company/jobs/:id',
   requireCompany,
   async (req, res) => {
-    const b = req.body;
+    const b = req.body || {};
     const err = validateJob(b);
     if (err) return res.status(400).json({ error: err });
 
@@ -1737,14 +1895,17 @@ app.patch(
       const r = await client.query(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
-             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,category=$14,
-             interview_rounds=$15,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
-         WHERE id=$16 AND company_id=$17
+             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,category=$13,
+             required_skills=$14,eligible_batches=$15,vacancies=$16,min_cgpa=$17,backlogs_allowed=$18,
+             approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
+         WHERE id=$19 AND company_id=$20
          RETURNING *`,
         [
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
           clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
-          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.category)||'eligible',clean(b.interviewRounds),
+          clean(b.location)||null,clean(b.workMode)||null,clean(b.category)||'eligible',
+          normalizeStringList(b.requiredSkills),normalizeStringList(b.eligibleBatches),Number(b.vacancies),
+          b.minCgpa===''||b.minCgpa==null?null:Number(b.minCgpa),b.backlogsAllowed,
           req.params.id,req.company.companyId
         ]
       );
@@ -1758,6 +1919,17 @@ app.patch(
         `INSERT INTO job_departments (job_id,department) SELECT $1, UNNEST($2::text[])`,
         [req.params.id,departments]
       );
+      await client.query(
+        `INSERT INTO job_approval_history(job_id,approval_status,changed_by_role,changed_by_id)
+         VALUES($1,'Pending','company',$2)`,
+        [req.params.id,String(req.company.companyId)]
+      );
+      await createNotification(client, {
+        recipientRole: 'admin', recipientId: 'all', type: 'job_pending',
+        title: 'Job resubmitted for approval',
+        message: `${clean(b.title)} was edited and is awaiting review.`,
+        jobId: r.rows[0].id, dedupeKey: `job-pending-${r.rows[0].id}-${r.rows[0].updated_at}`
+      });
       await client.query('COMMIT');
       r.rows[0].eligible_departments = departments;
       res.json({data:r.rows[0]});
@@ -1770,6 +1942,95 @@ app.patch(
     }
   }
 );
+
+/* Configure recruitment rounds only after at least one applicant is shortlisted. */
+app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
+  const jobId = Number(req.params.id);
+  if (!Number.isSafeInteger(jobId) || jobId < 1) return res.status(400).json({ error: 'Invalid job ID.' });
+  const raw = req.body?.rounds;
+  if (!Array.isArray(raw)) return res.status(400).json({ error: 'Rounds must be provided as a list.' });
+  if (raw.length > 10) return res.status(400).json({ error: 'A job can have at most 10 recruitment rounds.' });
+  const rounds = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i] || {};
+    const name = clean(r.name || r.title || `Round ${i + 1}`);
+    const type = clean(r.type || 'Online test');
+    const mode = clean(r.mode || 'Online');
+    const duration = Number(r.duration ?? r.durationMinutes ?? 30);
+    const cutoff = Number(String(r.cutoff ?? r.passingScore ?? 60).replace('%', ''));
+    const questionCount = /interview|discussion|assignment/i.test(type) ? 0 : Number(r.questionCount ?? r.question_count ?? 10);
+    if (!name || name.length > 120) return res.status(400).json({ error: `Round ${i + 1}: provide a name of at most 120 characters.` });
+    if (!Number.isFinite(duration) || duration < 5 || duration > 240) return res.status(400).json({ error: `Round ${i + 1}: duration must be between 5 and 240 minutes.` });
+    if (!Number.isFinite(cutoff) || cutoff < 0 || cutoff > 100) return res.status(400).json({ error: `Round ${i + 1}: passing score must be between 0 and 100.` });
+    if (!Number.isFinite(questionCount) || questionCount < 0 || questionCount > 100 || (!/interview|discussion|assignment/i.test(type) && questionCount < 1)) return res.status(400).json({ error: `Round ${i + 1}: question count must be between 1 and 100 for tests.` });
+    const scheduledAt = clean(r.scheduledAt) || null;
+    if (scheduledAt && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(scheduledAt) || Number.isNaN(Date.parse(scheduledAt)))) {
+      return res.status(400).json({ error: `Round ${i + 1}: schedule must be a valid ISO date and time.` });
+    }
+    if (r.active != null && typeof r.active !== 'boolean') {
+      return res.status(400).json({ error: `Round ${i + 1}: active must be true or false.` });
+    }
+    rounds.push({
+      name, type, mode, duration, questionCount, cutoff,
+      passingScore: `${cutoff}%`, order: i + 1,
+      topics: String(r.topics || '').trim().slice(0, 1500),
+      instructions: String(r.instructions || '').trim().slice(0, 3000),
+      scheduledAt, active: r.active !== false
+    });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const job = await client.query('SELECT id,title,interview_rounds FROM jobs WHERE id=$1 AND company_id=$2 FOR UPDATE', [jobId, req.company.companyId]);
+    if (!job.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Job not found for this company.' });
+    }
+    const shortlisted = await client.query("SELECT student_id FROM job_applications WHERE job_id=$1 AND status IN ('Shortlisted','Selected')", [jobId]);
+    if (!shortlisted.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Shortlist at least one applicant before configuring recruitment rounds.' });
+    }
+    const attempts = await client.query(
+      `SELECT DISTINCT round_index FROM assessment_attempts aa
+       JOIN job_applications a ON a.id=aa.application_id WHERE a.job_id=$1`,
+      [jobId]
+    );
+    if (attempts.rows.length) {
+      const signature = values => JSON.stringify(values.map(r => ({
+        name:r.name,type:r.type,mode:r.mode,duration:Number(r.duration),questionCount:Number(r.questionCount),
+        cutoff:Number(String(r.cutoff ?? r.passingScore ?? 60).replace('%','')),topics:r.topics||'',
+        instructions:r.instructions||'',scheduledAt:r.scheduledAt||null,active:r.active!==false
+      })));
+      const attemptedThrough = Math.max(...attempts.rows.map(row => Number(row.round_index)));
+      const configuredRounds = parseConfiguredRounds(job.rows[0].interview_rounds);
+      if (rounds.length <= attemptedThrough ||
+          signature(rounds.slice(0, attemptedThrough + 1)) !== signature(configuredRounds.slice(0, attemptedThrough + 1))) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Rounds with assessment attempts cannot be changed or removed, to preserve recorded results. You can add or edit rounds after the last round with an attempt.' });
+      }
+    }
+    const saved = await client.query('UPDATE jobs SET interview_rounds=$1,updated_at=NOW() WHERE id=$2 AND company_id=$3 RETURNING id,title,interview_rounds,updated_at', [JSON.stringify(rounds), jobId, req.company.companyId]);
+    const roundSummary = rounds.length
+      ? rounds.map((r,i) => `Round ${i+1}: ${r.name}${r.scheduledAt ? ` (${new Date(r.scheduledAt).toLocaleString('en-US',{timeZone:'UTC'})} UTC)` : ''}${r.active ? '' : ' (not active yet)'}`).join('; ')
+      : 'The company removed the recruitment rounds.';
+    for (const application of shortlisted.rows) {
+      await createNotification(client, {
+        recipientRole:'student',recipientId:application.student_id,type:'rounds_updated',
+        title:'Recruitment rounds updated',message:`${job.rows[0].title}: ${roundSummary}`,
+        jobId, dedupeKey:`rounds-${jobId}-${saved.rows[0].updated_at}-${application.student_id}`
+      });
+    }
+    await client.query('COMMIT');
+    res.json({ data: saved.rows[0] });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Could not save recruitment rounds:', { message: e?.message, code: e?.code, constraint: e?.constraint });
+    res.status(500).json({ error: 'Could not save recruitment rounds. Please retry or check the backend logs.' });
+  } finally {
+    client.release();
+  }
+});
 
 app.delete(
   '/api/company/jobs/:id',
@@ -1824,6 +2085,11 @@ const publicJobSelect = `
     j.description,
     j.category,
     j.interview_rounds,
+    j.required_skills,
+    j.eligible_batches,
+    j.vacancies,
+    j.min_cgpa,
+    j.backlogs_allowed,
     COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments,
     j.created_at,
     j.updated_at
@@ -1927,65 +2193,137 @@ app.post('/api/admin/announcements', requireAdmin, async(req,res)=>{if(!clean(re
 app.patch('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE announcements SET published=COALESCE($1,published),updated_at=NOW() WHERE id=$2 RETURNING *',[typeof req.body.published==='boolean'?req.body.published:null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update announcement.'});}});
 app.delete('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM announcements WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});await adminCrudLog(req,'Announcement removed','announcement',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove announcement.'});}});
 
-// Student notification feed: published announcements plus approved, eligible jobs.
+function notificationGoto(type) {
+  if (type === 'job') return 'jobs';
+  if (type === 'job_pending') return 'jobs';
+  if (type === 'new_application' || type === 'job_decision' || type === 'round_update' || type === 'assessment') return 'applications';
+  if (type === 'announcement') return 'home';
+  return 'progress';
+}
+
+async function materializeLegacyNotifications(studentId) {
+  const announcements = await pool.query(
+    `SELECT id,title,message FROM announcements
+     WHERE published=TRUE AND audience IN ('All','Students')`
+  );
+  for (const announcement of announcements.rows) {
+    await createNotification(pool, {
+      recipientRole: 'student', recipientId: studentId, type: 'announcement',
+      title: announcement.title, message: announcement.message,
+      dedupeKey: `announcement-${announcement.id}-student-${studentId}`
+    });
+  }
+
+  const jobs = await pool.query(
+    `SELECT j.id,COALESCE(j.reviewed_at,j.created_at) AS notification_version
+     FROM jobs j JOIN companies c ON c.id=j.company_id
+     WHERE j.approval_status='Approved' AND c.admin_status='Active'
+       AND j.apply_before>=CURRENT_DATE`
+  );
+  for (const job of jobs.rows) await notifyStudentsAboutApprovedJob(pool, job.id, job.notification_version);
+
+  const applications = await pool.query(
+    `SELECT a.id,a.job_id,a.status,a.updated_at,j.title,c.name AS company_name
+     FROM job_applications a JOIN jobs j ON j.id=a.job_id
+     JOIN companies c ON c.id=j.company_id
+     WHERE a.student_id=$1`,
+    [studentId]
+  );
+  for (const application of applications.rows) {
+    const status = String(application.status || 'Applied').toLowerCase();
+    const labels = {
+      applied: ['Application submitted', 'Your application was received.'],
+      shortlisted: ['You have been shortlisted', 'The company shortlisted your application.'],
+      selected: ['You have been selected', 'The company selected you for the next stage.'],
+      interview: ['Interview stage updated', 'Your application moved to the interview stage.'],
+      waitlisted: ['You are on the waitlist', 'The company placed your application on the waitlist.'],
+      rejected: ['Application update', 'The company updated your application status.']
+    };
+    const [title, message] = labels[status] || ['Application update', 'Your application status has changed.'];
+    await createNotification(pool, {
+      recipientRole: 'student', recipientId: studentId, type: 'application_status',
+      title: `${title}: ${application.title}`,
+      message: `${application.company_name} · ${message}`,
+      jobId: application.job_id, applicationId: application.id,
+      dedupeKey: `application-${application.id}-status-${application.updated_at.toISOString()}`
+    });
+  }
+}
+
+async function loadNotifications(res, role, recipientId) {
+  const result = await pool.query(
+    `SELECT id,type,title,message,job_id,application_id,created_at,read_at
+     FROM notifications WHERE recipient_role=$1 AND recipient_id=$2
+     ORDER BY created_at DESC LIMIT 100`,
+    [role, String(recipientId)]
+  );
+  res.json({
+    data: result.rows.map(item => ({
+      id: item.id,
+      type: item.type === 'announcement' ? 'announcement' : item.type === 'job' ? 'job' : 'status',
+      title: item.title,
+      text: item.message,
+      time: item.created_at,
+      readAt: item.read_at,
+      jobId: item.job_id,
+      applicationId: item.application_id,
+      goto: notificationGoto(item.type)
+    }))
+  });
+}
+
+async function markNotificationsRead(req, res, role, recipientId) {
+  const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(Number).filter(Number.isSafeInteger))] : [];
+  if (!ids.length) return res.status(400).json({ error: 'Notification IDs are required.' });
+  try {
+    const result = await pool.query(
+      `UPDATE notifications SET read_at=COALESCE(read_at,NOW())
+       WHERE id=ANY($1::bigint[]) AND recipient_role=$2
+         AND ($2<>'admin' AND recipient_id=$3 OR $2='admin' AND recipient_id IN ('all',$3))
+       RETURNING id`,
+      [ids, role, String(recipientId)]
+    );
+    res.json({ data: { updated: result.rowCount } });
+  } catch (e) {
+    console.error('Could not mark notifications read:', e);
+    res.status(500).json({ error: 'Could not update notification read status.' });
+  }
+}
+
 app.get('/api/student/notifications', requireStudent, async (req, res) => {
   try {
-    const studentResult = await pool.query(
-      'SELECT department, study_year FROM students WHERE id=$1',
-      [req.student.studentId]
-    );
-    const student = studentResult.rows[0];
-    if (!student) return res.status(401).json({ error: 'Student account not found.' });
-
-    const announcementsResult = await pool.query(
-      `SELECT id, title, message AS text, created_at
-       FROM announcements
-       WHERE published=TRUE AND audience IN ('All','Students')
-       ORDER BY created_at DESC`
-    );
-
-    let jobsResult = { rows: [] };
-    if (Number(student.study_year) >= 3) {
-      jobsResult = await pool.query(
-        `SELECT j.id, j.title, c.name AS company_name, COALESCE(j.reviewed_at,j.created_at) AS created_at
-         FROM jobs j
-         JOIN companies c ON c.id=j.company_id
-         WHERE j.approval_status='Approved'
-           AND c.admin_status='Active'
-           AND EXISTS (
-             SELECT 1 FROM job_departments jd
-             WHERE jd.job_id=j.id AND jd.department=$1
-           )
-         ORDER BY j.created_at DESC`,
-        [student.department]
-      );
-    }
-
-    const data = [
-      ...announcementsResult.rows.map(a => ({
-        id: `announcement-${a.id}`,
-        type: 'announcement',
-        title: a.title,
-        text: a.text,
-        time: a.created_at,
-        goto: 'home'
-      })),
-      ...jobsResult.rows.map(j => ({
-        id: `job-${j.id}`,
-        type: 'job',
-        title: `New job: ${j.title}`,
-        text: `${j.company_name} has posted a new opportunity.`,
-        time: j.created_at,
-        goto: 'jobs'
-      }))
-    ].sort((a, b) => new Date(b.time) - new Date(a.time));
-
-    res.json({ data });
+    await materializeLegacyNotifications(req.student.studentId);
+    await loadNotifications(res, 'student', req.student.studentId);
   } catch (e) {
     console.error('Could not load student notifications:', e);
     res.status(500).json({ error: 'Could not load notifications.' });
   }
 });
+app.patch('/api/student/notifications/read', requireStudent, (req, res) =>
+  markNotificationsRead(req, res, 'student', req.student.studentId));
+app.get('/api/company/notifications', requireCompany, async (req, res) => {
+  try { await loadNotifications(res, 'company', req.company.companyId); }
+  catch (e) { console.error(e); res.status(500).json({ error: 'Could not load company notifications.' }); }
+});
+app.patch('/api/company/notifications/read', requireCompany, (req, res) =>
+  markNotificationsRead(req, res, 'company', req.company.companyId));
+app.get('/api/admin/notifications', requireAdmin, async (req, res) => {
+  try {
+    const adminId = req.admin?.adminId || ADMIN_ID;
+    const result = await pool.query(
+      `SELECT id,type,title,message,job_id,application_id,created_at,read_at
+       FROM notifications WHERE recipient_role='admin' AND recipient_id IN ('all',$1)
+       ORDER BY created_at DESC LIMIT 100`,
+      [String(adminId)]
+    );
+    res.json({ data: result.rows.map(item => ({
+      id:item.id,type:item.type,title:item.title,text:item.message,time:item.created_at,
+      readAt:item.read_at,jobId:item.job_id,applicationId:item.application_id,goto:'jobs'
+    })) });
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load admin notifications.' }); }
+});
+app.patch('/api/admin/notifications/read', requireAdmin, (req, res) =>
+  markNotificationsRead(req, res, 'admin', req.admin?.adminId || ADMIN_ID));
 
 
 app.get('/api/admin/interviews', requireAdmin, async(_req,res)=>{try{const r=await pool.query(`SELECT i.*,s.name student_name,s.reg_no,c.name company_name,j.title job_title FROM interviews i LEFT JOIN students s ON s.id=i.student_id LEFT JOIN companies c ON c.id=i.company_id LEFT JOIN jobs j ON j.id=i.job_id ORDER BY i.interview_date NULLS LAST`);res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load interviews.'});}});
@@ -2056,12 +2394,27 @@ app.get('/api/admin/jobs', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
       SELECT j.id,j.company_id,j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.visit_date,j.visit_tag,j.status,j.status_class,j.batch,j.location,j.work_mode,j.description,j.category,j.interview_rounds,j.approval_status,j.approval_note,j.reviewed_at,j.reviewed_by,j.created_at,j.updated_at,
+             j.required_skills,j.eligible_batches,j.vacancies,j.min_cgpa,j.backlogs_allowed,
              c.name AS company_name, COALESCE((SELECT ARRAY_AGG(jd.department ORDER BY jd.department) FROM job_departments jd WHERE jd.job_id=j.id), ARRAY[]::text[]) AS eligible_departments, COUNT(a.id)::int AS applicant_count
       FROM jobs j JOIN companies c ON c.id=j.company_id LEFT JOIN job_applications a ON a.job_id=j.id
       GROUP BY j.id,c.name ORDER BY j.created_at DESC
     `);
     res.json({ data: r.rows });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load jobs.' }); }
+});
+
+app.get('/api/admin/jobs/:id/history', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT approval_status,approval_note,changed_by_role,changed_by_id,created_at
+       FROM job_approval_history WHERE job_id=$1 ORDER BY created_at DESC,id DESC`,
+      [req.params.id]
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    console.error('Could not load job approval history:', e);
+    res.status(500).json({ error: 'Could not load approval history.' });
+  }
 });
 
 app.patch('/api/admin/jobs/:id', requireAdmin, async (req, res) => {
@@ -2072,19 +2425,61 @@ app.patch('/api/admin/jobs/:id', requireAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Approval status must be Approved, Rejected, or Pending.' });
       }
       const note = clean(req.body.approvalNote) || null;
-      if (approvalStatus === 'Rejected' && !note) {
-        return res.status(400).json({ error: 'Please provide a reason when rejecting a job.' });
+      if (approvalStatus === 'Rejected' && (!note || note.length < 5)) {
+        return res.status(400).json({ error: 'Please provide a reason of at least 5 characters when rejecting a job.' });
       }
       const reviewer = req.admin?.adminId || 'admin';
-      const r = await pool.query(
-        `UPDATE jobs SET approval_status=$1,approval_note=$2,reviewed_at=NOW(),reviewed_by=$3,updated_at=NOW()
-         WHERE id=$4
-         RETURNING id,title,company_id,approval_status,approval_note,reviewed_at,reviewed_by`,
-        [approvalStatus, note, reviewer, req.params.id]
-      );
-      if (!r.rows[0]) return res.status(404).json({ error: 'Job not found.' });
-      await logAdminActivity(req, `Job ${approvalStatus.toLowerCase()}`, 'job', req.params.id, `${r.rows[0].title}${note ? ` — ${note}` : ''}`);
-      return res.json({ data: r.rows[0] });
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const current = await client.query(
+          `SELECT id,title,company_id,approval_status,approval_note,reviewed_at
+           FROM jobs WHERE id=$1 FOR UPDATE`,
+          [req.params.id]
+        );
+        if (!current.rows[0]) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'Job not found.' });
+        }
+        const job = current.rows[0];
+        if (job.approval_status === approvalStatus && (approvalStatus !== 'Rejected' || job.approval_note === note)) {
+          await client.query('COMMIT');
+          return res.json({ data: { ...job, reviewed_by: reviewer, unchanged: true } });
+        }
+        const r = await client.query(
+          `UPDATE jobs SET approval_status=$1,approval_note=$2,reviewed_at=NOW(),reviewed_by=$3,updated_at=NOW()
+           WHERE id=$4
+           RETURNING id,title,company_id,approval_status,approval_note,reviewed_at,reviewed_by,updated_at`,
+          [approvalStatus, note, reviewer, req.params.id]
+        );
+        await client.query(
+          `INSERT INTO job_approval_history(job_id,approval_status,approval_note,changed_by_role,changed_by_id)
+           VALUES($1,$2,$3,'admin',$4)`,
+          [r.rows[0].id, approvalStatus, note, String(reviewer)]
+        );
+        await createNotification(client, {
+          recipientRole: 'company', recipientId: r.rows[0].company_id, type: 'job_decision',
+          title: approvalStatus === 'Approved' ? 'Job approved' : approvalStatus === 'Rejected' ? 'Job requires changes' : 'Job returned to review',
+          message: approvalStatus === 'Rejected'
+            ? `${r.rows[0].title}: ${note}`
+            : approvalStatus === 'Approved'
+              ? `${r.rows[0].title} is approved and visible to eligible students.`
+              : `${r.rows[0].title} is pending review.`,
+          jobId: r.rows[0].id,
+          dedupeKey: `job-decision-${r.rows[0].id}-${r.rows[0].reviewed_at.toISOString()}`
+        });
+        if (approvalStatus === 'Approved') {
+          await notifyStudentsAboutApprovedJob(client, r.rows[0].id, r.rows[0].reviewed_at);
+        }
+        await client.query('COMMIT');
+        await logAdminActivity(req, `Job ${approvalStatus.toLowerCase()}`, 'job', req.params.id, `${r.rows[0].title}${note ? ` — ${note}` : ''}`);
+        return res.json({ data: r.rows[0] });
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw error;
+      } finally {
+        client.release();
+      }
     }
 
     const status = clean(req.body.status);
@@ -2746,7 +3141,10 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
     const r = await pool.query(
       `SELECT a.id,a.job_id,a.status,a.applied_at,a.updated_at,
               j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.location,j.work_mode,j.interview_rounds,
-              c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location
+              j.approval_status,j.approval_note,j.required_skills,j.eligible_batches,j.min_cgpa,j.vacancies,
+              c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('status',ash.status,'changed_by_role',ash.changed_by_role,'created_at',ash.created_at) ORDER BY ash.created_at) FROM application_status_history ash WHERE ash.application_id=a.id),'[]'::jsonb) AS status_history,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',aa.score,'correct_count',aa.correct_count,'total_questions',aa.total_questions,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'company_verified',aa.company_verified,'company_decision',aa.company_decision,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
        JOIN companies c ON c.id=j.company_id
@@ -2762,47 +3160,90 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
 });
 
 app.post('/api/jobs/:id/apply', requireStudent, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const job = await pool.query(
-      `SELECT j.id,j.title,j.apply_before FROM jobs j JOIN companies c ON c.id=j.company_id WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'`,
+    await client.query('BEGIN');
+    const jobResult = await client.query(
+      `SELECT j.*,j.apply_before>=CURRENT_DATE AS is_open,c.name AS company_name,c.admin_status,
+              ARRAY(SELECT jd.department FROM job_departments jd WHERE jd.job_id=j.id) AS eligible_departments
+       FROM jobs j JOIN companies c ON c.id=j.company_id
+       WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'
+       FOR SHARE OF j,c`,
       [req.params.id]
     );
-    if (!job.rows[0]) return res.status(404).json({ error: 'Job listing not found.' });
+    if (!jobResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'This job is not currently approved and available.' });
+    }
 
-    const studentInfo = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
-    if (!studentInfo.rows[0]) return res.status(401).json({error:'Student account not found.'});
-    if (Number(studentInfo.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
-    const eligibility = await pool.query('SELECT 1 FROM job_departments WHERE job_id=$1 AND department=$2',[req.params.id,studentInfo.rows[0].department]);
-    if (!eligibility.rows[0]) return res.status(403).json({error:'You are not eligible for this job based on your department.'});
-
-    const deadline = job.rows[0].apply_before;
-    const today = new Date().toISOString().slice(0, 10);
-    if (deadline && String(deadline).slice(0, 10) < today) {
+    const studentResult = await client.query(
+      `SELECT id,name,department,study_year,graduation_year,cgpa,skills,profile_details
+       FROM students WHERE id=$1 FOR SHARE`,
+      [req.student.studentId]
+    );
+    const student = studentResult.rows[0];
+    if (!student) {
+      await client.query('ROLLBACK');
+      return res.status(401).json({error:'Student account not found.'});
+    }
+    const job = jobResult.rows[0];
+    if (!isStudentEligibleForJob(student, job)) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({error:'Your department, batch, CGPA, arrears, or skills do not meet this job’s eligibility criteria.'});
+    }
+    if (!job.is_open) {
+      await client.query('ROLLBACK');
       return res.status(400).json({ error: 'The application deadline has passed.' });
     }
 
-    const resume = await pool.query(
+    const resume = await client.query(
       `SELECT 1 FROM student_resumes WHERE student_id=$1`,
       [req.student.studentId]
     );
     if (!resume.rows[0]) {
+      await client.query('ROLLBACK');
       return res.status(400).json({
         error: 'Please upload your PDF resume from your Student Profile before applying.'
       });
     }
 
-    const r = await pool.query(
+    const r = await client.query(
       `INSERT INTO job_applications (job_id,student_id,status)
        VALUES($1,$2,'Applied')
        ON CONFLICT(job_id,student_id) DO NOTHING
        RETURNING id,job_id,student_id,status,applied_at`,
       [req.params.id, req.student.studentId]
     );
-    if (!r.rows[0]) return res.status(409).json({ error: 'You have already applied to this job.' });
+    if (!r.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'You have already applied to this job.' });
+    }
+    await client.query(
+      `INSERT INTO application_status_history(application_id,status,changed_by_role,changed_by_id)
+       VALUES($1,'Applied','student',$2)`,
+      [r.rows[0].id,String(req.student.studentId)]
+    );
+    const duplicateKey = `application-submitted-${r.rows[0].id}`;
+    await createNotification(client, {
+      recipientRole: 'student', recipientId: student.id, type: 'application_status',
+      title: `Application submitted: ${job.title}`,
+      message: `${job.company_name} received your application.`,
+      jobId: job.id, applicationId: r.rows[0].id, dedupeKey: `${duplicateKey}-student`
+    });
+    await createNotification(client, {
+      recipientRole: 'company', recipientId: job.company_id, type: 'new_application',
+      title: 'New job application',
+      message: `${student.name} applied for ${job.title}.`,
+      jobId: job.id, applicationId: r.rows[0].id, dedupeKey: `${duplicateKey}-company`
+    });
+    await client.query('COMMIT');
     res.status(201).json({ data: r.rows[0] });
   } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error(e);
     res.status(500).json({ error: 'Could not submit your application.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -3086,6 +3527,169 @@ app.post('/api/student/resume/analyze', requireStudent, async (req, res) => {
 });
 
 /* =========================================================
+   SECURE STUDENT ASSESSMENTS — recruitment round engine
+   Server owns attempts, deadlines, answer keys and scoring.
+========================================================= */
+function parseConfiguredRounds(raw) {
+  if (Array.isArray(raw)) return raw.map((r,i)=>typeof r==='string'?{name:r}:({...r,name:r.name||r.title||r.roundName||`Round ${i+1}`}));
+  const text=String(raw||'').trim(); if(!text||text==='Not specified') return [];
+  try { const parsed=JSON.parse(text); if(Array.isArray(parsed))return parseConfiguredRounds(parsed); if(parsed&&Array.isArray(parsed.rounds))return parseConfiguredRounds(parsed.rounds); } catch {}
+  return text.split(/\r?\n/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}));
+}
+function assessmentDurationSeconds(round) {
+  const raw=round.durationMinutes??round.duration_minutes??round.duration;
+  let v=Number(raw);
+  if(!Number.isFinite(v)){const match=String(raw||'').match(/(\d+(?:\.\d+)?)/);v=match?Number(match[1]):NaN;if(match&&/hour|hr/i.test(String(raw)))v*=60;}
+  if(Number.isFinite(v)&&v>0) return Math.min(240,Math.max(5,v))*60;
+  return 30*60;
+}
+function fallbackAssessmentQuestions(topics, roundName, requestedCount=10) {
+  const bank=[
+    {topic:'Quantitative aptitude',question:'A product costs ₹800 and is discounted by 15%. What is the sale price?',options:['₹620','₹680','₹700','₹720'],correctIndex:1,explanation:'15% of 800 is 120; 800 − 120 = 680.'},
+    {topic:'Logical reasoning',question:'Find the next number: 3, 6, 12, 24, __',options:['30','36','42','48'],correctIndex:3,explanation:'Each number is multiplied by 2.'},
+    {topic:'Programming fundamentals',question:'Which structure follows Last In, First Out (LIFO)?',options:['Queue','Stack','Graph','Hash table'],correctIndex:1,explanation:'A stack removes the most recently added item first.'},
+    {topic:'Programming fundamentals',question:'What is the purpose of a function in a program?',options:['To group reusable instructions','To increase screen brightness','To store only images','To replace the operating system'],correctIndex:0,explanation:'Functions package logic for reuse and clearer structure.'},
+    {topic:'Data structures',question:'Which data structure is commonly used for first-in, first-out processing?',options:['Stack','Queue','Tree','Set'],correctIndex:1,explanation:'Queues process the earliest inserted item first.'},
+    {topic:'SQL',question:'Which SQL clause filters rows before grouping?',options:['ORDER BY','WHERE','HAVING','LIMIT'],correctIndex:1,explanation:'WHERE filters rows before GROUP BY.'},
+    {topic:'Computer science',question:'Which HTTP status code usually means a request succeeded?',options:['200','301','403','500'],correctIndex:0,explanation:'200 OK indicates a successful request.'},
+    {topic:'Problem solving',question:'If 5 workers finish a task in 12 days at the same rate, how many worker-days are required?',options:['17','30','60','72'],correctIndex:3,explanation:'5 × 12 = 60 worker-days.'},
+    {topic:'JavaScript',question:'Which keyword declares a block-scoped variable that can be reassigned?',options:['const','let','static','define'],correctIndex:1,explanation:'let declares a reassignable block-scoped variable.'},
+    {topic:'Professional practice',question:'What is the best first step when a test question is unclear?',options:['Guess without reading','Ask for clarification if allowed by the rules','Open another tab to search','Share the question with others'],correctIndex:1,explanation:'Follow the assessment instructions and request clarification when permitted.'}
+  ];
+  const seed=(String(topics||'')+' '+String(roundName||'')).toLowerCase();
+  let filtered=bank.filter(q=>q.topic.toLowerCase().split(' ').some(w=>w.length>3&&seed.includes(w)));
+  if(filtered.length<5) filtered=bank;
+  const count=Math.max(1,Math.min(100,Number(requestedCount)||10));return Array.from({length:count},(_,i)=>({...filtered[i%filtered.length],id:`q${i+1}`}));
+}
+async function generateAssessmentQuestions(round, job) {
+  const topics=String(round.topics||round.skills||round.description||round.instructions||job.requirements||job.description||job.title||'general aptitude');
+  const questionCount=Math.max(1,Math.min(100,Number(round.questionCount??round.question_count??10)||10));
+  if(GEMINI_API_KEY) {
+    try {
+      const prompt=`Create exactly ${questionCount} original multiple-choice questions for a student placement assessment. Job role: ${job.title}. Round: ${round.name}. Topics: ${topics}. Keep difficulty moderate and questions unambiguous. Each question must have exactly four options and one correctIndex (0-3). Do not include personal data, unsafe content, or answers in the question text. Return JSON array only with keys topic, question, options, correctIndex, explanation.`;
+      const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.35,responseMimeType:'application/json',maxOutputTokens:5000}}),signal:AbortSignal.timeout(25000)});
+      const payload=await response.json();
+      if(response.ok){const text=payload.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';const parsed=JSON.parse(text);if(Array.isArray(parsed)){const valid=parsed.filter(q=>q&&typeof q.question==='string'&&Array.isArray(q.options)&&q.options.length===4&&Number.isInteger(Number(q.correctIndex))&&Number(q.correctIndex)>=0&&Number(q.correctIndex)<=3).slice(0,questionCount);if(valid.length>=Math.min(5,questionCount)){const generated=valid.map((q,i)=>({...q,id:`q${i+1}`,correctIndex:Number(q.correctIndex)}));if(generated.length<questionCount){const fallback=fallbackAssessmentQuestions(topics,round.name,questionCount);generated.push(...fallback.slice(generated.length));}return generated.slice(0,questionCount).map((q,i)=>({...q,id:`q${i+1}`}));}}}
+    } catch(e) { console.warn('AI question generation failed; using fallback question set:',e.message); }
+  }
+  return fallbackAssessmentQuestions(topics,round.name,questionCount);
+}
+function publicQuestions(questions) { return questions.map(({id,topic,question,options})=>({id,topic,question,options})); }
+async function scoreAssessmentAttempt(attemptId, studentId, forceAuto=false) {
+  const found=await pool.query('SELECT * FROM assessment_attempts WHERE id=$1 AND student_id=$2',[attemptId,studentId]);
+  const a=found.rows[0]; if(!a) return null;
+  if(a.status==='submitted') return {score:a.score,correctCount:a.correct_count,totalQuestions:a.total_questions,autoSubmitted:a.auto_submitted};
+  const questions=Array.isArray(a.questions)?a.questions:[]; const answers=a.answers&&typeof a.answers==='object'?a.answers:{};
+  let correct=0; for(const q of questions) if(Number(answers[q.id])===Number(q.correctIndex)) correct++;
+  const score=questions.length?Math.round(correct/questions.length*100):0;
+  const updated=await pool.query(`UPDATE assessment_attempts SET status='submitted',submitted_at=NOW(),score=$3,correct_count=$4,total_questions=$5,auto_submitted=$6 WHERE id=$1 AND student_id=$2 RETURNING score,correct_count,total_questions,auto_submitted`,[attemptId,studentId,score,correct,questions.length,Boolean(forceAuto)]);
+  return updated.rows[0]||null;
+}
+
+app.post('/api/student/assessments/prepare', requireStudent, async (req,res)=>{
+  try {
+    const appId=Number(req.body.applicationId), roundIndex=Number(req.body.roundIndex);
+    const r=await pool.query(`SELECT a.id,a.status,j.title,j.description,j.requirements,j.interview_rounds,c.name AS company_name,s.skills,s.department,s.degree,s.cgpa,s.projects,s.summary FROM job_applications a JOIN jobs j ON j.id=a.job_id JOIN companies c ON c.id=j.company_id JOIN students s ON s.id=a.student_id WHERE a.id=$1 AND a.student_id=$2`,[appId,req.student.studentId]);
+    const row=r.rows[0]; if(!row)return res.status(404).json({error:'Application not found.'});
+    if(!['selected','shortlisted','interview'].includes(String(row.status).toLowerCase()))return res.status(403).json({error:'Preparation unlocks after shortlisting or selection.'});
+    const rounds=parseConfiguredRounds(row.interview_rounds), round=rounds[roundIndex]; if(!round)return res.status(404).json({error:'Recruitment round not found.'});
+    const topics=String(round.topics||round.skills||round.description||row.description||row.title);
+    let tasks=[`Review the fundamentals of ${topics}.`,`Complete 20 practice questions related to ${round.name}.`,'Practise explaining your reasoning aloud.','Review your mistakes and retry similar questions.'];
+    let summary=`Prepare for ${round.name} by focusing on ${topics}. Use timed practice and review each incorrect answer.`;
+    if(GEMINI_API_KEY){try{const prompt=`Create a concise student preparation plan in JSON for a placement round. Role: ${row.title}; round: ${round.name}; topics: ${topics}; student skills: ${JSON.stringify(row.skills||[])}. Return {"summary":"...","tasks":["..." x 4-6]}. Do not invent student credentials or guarantee selection.`;const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.3,responseMimeType:'application/json',maxOutputTokens:1200}}),signal:AbortSignal.timeout(15000)});const p=await response.json();if(response.ok){const text=p.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';const plan=JSON.parse(text);if(plan.summary)summary=plan.summary;if(Array.isArray(plan.tasks))tasks=plan.tasks.slice(0,7);}}catch(e){console.warn('AI prep plan fallback:',e.message);}}
+    res.json({data:{title:`${round.name} preparation plan`,summary,tasks,aiGenerated:Boolean(GEMINI_API_KEY)}});
+  } catch(e){console.error(e);res.status(500).json({error:'Could not prepare this round.'});}
+});
+
+app.post('/api/student/assessments/start', requireStudent, async (req,res)=>{
+  try {
+    const applicationId=Number(req.body.applicationId), roundIndex=Number(req.body.roundIndex);
+    if(!Number.isSafeInteger(applicationId)||applicationId<1||!Number.isInteger(roundIndex)||roundIndex<0)return res.status(400).json({error:'Invalid application or round.'});
+    const r=await pool.query(`SELECT a.id,a.status,j.title,j.description,j.requirements,j.interview_rounds FROM job_applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=$1 AND a.student_id=$2`,[applicationId,req.student.studentId]);
+    const row=r.rows[0]; if(!row)return res.status(404).json({error:'Application not found.'});
+    if(!['selected','shortlisted','interview'].includes(String(row.status).toLowerCase()))return res.status(403).json({error:'The company must shortlist or select you before you can start an assessment.'});
+    const rounds=parseConfiguredRounds(row.interview_rounds), round=rounds[roundIndex]; if(!round)return res.status(404).json({error:'Round configuration was not found.'});
+    if(round.active===false)return res.status(403).json({error:'This recruitment round is not active yet.'});
+    if(round.scheduledAt&&new Date(round.scheduledAt)>new Date())return res.status(403).json({error:`This round is scheduled for ${new Date(round.scheduledAt).toLocaleString()}.`});
+    if(!/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name} ${round.type||round.mode||''}`))return res.status(400).json({error:'This round is not configured as an online assessment. The recruiter will schedule it.'});
+    if(roundIndex>0){const prior=await pool.query(`SELECT status,company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3`,[applicationId,req.student.studentId,roundIndex-1]);if(!prior.rows[0]||prior.rows[0].status!=='submitted'||prior.rows[0].company_verified!==true||prior.rows[0].company_decision!=='Pass')return res.status(403).json({error:'The previous round must be passed and verified by the company before this assessment unlocks.'});}
+    const existing=await pool.query('SELECT * FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3',[applicationId,req.student.studentId,roundIndex]);
+    if(existing.rows[0]){const a=existing.rows[0];if(a.status==='submitted')return res.status(409).json({error:'This round has already been submitted. Retakes must be enabled by the recruiter.'});if(new Date(a.expires_at)<=new Date()){const result=await scoreAssessmentAttempt(a.id,req.student.studentId,true);return res.status(409).json({error:'Your previous attempt expired and was submitted automatically.',result});}const remaining=Math.max(1,Math.floor((new Date(a.expires_at)-Date.now())/1000));return res.json({data:{attemptId:a.id,roundName:a.round_name,questions:publicQuestions(a.questions),savedAnswers:a.answers||{},remainingSeconds:remaining,violationCount:a.violation_count,resumed:true}});}
+    const questions=await generateAssessmentQuestions(round,row);
+    const duration=assessmentDurationSeconds(round);
+    const inserted=await pool.query(`INSERT INTO assessment_attempts(application_id,student_id,round_index,round_name,questions,answers,status,started_at,expires_at,duration_seconds,violation_count) VALUES($1,$2,$3,$4,$5::jsonb,'{}'::jsonb,'in_progress',NOW(),NOW()+($6 * INTERVAL '1 second'),$6,0) RETURNING id,expires_at,violation_count`,[applicationId,req.student.studentId,roundIndex,round.name,JSON.stringify(questions),duration]);
+    const a=inserted.rows[0];res.status(201).json({data:{attemptId:a.id,roundName:round.name,questions:publicQuestions(questions),remainingSeconds:duration,expiresAt:a.expires_at,violationCount:0,strictMode:true}});
+  } catch(e){if(e.code==='23505')return res.status(409).json({error:'An attempt already exists for this round. Refresh the Progress page.'});console.error(e);res.status(500).json({error:'Could not start assessment.'});}
+});
+
+app.put('/api/student/assessments/:id/answer', requireStudent, async(req,res)=>{
+  try{const id=Number(req.params.id),questionId=String(req.body.questionId||''),answerIndex=Number(req.body.answerIndex);if(!Number.isSafeInteger(id)||!questionId||!Number.isInteger(answerIndex)||answerIndex<0||answerIndex>3)return res.status(400).json({error:'Invalid answer.'});const r=await pool.query(`UPDATE assessment_attempts SET answers=jsonb_set(answers,ARRAY[$3],to_jsonb($4::int),true) WHERE id=$1 AND student_id=$2 AND status='in_progress' AND expires_at>NOW() AND EXISTS(SELECT 1 FROM jsonb_array_elements(questions) q WHERE q->>'id'=$3 AND jsonb_array_length(q->'options')>$4) RETURNING id,expires_at`,[id,req.student.studentId,questionId,answerIndex]);if(!r.rows[0])return res.status(409).json({error:'Attempt expired, submitted, or answer is invalid.'});res.json({data:{saved:true,expiresAt:r.rows[0].expires_at}});}catch(e){console.error(e);res.status(500).json({error:'Could not save answer.'});}
+});
+
+app.post('/api/student/assessments/:id/violation', requireStudent, async(req,res)=>{
+  try{const id=Number(req.params.id),reason=String(req.body.reason||'Integrity event').slice(0,180);const r=await pool.query(`UPDATE assessment_attempts SET violation_count=violation_count+1, integrity_events=integrity_events || jsonb_build_array(jsonb_build_object('reason',$3::text,'at',NOW())), updated_at=NOW() WHERE id=$1 AND student_id=$2 AND status='in_progress' AND expires_at>NOW() RETURNING violation_count`,[id,req.student.studentId,reason]);if(!r.rows[0])return res.status(404).json({error:'Active attempt not found.'});const count=r.rows[0].violation_count;let result=null;if(count>=3)result=await scoreAssessmentAttempt(id,req.student.studentId,true);res.json({data:{violationCount:count,autoSubmitted:count>=3,result}});}catch(e){console.error(e);res.status(500).json({error:'Could not record integrity event.'});}
+});
+
+app.post('/api/student/assessments/:id/submit', requireStudent, async(req,res)=>{
+  try{const id=Number(req.params.id);const check=await pool.query('SELECT id,status,expires_at FROM assessment_attempts WHERE id=$1 AND student_id=$2',[id,req.student.studentId]);const a=check.rows[0];if(!a)return res.status(404).json({error:'Assessment attempt not found.'});if(a.status==='submitted'){const prev=await pool.query('SELECT score,correct_count,total_questions,auto_submitted FROM assessment_attempts WHERE id=$1',[id]);return res.json({data:prev.rows[0]});}const expired=new Date(a.expires_at)<=new Date();if(!expired&&req.body.answers&&typeof req.body.answers==='object'){const detail=await pool.query('SELECT questions FROM assessment_attempts WHERE id=$1 AND student_id=$2',[id,req.student.studentId]);const qs=Array.isArray(detail.rows[0]?.questions)?detail.rows[0].questions:[];const safe={};for(const q of qs){const v=req.body.answers[q.id];if(Number.isInteger(Number(v))&&Number(v)>=0&&Number(v)<(q.options||[]).length)safe[q.id]=Number(v);}if(Object.keys(safe).length){await pool.query("UPDATE assessment_attempts SET answers=answers || $3::jsonb WHERE id=$1 AND student_id=$2 AND status='in_progress'", [id,req.student.studentId,JSON.stringify(safe)]);}}const result=await scoreAssessmentAttempt(id,req.student.studentId,Boolean(req.body.autoSubmitted)||expired);if(!result)return res.status(409).json({error:'Could not submit this attempt.'});res.json({data:result});}catch(e){console.error(e);res.status(500).json({error:'Could not submit assessment.'});}
+});
+
+app.get('/api/student/assessments/:id/result', requireStudent, async(req,res)=>{try{const r=await pool.query(`SELECT id,round_name,status,score,correct_count,total_questions,violation_count,auto_submitted,started_at,submitted_at FROM assessment_attempts WHERE id=$1 AND student_id=$2`,[Number(req.params.id),req.student.studentId]);if(!r.rows[0])return res.status(404).json({error:'Result not found.'});if(r.rows[0].status!=='submitted')return res.status(409).json({error:'This assessment has not been submitted.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not load assessment result.'});}});
+
+/* =========================================================
+   COMPANY ROUND VERIFICATION — recruiter approves each submitted test
+========================================================= */
+app.get('/api/company/jobs/:id/assessments', requireCompany, async (req,res)=>{
+  try {
+    const job=await pool.query('SELECT id FROM jobs WHERE id=$1 AND company_id=$2',[req.params.id,req.company.companyId]);
+    if(!job.rows[0])return res.status(404).json({error:'Job not found for this company.'});
+    const r=await pool.query(`SELECT aa.id AS attempt_id,aa.application_id,aa.student_id,aa.round_index,aa.round_name,aa.status,aa.score,aa.correct_count,aa.total_questions,aa.violation_count,aa.integrity_events,aa.auto_submitted,aa.company_verified,aa.company_decision,aa.company_feedback,aa.company_verified_at,aa.submitted_at,s.name AS student_name,s.email,a.status AS application_status FROM assessment_attempts aa JOIN job_applications a ON a.id=aa.application_id JOIN students s ON s.id=aa.student_id JOIN jobs j ON j.id=a.job_id WHERE j.id=$1 AND j.company_id=$2 AND aa.status='submitted' ORDER BY aa.submitted_at DESC`,[req.params.id,req.company.companyId]);
+    res.json({data:r.rows});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not load submitted assessments.'});}
+});
+app.patch('/api/company/assessments/:id/verify', requireCompany, async(req,res)=>{
+  const decision=String(req.body.decision||'');
+  const feedback=clean(req.body.feedback)||null;
+  if(!['Pass','Fail','Needs review'].includes(decision))return res.status(400).json({error:'Choose Pass, Fail or Needs review.'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const current=await client.query(
+      `SELECT aa.id,aa.application_id,aa.round_index,aa.round_name,aa.score,aa.company_verified,
+              aa.company_decision,aa.company_feedback,aa.company_verified_at,a.student_id,a.job_id,j.title
+       FROM assessment_attempts aa JOIN job_applications a ON a.id=aa.application_id
+       JOIN jobs j ON j.id=a.job_id
+       WHERE aa.id=$1 AND j.company_id=$2 AND aa.status='submitted' FOR UPDATE OF aa`,
+      [req.params.id,req.company.companyId]
+    );
+    const attempt=current.rows[0];
+    if(!attempt){await client.query('ROLLBACK');return res.status(404).json({error:'Submitted assessment not found for your company.'});}
+    if(attempt.company_decision===decision&&attempt.company_feedback===feedback){
+      await client.query('COMMIT');
+      return res.json({data:{...attempt,unchanged:true}});
+    }
+    const r=await client.query(
+      `UPDATE assessment_attempts SET company_verified=($1<>'Needs review'),company_decision=$1,
+       company_feedback=$2,company_verified_at=CASE WHEN $1='Needs review' THEN NULL ELSE NOW() END,
+       updated_at=NOW() WHERE id=$3
+       RETURNING id AS attempt_id,application_id,round_index,round_name,score,company_verified,
+                 company_decision,company_feedback,company_verified_at,updated_at`,
+      [decision,feedback,req.params.id]
+    );
+    await createNotification(client,{
+      recipientRole:'student',recipientId:attempt.student_id,type:'assessment_verification',
+      title:`${attempt.round_name}: ${decision}`,
+      message:`${attempt.title} · Your ${attempt.round_name} assessment was marked ${decision}.${feedback?` Feedback: ${feedback}`:''}`,
+      jobId:attempt.job_id,applicationId:attempt.application_id,
+      dedupeKey:`assessment-verification-${attempt.id}-${r.rows[0].updated_at.toISOString()}`
+    });
+    await client.query('COMMIT');
+    res.json({data:r.rows[0]});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error(e);res.status(500).json({error:'Could not save round verification.'});}
+  finally{client.release();}
+});
+
+/* =========================================================
    COMPANY APPLICANT MANAGEMENT
 ========================================================= */
 
@@ -3115,23 +3719,59 @@ app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) =
 
 app.patch('/api/company/applications/:id', requireCompany, async (req, res) => {
   const status = clean(req.body.status);
-  if (!['Applied','Selected','Rejected','Waitlisted'].includes(status)) {
-    return res.status(400).json({ error: 'Application status must be Applied, Selected, Rejected or Waitlisted.' });
+  if (!['Applied','Shortlisted','Selected','Rejected','Waitlisted'].includes(status)) {
+    return res.status(400).json({ error: 'Application status must be Applied, Shortlisted, Selected, Rejected or Waitlisted.' });
   }
+  const client = await pool.connect();
   try {
-    const r = await pool.query(
-      `UPDATE job_applications a
-       SET status=$1,updated_at=NOW()
-       FROM jobs j
-       WHERE a.id=$2 AND a.job_id=j.id AND j.company_id=$3
-       RETURNING a.id,a.job_id,a.student_id,a.status,a.updated_at`,
-      [status, req.params.id, req.company.companyId]
+    await client.query('BEGIN');
+    const current = await client.query(
+      `SELECT a.id,a.job_id,a.student_id,a.status,j.title
+       FROM job_applications a JOIN jobs j ON j.id=a.job_id
+       WHERE a.id=$1 AND j.company_id=$2 FOR UPDATE OF a`,
+      [req.params.id, req.company.companyId]
     );
-    if (!r.rows[0]) return res.status(404).json({ error: 'Application not found for your company.' });
+    if (!current.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Application not found for your company.' });
+    }
+    const application = current.rows[0];
+    if (application.status === status) {
+      await client.query('COMMIT');
+      return res.json({ data: { ...application, updated_at: null, unchanged: true } });
+    }
+    const r = await client.query(
+      `UPDATE job_applications SET status=$1,updated_at=NOW()
+       WHERE id=$2 RETURNING id,job_id,student_id,status,updated_at`,
+      [status, req.params.id]
+    );
+    await client.query(
+      `INSERT INTO application_status_history(application_id,status,changed_by_role,changed_by_id)
+       VALUES($1,$2,'company',$3)`,
+      [application.id,status,String(req.company.companyId)]
+    );
+    const messages = {
+      Applied: 'Your application was returned to the Applied stage.',
+      Shortlisted: 'The company shortlisted your application.',
+      Selected: 'The company selected you for the next stage.',
+      Rejected: 'The company has updated your application status.',
+      Waitlisted: 'The company placed your application on the waitlist.'
+    };
+    await createNotification(client, {
+      recipientRole: 'student', recipientId: application.student_id, type: 'application_status',
+      title: `${status === 'Applied' ? 'Application status updated' : status}: ${application.title}`,
+      message: messages[status],
+      jobId: application.job_id, applicationId: application.id,
+      dedupeKey: `application-${application.id}-status-${r.rows[0].updated_at.toISOString()}`
+    });
+    await client.query('COMMIT');
     res.json({ data: r.rows[0] });
   } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error(e);
     res.status(500).json({ error: 'Could not update the application status.' });
+  } finally {
+    client.release();
   }
 });
 
@@ -3162,17 +3802,20 @@ app.get('/api/company/applications/:id/resume', requireCompany, async (req, res)
 
 app.get('/api/jobs', requireStudent, async (req, res) => {
   try {
-    let where = '';
-    const params = [];
-    const student = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
+    const student = await pool.query('SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details FROM students WHERE id=$1',[req.student.studentId]);
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
-    if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
-    params.push(student.rows[0].department);
-    where = " WHERE j.approval_status='Approved' AND c.admin_status='Active' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$1)";
-    const r = await pool.query(`${publicJobSelect}${where} ORDER BY j.created_at DESC`, params);
+    const r = await pool.query(
+      `${publicJobSelect}
+       WHERE j.approval_status='Approved' AND c.admin_status='Active' AND j.apply_before>=CURRENT_DATE
+       ORDER BY COALESCE(j.reviewed_at,j.created_at) DESC`
+    );
 
     res.json({
-      data: r.rows
+      data: r.rows.map(job => ({
+        ...job,
+        eligible_to_apply: isStudentEligibleForJob(student.rows[0], job),
+        eligibility_reasons: getJobEligibilityReasons(student.rows[0], job)
+      }))
     });
   } catch (e) {
     console.error(e);
@@ -3189,14 +3832,13 @@ app.get('/api/jobs', requireStudent, async (req, res) => {
 
 app.get('/api/jobs/:id', requireStudent, async (req, res) => {
   try {
-    const params = [req.params.id];
-    let where = " WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'";
-    const student = await pool.query('SELECT department,study_year FROM students WHERE id=$1',[req.student.studentId]);
+    const student = await pool.query('SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details FROM students WHERE id=$1',[req.student.studentId]);
     if (!student.rows[0]) return res.status(401).json({error:'Student account not found.'});
-    if (Number(student.rows[0].study_year) < 3) return res.status(403).json({error:'Jobs unlock from 3rd year.'});
-    params.push(student.rows[0].department);
-    where += ' AND EXISTS (SELECT 1 FROM job_departments jd WHERE jd.job_id=j.id AND jd.department=$2)';
-    const r = await pool.query(`${publicJobSelect}${where}`, params);
+    const r = await pool.query(
+      `${publicJobSelect}
+       WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active' AND j.apply_before>=CURRENT_DATE`,
+      [req.params.id]
+    );
 
     if (!r.rows[0]) {
       return res.status(404).json({
@@ -3204,9 +3846,11 @@ app.get('/api/jobs/:id', requireStudent, async (req, res) => {
       });
     }
 
-    res.json({
-      data: r.rows[0]
-    });
+    res.json({ data: {
+      ...r.rows[0],
+      eligible_to_apply: isStudentEligibleForJob(student.rows[0], r.rows[0]),
+      eligibility_reasons: getJobEligibilityReasons(student.rows[0], r.rows[0])
+    } });
   } catch (e) {
     console.error(e);
 
