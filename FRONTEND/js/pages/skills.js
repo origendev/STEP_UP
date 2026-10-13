@@ -86,41 +86,12 @@ function viewCert(rec){
   document.body.appendChild(wrap);
 }
 
-/* Company -> website, used to fetch that company's own logo (favicon). If the logo cannot
-   load (offline, blocked), the card falls back to a coloured badge with the company's initials.
-   A company that is not listed here uses the host of the course link. */
-const COMPANY_DOMAINS = {
-  'Cisco':'cisco.com', 'Simplilearn':'simplilearn.com', 'Sololearn':'sololearn.com',
-  'Scaler':'scaler.com', 'Great Learning':'mygreatlearning.com', 'Coddy Tech':'coddy.tech',
-  'MathWorks':'mathworks.com', 'Infosys':'infosys.com', 'IBM':'ibm.com', 'DataCamp':'datacamp.com',
-  'freeCodeCamp':'freecodecamp.org', 'Univ. of Helsinki':'helsinki.fi', 'Open University':'open.ac.uk',
-  'Microsoft':'microsoft.com', 'Harvard':'harvard.edu', 'HackerRank':'hackerrank.com',
-  'Google':'google.com', 'ELCAI':'kelcaigroup.com', 'DataFlair':'data-flair.training',
-  'Coodeverse':'coodeverse.com', 'CodeChef':'codechef.com', 'C++ Institute':'cppinstitute.org',
-};
-function logoDomain(c){
-  if(COMPANY_DOMAINS[c.company]) return COMPANY_DOMAINS[c.company];
-  try{ return new URL(c.url).hostname.replace(/^www\./, ''); }catch{ return ''; }
-}
-function initials(name){
-  const w = String(name).replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
-  return (w[1] ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase();
-}
-function logo(c){
-  const d = logoDomain(c);
-  const fb = `<span class="sk-logo-fb">${esc(initials(c.company))}</span>`;
-  return `<span class="sk-logo" aria-hidden="true">${fb}${d
-    ? `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=128" alt="" loading="lazy" referrerpolicy="no-referrer">`
-    : ''}</span>`;
-}
-
 const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
 
 const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 const CLIP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg>';
 
-const ALL_KEY = 'ALL';
-const state = { dept: ALL_KEY, year: 0, lang: 'Python', q: '' };
+const state = { dept: 'CSE', year: 0, lang: 'Python' };
 const PROG_LEVELS = [{ key: 'Beginner' }, { key: 'Intermediate' }, { key: 'Advanced' }];
 let locked = false;   // true when the student's year is known: they only see their own year
 
@@ -146,7 +117,7 @@ function card(c){
   return `
     <article class="card sk-card">
       <div class="sk-top">
-        ${logo(c)}<span class="sk-co">${esc(c.company)}</span>
+        <span class="sk-co">${esc(c.company)}</span>
       </div>
       <h4 class="sk-title">${esc(c.title)}</h4>
       <p class="sk-desc">${esc(c.desc)}</p>
@@ -161,14 +132,6 @@ function card(c){
 }
 
 const yearOk = c => state.year === 0 || c.years.includes(state.year);
-
-/** Search: every word typed must appear in the title, company, description, certificate or language. */
-function matches(c){
-  const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
-  if(!words.length) return true;
-  const hay = [c.title, c.company, c.desc, c.cert, c.lang, c.group, c.level].join(' ').toLowerCase();
-  return words.every(w => hay.includes(w));
-}
 
 /** Fill a scroller: cards, or one friendly message when there are none. */
 function fill(el, list, emptyText){
@@ -204,26 +167,29 @@ function render(){
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
+  $$('#skYears .sk-year').forEach(b => {
+    const on = Number(b.dataset.year) === state.year;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
 
-  const blurb = $('#skBlurb');
-  blurb.textContent = y ? `${y.label} · ${y.level} — ${y.blurb}` : '';
-  blurb.hidden = !y;
+  $('#skBlurb').textContent = y
+    ? (locked ? `${y.label} · ${y.level} — ${y.blurb}` : y.blurb)
+    : 'Showing courses for every year. Pick a year to see what suits you now.';
 
   /* General: everything flagged `general`, grouped in a fixed order */
   const order = GENERAL_GROUPS.map(g => g.key);
-  /* ALL tab: general courses first, then every department's courses, in one grid.
-     A department tab: only that department's courses. */
-  const searching = state.q.trim() !== '';
-  const isAll = state.dept === ALL_KEY || searching;   /* searching looks through every department */
-  const dept = COURSES.filter(c => yearOk(c) && matches(c) && (isAll
-    ? true
-    : !c.general && (c.depts === 'ALL' || c.depts.includes(state.dept))));
-  if(isAll) dept.sort((a, b) => (b.general ? 1 : 0) - (a.general ? 1 : 0) ||
-    (a.general ? order.indexOf(a.group) - order.indexOf(b.group) : 0));
+  const general = COURSES
+    .filter(c => c.general && yearOk(c))
+    .sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
 
-  fill($('#skDept'), dept, searching ? 'No courses found.' : isAll
-    ? `No courses added yet${yearWords}.`
-    : `No ${state.dept}-specific free certificate courses added yet${yearWords}.`);
+  /* Department: this department's courses, minus the ones already in the General row */
+  const dept = COURSES.filter(c =>
+    !c.general && (c.depts === 'ALL' || c.depts.includes(state.dept)) && yearOk(c));
+
+  fill($('#skGeneral'), general, `No general courses added yet${yearWords}.`);
+  fill($('#skDept'), dept,
+    `No ${state.dept}-specific free certificate courses added yet${yearWords}. Check the General courses above.`);
 
   const note = $('#skNote');
   note.hidden = !DEPT_NOTES[state.dept];
@@ -235,54 +201,45 @@ function render(){
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
-  let progTotal = 0;
-  PROG_LEVELS.forEach(lv => {
+    PROG_LEVELS.forEach(lv => {
     const list = PROG_COURSES.filter(c =>
-      (searching ? true : c.lang === state.lang) &&
-      (c.level || 'Beginner') === lv.key && yearOk(c) && matches(c));
-    progTotal += list.length;
-    fill($('#skProgLevels' + lv.key), list, `${lv.key} ${state.lang} courses coming soon.`);
-    const sub = $('#skProgLevels' + lv.key).closest('.sk-sub');
-    if(sub) sub.hidden = searching && !list.length;
+      c.lang === state.lang &&
+      (c.level || 'Beginner') === lv.key &&
+      yearOk(c)
+    );
+    fill(
+      $(`#skProgLevels${lv.key}`),
+      list,
+      `${lv.key} ${state.lang} courses coming soon.`
+    );
   });
-
-  /* Search mode: hide the tabs and empty sections, show a count, or a "nothing found" card */
-  const total = dept.length + progTotal;
-  $('#skDeptSec').hidden = searching && !dept.length;
-  $('.sk-gen-head').hidden = searching;
-  $('#skTabs').hidden = searching;
-  $('#skProgTabs').hidden = searching;
-  $('#skProgTitle').closest('.sk-section').hidden = searching && !progTotal;
-  const none = $('#skNone');
-  none.hidden = !(searching && !total);
-  none.textContent = `No courses found for “${state.q.trim()}”. Try a company (IBM), a skill (Python) or a topic (aptitude).`;
-  const cnt = $('#skCount');
-  if(cnt) cnt.textContent = searching ? `${total} result${total === 1 ? '' : 's'}` : '';
+    PROG_LEVELS.forEach(lv => {
+    const list = PROG_COURSES.filter(c =>
+      c.lang === state.lang && (c.level || 'Beginner') === lv.key && yearOk(c));
+    fill($('#skProgLevels' + lv.key), list, `${lv.key} ${state.lang} courses coming soon.`);
+  });
 }
 
 export function mount(){
-  /* error/load do not bubble, so listen in the capture phase */
-  document.addEventListener('load', e => {
-    const im = e.target;
-    if(im.tagName === 'IMG' && im.closest('.sk-logo') && im.naturalWidth > 16) im.parentElement.classList.add('ok');
-  }, true);
-  document.addEventListener('error', e => {
-    const im = e.target;
-    if(im.tagName === 'IMG' && im.closest('.sk-logo')) im.remove();
-  }, true);
-
   const tabs = $('#skTabs');
+  const years = $('#skYears');
   const view = $('#view-skills');
-  if(!tabs || !view) return;
+  if(!tabs || !years || !view) return;
 
   const mine = studentDept();
   const myYear = studentYear();
   locked = myYear !== 0;
 
-  tabs.innerHTML = `<button class="sk-tab" role="tab" data-tab="${ALL_KEY}">ALL</button>` + DEPARTMENTS.map(d => {
+  tabs.innerHTML = DEPARTMENTS.map(d => {
     const tag = d.key === mine ? '<span class="sk-mine">Your department</span>' : '';
     return `<button class="sk-tab" role="tab" data-tab="${esc(d.key)}">${esc(d.label)}${tag}</button>`;
   }).join('');
+
+  years.innerHTML = [{ key: 0, label: 'All years', level: '' }, ...YEARS].map(yr => {
+    const level = yr.level ? `<span class="sk-level">${esc(yr.level)}</span>` : '';
+    return `<button class="sk-year" data-year="${yr.key}">${esc(yr.label)}${level}</button>`;
+  }).join('');
+  years.hidden = locked;   // a student with a known year never sees the other years
 
     const progTabs = $('#skProgTabs');
   if(progTabs){
@@ -300,6 +257,12 @@ export function mount(){
     const b = e.target.closest('.sk-tab');
     if(b){ state.dept = b.dataset.tab; render(); }
   });
+  years.addEventListener('click', e => {
+    if(locked) return;
+    const b = e.target.closest('.sk-year');
+    if(b){ state.year = Number(b.dataset.year); render(); }
+  });
+
   /* ‹ › buttons nudge a row sideways (handy with a mouse that has no sideways wheel) */
   view.addEventListener('click', e => {
     const b = e.target.closest('.sk-arrow');
@@ -345,16 +308,7 @@ export function mount(){
     }
   });
 
-  const input = $('#skSearch'), clear = $('#skSearchClear');
-  if(input){
-    let t;
-    const apply = () => { state.q = input.value; clear.hidden = !input.value; render(); };
-    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 120); });
-    input.addEventListener('keydown', e => { if(e.key === 'Escape'){ input.value = ''; apply(); } });
-    clear.addEventListener('click', () => { input.value = ''; apply(); input.focus(); });
-  }
-
-  state.dept = mine || ALL_KEY;
+  state.dept = mine || 'CSE';
   state.year = myYear;
   render();
 }

@@ -6,7 +6,7 @@
    This is the only script index.html loads.
 ============================================================ */
 
-import * as router from './core/router.js?v=20261012b';
+import * as router from './core/router.js?v=20260930d';
 import * as theme  from './core/theme.js';
 import { clearSession } from './core/api.js';
 import { esc } from './core/dom.js';
@@ -14,17 +14,18 @@ import { getUser, USER_EVENT } from './core/user.js';
 
 import { mount as mountHome } from './pages/home.js?v=20261005b';
 import { mount as mountProfile } from './pages/profile.js';
-import { mount as mountJobs } from './pages/jobs.js?v=20261012b';
+import { mount as mountJobs } from './pages/jobs.js';
 import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261008c';
-import { mount as mountSkills } from './pages/skills.js?v=20261012e';
-import { mount as mountProgress } from './pages/progress.js?v=20261012d';
+import { mount as mountSkills } from './pages/skills.js?v=20261009f';
+import { mount as mountProgress } from './pages/progress.js';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 import { mount as mountRound2 } from './pages/round2.js';
 import { mount as mountSettings } from './pages/settings.js?v=20261005e';
 import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261008a';
+import { mount as mountWorkspace } from './pages/workspace.js?v=20261011a';
 import * as prefs from './core/prefs.js';
-import * as notifications from './core/notifications.js?v=20261012b';
+import * as notifications from './core/notifications.js';
 
 /* Route name -> pages/<name>.html + its mount function */
 router.register('home',         mountHome);
@@ -39,6 +40,7 @@ router.register('round2', mountRound2);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
 router.register('settings',     mountSettings);
 router.register('resume-parser', mountResumeParser);
+router.register('workspace', mountWorkspace);
 function getStudentYear(){
   try{
     const u=JSON.parse(localStorage.getItem('stepupStudent')||'{}');
@@ -84,6 +86,7 @@ avatar.addEventListener('click', (e) => {
     <div class="um-id"><div class="um-name">${esc(u.name)}</div><div class="um-reg">Reg No: ${esc(u.reg)}</div></div>
     <button data-act="profile">Profile</button>
     <button data-act="resume-parser">Resume Parser</button>
+    <button data-act="workspace">Workspace</button>
     <button data-act="settings">Settings</button>
     <button data-act="logout" class="danger">Logout</button>`;
   menu.classList.toggle('open');
@@ -92,6 +95,7 @@ menu.addEventListener('click', (e) => {
   const act = e.target.dataset.act;
   if(act === 'profile')  openProfile();
   if(act === 'resume-parser'){ menu.classList.remove('open'); router.navigate('resume-parser'); }
+  if(act === 'workspace'){ menu.classList.remove('open'); router.navigate('workspace'); }
   if(act === 'settings'){ menu.classList.remove('open'); router.navigate('settings'); }
   if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
 });

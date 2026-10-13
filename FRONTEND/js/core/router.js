@@ -72,7 +72,21 @@ export async function navigate(name, { updateHash = true } = {}){
     return;
   }
 
+  // Keep the Jobs button visible for every student, but lock the Jobs page
+  // until the student reaches 3rd year.
   let requestedName = name;
+
+  if(name === 'jobs'){
+    try{
+      const student = JSON.parse(localStorage.getItem('stepupStudent') || '{}');
+      const studyYear = Number(student.study_year ?? student.studyYear ?? 0);
+      if(studyYear < 3){
+        name = 'jobs-locked';
+      }
+    }catch{
+      name = 'jobs-locked';
+    }
+  }
 
   if(name === 'progress'){
     try{

@@ -1,0 +1,56 @@
+<section class="workspace-page">
+  <header class="ws-hero">
+    <div><p class="ws-eyebrow">STEP_UP TOOLS</p><h1>Workspace</h1><p>Convert files, optimize images, extract text, and keep your notes together.</p></div>
+  </header>
+  <div class="ws-tabs" role="tablist" aria-label="Workspace tools">
+    <button class="ws-tab active" data-ws-tab="convert">⇄ <span>Convert files</span></button>
+    <button class="ws-tab" data-ws-tab="images">▧ <span>Image tools</span></button>
+    <button class="ws-tab" data-ws-tab="extract">≡ <span>Extract text</span></button>
+    <button class="ws-tab" data-ws-tab="notes">✎ <span>Notes & snippets</span></button>
+  </div>
+  <div class="ws-alert" id="ws-alert" role="status" aria-live="polite" hidden></div>
+  <section class="ws-panel active" data-ws-panel="convert">
+    <div class="ws-section-head"><div><h2>File conversion</h2><p>Choose a tool, add your file, then convert.</p></div><span class="ws-pill">Files stay in your browser</span></div>
+    <div class="ws-tool-grid">
+      <article class="ws-tool-card"><div class="ws-tool-icon">PDF</div><h3>Images to PDF</h3><p>Combine JPG, JPEG or PNG images into one PDF.</p><label class="ws-file-button">Choose images<input id="ws-images-pdf" type="file" accept="image/png,image/jpeg,.jpg,.jpeg,.png" multiple></label><button class="ws-primary" id="ws-make-pdf">Create PDF</button></article>
+      <article class="ws-tool-card"><div class="ws-tool-icon">DOC</div><h3>Word to PDF</h3><p>Best-effort conversion. For layout-preserving conversion, install LibreOffice on the backend host.</p><label class="ws-file-button">Choose Word file<input id="ws-word-pdf-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label><button class="ws-primary" id="ws-word-pdf">Convert to PDF</button></article>
+      <article class="ws-tool-card"><div class="ws-tool-icon">DOCX</div><h3>PDF to Word</h3><p>Create an editable Word document from PDF text. Complex layouts and images may differ.</p><label class="ws-file-button">Choose PDF<input id="ws-pdf-word-file" type="file" accept="application/pdf,.pdf"></label><button class="ws-primary" id="ws-pdf-word">Convert to Word</button></article>
+    </div>
+  </section>
+  <section class="ws-panel" data-ws-panel="images" hidden>
+    <div class="ws-section-head"><div><h2>Image tools</h2><p>Resize and compress images with a target size where possible.</p></div></div>
+    <div class="ws-tool-grid ws-tool-grid-two">
+      <article class="ws-tool-card"><div class="ws-tool-icon">JPG</div><h3>Compress image</h3><p>Adjust quality and optionally set a target size. The result reports the actual size.</p><label class="ws-file-button">Choose image<input id="ws-compress-file" type="file" accept="image/*"></label><div class="ws-field"><label for="ws-target-kb">Target size (KB, optional)</label><input id="ws-target-kb" type="number" min="1" max="20000" placeholder="e.g. 20"></div><div class="ws-field"><label for="ws-quality">Quality <span id="ws-quality-value">80%</span></label><input id="ws-quality" type="range" min="10" max="95" value="80"></div><button class="ws-primary" id="ws-compress">Compress & download</button><p class="ws-small" id="ws-compress-result">Compression depends on image dimensions and content; a target size cannot always be guaranteed.</p></article>
+      <article class="ws-tool-card"><div class="ws-tool-icon">PNG</div><h3>Convert image format</h3><p>Export an image as PNG or JPG.</p><label class="ws-file-button">Choose image<input id="ws-format-file" type="file" accept="image/*"></label><div class="ws-field"><label for="ws-format">Output format</label><select id="ws-format"><option value="image/png">PNG</option><option value="image/jpeg">JPG / JPEG</option></select></div><button class="ws-primary" id="ws-format-convert">Convert & download</button></article>
+    </div>
+  </section>
+  <section class="ws-panel" data-ws-panel="extract" hidden>
+    <div class="ws-section-head"><div><h2>Extract text from PDF</h2><p>Extract selectable text or run OCR on scanned pages. OCR downloads a language model and may take time.</p></div></div>
+    <article class="ws-tool-card ws-extract-card"><label class="ws-file-button">Choose PDF<input id="ws-extract-file" type="file" accept="application/pdf,.pdf"></label><div class="ws-actions"><button class="ws-primary" id="ws-extract">Extract text</button><button class="ws-secondary" id="ws-ocr">OCR scanned PDF</button></div><textarea id="ws-extracted-text" rows="12" placeholder="Extracted text will appear here…"></textarea><div class="ws-actions"><button class="ws-secondary" id="ws-copy-text">Copy text</button><button class="ws-secondary" id="ws-download-text">Download .txt</button></div></article>
+  </section>
+  <section class="ws-panel" data-ws-panel="notes" hidden>
+    <div class="ws-section-head"><div><h2>Notes & checklists</h2><p>Each note can include text, screenshots and its own checklist.</p></div><button class="ws-primary" id="ws-new-note">+ New note</button></div>
+    <div class="ws-notes-layout">
+      <aside class="ws-note-list" id="ws-note-list" aria-label="Saved notes"></aside>
+      <article class="ws-note-editor">
+        <input id="ws-note-title" placeholder="Note title" maxlength="120" aria-label="Note title">
+        <textarea id="ws-note-body" rows="7" placeholder="Write a note… You can also paste a screenshot with Ctrl+V." aria-label="Note content"></textarea>
+        <div class="ws-note-images" id="ws-note-images"></div>
+        <div class="ws-actions">
+          <label class="ws-file-button">Attach images<input id="ws-note-image-file" type="file" accept="image/*" multiple></label>
+          <button class="ws-secondary" id="ws-capture-screen">Capture screen</button>
+          <button class="ws-primary" id="ws-save-note">Save note</button>
+          <button class="ws-danger" id="ws-delete-note">Delete</button>
+        </div>
+        <section class="ws-note-feature">
+          <div class="ws-feature-title"><h3>Checklist</h3><span>Tick items as you finish</span></div>
+          <div class="ws-checklist-add"><input id="ws-checklist-input" maxlength="240" placeholder="Add a task or checklist item"><button class="ws-secondary" id="ws-checklist-add">Add item</button></div>
+          <ul id="ws-checklist-items" class="ws-checklist-items"></ul>
+        </section>
+
+        <p class="ws-small">Notes, checklist items and screenshots are saved in this browser. Account sync depends on Workspace notes support being enabled on the server.</p>
+      </article>
+    </div>
+  </section>
+  <footer class="ws-footnote">Privacy note: files are processed locally in this page where supported. Conversion libraries load from public CDNs and require an internet connection. For sensitive files, use only tools you trust.</footer>
+</section>

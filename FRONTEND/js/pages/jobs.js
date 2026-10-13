@@ -7,7 +7,6 @@ let allJobs = [];
 let appliedJobIds = new Set();
 let state = { search:'', industry:'All', sort:'Latest' };
 const SAVED_KEY = 'stepupSavedJobs';
-let refreshTimer = null;
 
 function savedIds(){
   try{return new Set(JSON.parse(localStorage.getItem(SAVED_KEY) || '[]').map(String));}
@@ -70,12 +69,17 @@ async function loadJobs(){
     if(!res.ok) throw new Error(`Jobs API returned ${res.status}`);
     const result=await res.json();
     allJobs=Array.isArray(result.data) ? result.data.map(normalise) : [];
+    console.table(allJobs.map(j => ({
+  id: j.id,
+  companyId: j.companyId,
+  company: j.companyName,
+  title: j.jobTitle,
+  industry: j.industry
+})));
   }catch(err){
     console.error(err);
-    if(grid && document.body.dataset.route === 'jobs'){
-      grid.innerHTML='<div class="jobs-error">Jobs could not be loaded right now. Make sure the StepUp backend is running and your team is using the shared database.</div>';
-      $('#jobsCount').textContent='Unable to load companies';
-    }
+    grid.innerHTML='<div class="jobs-error">Jobs could not be loaded right now. Make sure the StepUp backend is running and your team is using the shared database.</div>';
+    $('#jobsCount').textContent='Unable to load companies';
     return;
   }
   render();
@@ -120,12 +124,11 @@ function cardHTML(group){
     <div class="company-pills">
       <span class="company-pill">◉ ${esc(j.salary || 'Compensation on listing')}</span>
       <span class="company-pill">▣ ${esc(j.workMode || 'Hybrid')}</span>
-      ${j.eligible_to_apply===false?'<span class="company-pill" title="Review job details to see which requirements are unmet">Eligibility requirements not met</span>':'<span class="company-pill">Eligible to apply</span>'}
     </div>
     <div class="company-open-roles">▣ ${count} Open Role${count===1?'':'s'}</div>
     <div class="company-card-footer">
       <button class="view-details-btn" data-details="${esc(String(j.id))}">View Details ›</button>
-      <button class="apply-job-btn ${appliedJobIds.has(String(j.id))?'applied':''}" data-apply="${esc(String(j.id))}" ${j.eligible_to_apply===false&&!appliedJobIds.has(String(j.id))?'disabled title="Review job details for eligibility requirements"':''}>${appliedJobIds.has(String(j.id))?'Applied':j.eligible_to_apply===false?'Not eligible':'Apply'}</button>
+      <button class="apply-job-btn ${appliedJobIds.has(String(j.id))?'applied':''}" data-apply="${esc(String(j.id))}">${appliedJobIds.has(String(j.id))?'Applied':'Apply'}</button>
       <button class="company-save-btn ${saved?'saved':''}" data-save="${esc(String(j.id))}">${saved?'Saved':'Save'}</button>
     </div>
   </article>`;
@@ -133,7 +136,6 @@ function cardHTML(group){
 
 function render(){
   const groups=groupByCompany(filtered()), grid=$('#jobsGrid');
-  if(!grid) return;
   $('#jobsCount').textContent=`Showing ${groups.length} of ${new Set(allJobs.map(j=>j.companyId)).size} companies`;
   grid.innerHTML=groups.length ? groups.map(cardHTML).join('') : '<div class="jobs-empty">No companies or roles match your search.</div>';
   grid.querySelectorAll('[data-details]').forEach(btn=>btn.addEventListener('click',()=>{
@@ -159,7 +161,6 @@ function render(){
         appliedJobIds.add(jobId);
         showApplyToast('Application submitted successfully!', true);
       }
-
       render();
     }catch(err){ btn.disabled=false; showApplyToast(err.message, false); }
   }));
@@ -168,15 +169,6 @@ function render(){
     set.has(id)?set.delete(id):set.add(id); persistSaved(set); render();
   }));
 }
-
-function refreshJobsIfVisible(){
-  if(document.body.dataset.route !== 'jobs' || document.visibilityState !== 'visible') return;
-  loadJobs();
-  loadApplications();
-}
-
-window.addEventListener('focus', refreshJobsIfVisible);
-document.addEventListener('visibilitychange', refreshJobsIfVisible);
 
 function bindEvents(){
   const search=$('#jobSearch');
@@ -198,7 +190,5 @@ export function mount(){
   state={search:'',industry:'All',sort:'Latest'};
   bindEvents();
   $('#jobsGrid').innerHTML='<div class="jobs-empty">Loading companies…</div>';
-  if(refreshTimer) window.clearInterval(refreshTimer);
-  refreshTimer=window.setInterval(refreshJobsIfVisible,60000);
   Promise.all([loadApplications(), loadJobs()]);
 }

@@ -48,10 +48,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const frontendDir = path.join(__dirname, '../FRONTEND');
 
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5502,http://127.0.0.1:5502,http://localhost:5500,http://localhost:5501,http://localhost:8000')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
 app.use(cors({
-  origin: process.env.FRONTEND_ORIGIN
-    ? process.env.FRONTEND_ORIGIN.split(',').map(s => s.trim())
-    : true
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  }
 }));
 
 app.use(express.json({ limit: '15mb' }));
@@ -482,7 +487,6 @@ async function ensureSchema() {
 
     ALTER TABLE jobs
       ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
-    ALTER TABLE jobs ADD COLUMN IF NOT EXISTS requirements TEXT NOT NULL DEFAULT '';
 
     ALTER TABLE students
       ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -502,38 +506,6 @@ async function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_job_applications_student_id
       ON job_applications(student_id);
-
-    CREATE TABLE IF NOT EXISTS assessment_attempts (
-      id BIGSERIAL PRIMARY KEY,
-      application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
-      student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-      round_index INTEGER NOT NULL CHECK (round_index >= 0),
-      round_name TEXT NOT NULL,
-      questions JSONB NOT NULL DEFAULT '[]'::jsonb,
-      answers JSONB NOT NULL DEFAULT '{}'::jsonb,
-      status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','submitted')),
-      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      expires_at TIMESTAMPTZ NOT NULL,
-      submitted_at TIMESTAMPTZ,
-      duration_seconds INTEGER NOT NULL DEFAULT 1800,
-      score INTEGER,
-      correct_count INTEGER,
-      total_questions INTEGER,
-      violation_count INTEGER NOT NULL DEFAULT 0,
-      integrity_events JSONB NOT NULL DEFAULT '[]'::jsonb,
-      auto_submitted BOOLEAN NOT NULL DEFAULT FALSE,
-      company_verified BOOLEAN NOT NULL DEFAULT FALSE,
-      company_decision TEXT,
-      company_feedback TEXT,
-      company_verified_at TIMESTAMPTZ,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      UNIQUE(application_id, student_id, round_index)
-    );
-    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_verified BOOLEAN NOT NULL DEFAULT FALSE;
-    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_decision TEXT;
-    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_feedback TEXT;
-    ALTER TABLE assessment_attempts ADD COLUMN IF NOT EXISTS company_verified_at TIMESTAMPTZ;
-    CREATE INDEX IF NOT EXISTS idx_assessment_attempts_student ON assessment_attempts(student_id, started_at DESC);
 
     CREATE TABLE IF NOT EXISTS student_resumes (
       student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
@@ -612,6 +584,12 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS workspace_notes (
+      student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
+      notes JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS admin_users (
       id BIGSERIAL PRIMARY KEY,
       admin_id TEXT NOT NULL UNIQUE,
@@ -628,6 +606,54 @@ async function ensureSchema() {
 
 
 }
+
+/* =========================================================
+   WORKSPACE NOTES — account-synced JSON note collection
+========================================================= */
+app.get('/api/student/workspace/notes', requireStudent, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT notes FROM workspace_notes WHERE student_id = $1', [req.student.studentId]);
+    res.json({ data: result.rows[0]?.notes || [] });
+  } catch (error) {
+    console.error('Workspace notes read failed:', error);
+    res.status(500).json({ error: 'Could not load Workspace notes.' });
+  }
+});
+
+app.put('/api/student/workspace/notes', requireStudent, async (req, res) => {
+  try {
+    const notes = req.body?.notes;
+    if (!Array.isArray(notes)) return res.status(400).json({ error: 'Notes must be an array.' });
+    if (Buffer.byteLength(JSON.stringify(notes), 'utf8') > 10 * 1024 * 1024) {
+      return res.status(413).json({ error: 'Notes are too large to sync. Remove some large screenshots and try again.' });
+    }
+    await pool.query(
+      `INSERT INTO workspace_notes (student_id, notes, updated_at) VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (student_id) DO UPDATE SET notes = EXCLUDED.notes, updated_at = NOW()`,
+      [req.student.studentId, JSON.stringify(notes)]
+    );
+    res.json({ data: notes, message: 'Workspace notes saved.' });
+  } catch (error) {
+    console.error('Workspace notes save failed:', error);
+    res.status(500).json({ error: 'Could not save Workspace notes.' });
+  }
+});
+
+app.delete('/api/student/workspace/notes/:noteId', requireStudent, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT notes FROM workspace_notes WHERE student_id = $1', [req.student.studentId]);
+    const notes = (result.rows[0]?.notes || []).filter(note => note?.id !== req.params.noteId);
+    await pool.query(
+      `INSERT INTO workspace_notes (student_id, notes, updated_at) VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (student_id) DO UPDATE SET notes = EXCLUDED.notes, updated_at = NOW()`,
+      [req.student.studentId, JSON.stringify(notes)]
+    );
+    res.json({ data: notes, message: 'Workspace note deleted.' });
+  } catch (error) {
+    console.error('Workspace note delete failed:', error);
+    res.status(500).json({ error: 'Could not delete Workspace note.' });
+  }
+});
 
 /* =========================================================
    HEALTH CHECK
@@ -1669,14 +1695,14 @@ app.post(
       await client.query('BEGIN');
       const r = await client.query(
         `INSERT INTO jobs
-         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,requirements,category,interview_rounds,approval_status,approval_note,reviewed_at,reviewed_by)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'Pending',NULL,NULL,NULL)
+         (company_id,title,job_type,salary,stipend,apply_before,visit_date,visit_tag,status,status_class,batch,location,work_mode,description,category,interview_rounds,approval_status,approval_note,reviewed_at,reviewed_by)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'Pending',NULL,NULL,NULL)
          RETURNING *`,
         [
           req.company.companyId, clean(b.title), clean(b.jobType), clean(b.salary) || null, clean(b.stipend) || null,
           b.applyBefore, clean(b.visitDate) || null, clean(b.visitTag) || null, clean(b.status) || 'Eligible',
           clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
-          clean(b.description), clean(b.requirements)||'', clean(b.category) || 'eligible', clean(b.interviewRounds)
+          clean(b.description), clean(b.category) || 'eligible', clean(b.interviewRounds)
         ]
       );
       const departments = normalizeEligibleDepartments(b.eligibleDepartments);
@@ -1711,14 +1737,14 @@ app.patch(
       const r = await client.query(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
-             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,requirements=$14,category=$15,
-             interview_rounds=$16,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
+             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,description=$13,category=$14,
+             interview_rounds=$15,approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
          WHERE id=$16 AND company_id=$17
          RETURNING *`,
         [
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
           clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
-          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.requirements)||'',clean(b.category)||'eligible',clean(b.interviewRounds),
+          clean(b.location)||null,clean(b.workMode)||null,clean(b.description),clean(b.category)||'eligible',clean(b.interviewRounds),
           req.params.id,req.company.companyId
         ]
       );
@@ -1935,42 +1961,6 @@ app.get('/api/student/notifications', requireStudent, async (req, res) => {
       );
     }
 
-    // Application status changes (Selected/Shortlisted/Waitlisted/Rejected) must
-    // notify the matching student and link directly to their existing Progress page.
-    const applicationUpdates = await pool.query(
-      `SELECT a.id AS application_id, a.status, a.updated_at, j.title AS job_title,
-              c.name AS company_name,
-              CONCAT('application-', a.id, '-', LOWER(a.status), '-',
-                     FLOOR(EXTRACT(EPOCH FROM a.updated_at) * 1000)::BIGINT) AS notification_id
-       FROM job_applications a
-       JOIN jobs j ON j.id=a.job_id
-       JOIN companies c ON c.id=j.company_id
-       WHERE a.student_id=$1
-         AND a.status IN ('Selected','Shortlisted','Interview','Waitlisted','Rejected')
-       ORDER BY a.updated_at DESC`,
-      [req.student.studentId]
-    );
-
-    const applicationNotifications = applicationUpdates.rows.map(a => {
-      const status = String(a.status || '').toLowerCase();
-      const labels = {
-        selected: ['You have been selected', 'The company selected you for the next stage.'],
-        shortlisted: ['You have been shortlisted', 'The company shortlisted your application.'],
-        interview: ['Interview stage updated', 'Your application has moved to the interview stage.'],
-        waitlisted: ['You are on the waitlist', 'The company placed your application on the waitlist.'],
-        rejected: ['Application update', 'The company has updated your application status.']
-      };
-      const [title, message] = labels[status] || ['Application update', 'Your application status has changed.'];
-      return {
-        id: a.notification_id,
-        type: 'status',
-        title: `${title}: ${a.job_title}`,
-        text: `${a.company_name} · ${message}`,
-        time: a.updated_at,
-        goto: 'progress'
-      };
-    });
-
     const data = [
       ...announcementsResult.rows.map(a => ({
         id: `announcement-${a.id}`,
@@ -1987,8 +1977,7 @@ app.get('/api/student/notifications', requireStudent, async (req, res) => {
         text: `${j.company_name} has posted a new opportunity.`,
         time: j.created_at,
         goto: 'jobs'
-      })),
-      ...applicationNotifications
+      }))
     ].sort((a, b) => new Date(b.time) - new Date(a.time));
 
     res.json({ data });
@@ -2757,8 +2746,7 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
     const r = await pool.query(
       `SELECT a.id,a.job_id,a.status,a.applied_at,a.updated_at,
               j.title,j.job_type,j.salary,j.stipend,j.apply_before,j.location,j.work_mode,j.interview_rounds,
-              c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',aa.score,'correct_count',aa.correct_count,'total_questions',aa.total_questions,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'company_verified',aa.company_verified,'company_decision',aa.company_decision,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts
+              c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
        JOIN companies c ON c.id=j.company_id
@@ -3095,136 +3083,6 @@ app.post('/api/student/resume/analyze', requireStudent, async (req, res) => {
     const status = e.status === 429 ? 429 : 500;
     res.status(status).json({ error: status === 429 ? 'The AI service is busy or rate-limited. Please try again shortly.' : (e.message || 'Could not analyze the resume.') });
   }
-});
-
-/* =========================================================
-   SECURE STUDENT ASSESSMENTS — recruitment round engine
-   Server owns attempts, deadlines, answer keys and scoring.
-========================================================= */
-function parseConfiguredRounds(raw) {
-  if (Array.isArray(raw)) return raw.map((r,i)=>typeof r==='string'?{name:r}:({...r,name:r.name||r.title||r.roundName||`Round ${i+1}`}));
-  const text=String(raw||'').trim(); if(!text||text==='Not specified') return [];
-  try { const parsed=JSON.parse(text); if(Array.isArray(parsed))return parseConfiguredRounds(parsed); if(parsed&&Array.isArray(parsed.rounds))return parseConfiguredRounds(parsed.rounds); } catch {}
-  return text.split(/\r?\n/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}));
-}
-function assessmentDurationSeconds(round) {
-  const raw=round.durationMinutes??round.duration_minutes??round.duration;
-  let v=Number(raw);
-  if(!Number.isFinite(v)){const match=String(raw||'').match(/(\d+(?:\.\d+)?)/);v=match?Number(match[1]):NaN;if(match&&/hour|hr/i.test(String(raw)))v*=60;}
-  if(Number.isFinite(v)&&v>0) return Math.min(120,Math.max(5,v))*60;
-  return 30*60;
-}
-function fallbackAssessmentQuestions(topics, roundName, requestedCount=10) {
-  const bank=[
-    {topic:'Quantitative aptitude',question:'A product costs ₹800 and is discounted by 15%. What is the sale price?',options:['₹620','₹680','₹700','₹720'],correctIndex:1,explanation:'15% of 800 is 120; 800 − 120 = 680.'},
-    {topic:'Logical reasoning',question:'Find the next number: 3, 6, 12, 24, __',options:['30','36','42','48'],correctIndex:3,explanation:'Each number is multiplied by 2.'},
-    {topic:'Programming fundamentals',question:'Which structure follows Last In, First Out (LIFO)?',options:['Queue','Stack','Graph','Hash table'],correctIndex:1,explanation:'A stack removes the most recently added item first.'},
-    {topic:'Programming fundamentals',question:'What is the purpose of a function in a program?',options:['To group reusable instructions','To increase screen brightness','To store only images','To replace the operating system'],correctIndex:0,explanation:'Functions package logic for reuse and clearer structure.'},
-    {topic:'Data structures',question:'Which data structure is commonly used for first-in, first-out processing?',options:['Stack','Queue','Tree','Set'],correctIndex:1,explanation:'Queues process the earliest inserted item first.'},
-    {topic:'SQL',question:'Which SQL clause filters rows before grouping?',options:['ORDER BY','WHERE','HAVING','LIMIT'],correctIndex:1,explanation:'WHERE filters rows before GROUP BY.'},
-    {topic:'Computer science',question:'Which HTTP status code usually means a request succeeded?',options:['200','301','403','500'],correctIndex:0,explanation:'200 OK indicates a successful request.'},
-    {topic:'Problem solving',question:'If 5 workers finish a task in 12 days at the same rate, how many worker-days are required?',options:['17','30','60','72'],correctIndex:3,explanation:'5 × 12 = 60 worker-days.'},
-    {topic:'JavaScript',question:'Which keyword declares a block-scoped variable that can be reassigned?',options:['const','let','static','define'],correctIndex:1,explanation:'let declares a reassignable block-scoped variable.'},
-    {topic:'Professional practice',question:'What is the best first step when a test question is unclear?',options:['Guess without reading','Ask for clarification if allowed by the rules','Open another tab to search','Share the question with others'],correctIndex:1,explanation:'Follow the assessment instructions and request clarification when permitted.'}
-  ];
-  const seed=(String(topics||'')+' '+String(roundName||'')).toLowerCase();
-  let filtered=bank.filter(q=>q.topic.toLowerCase().split(' ').some(w=>w.length>3&&seed.includes(w)));
-  if(filtered.length<5) filtered=bank;
-  const count=Math.max(1,Math.min(100,Number(requestedCount)||10));return Array.from({length:count},(_,i)=>({...filtered[i%filtered.length],id:`q${i+1}`}));
-}
-async function generateAssessmentQuestions(round, job) {
-  const topics=String(round.topics||round.skills||round.description||round.instructions||job.requirements||job.description||job.title||'general aptitude');
-  const questionCount=Math.max(1,Math.min(100,Number(round.questionCount??round.question_count??10)||10));
-  if(GEMINI_API_KEY) {
-    try {
-      const prompt=`Create exactly ${questionCount} original multiple-choice questions for a student placement assessment. Job role: ${job.title}. Round: ${round.name}. Topics: ${topics}. Keep difficulty moderate and questions unambiguous. Each question must have exactly four options and one correctIndex (0-3). Do not include personal data, unsafe content, or answers in the question text. Return JSON array only with keys topic, question, options, correctIndex, explanation.`;
-      const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.35,responseMimeType:'application/json',maxOutputTokens:5000}}),signal:AbortSignal.timeout(25000)});
-      const payload=await response.json();
-      if(response.ok){const text=payload.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';const parsed=JSON.parse(text);if(Array.isArray(parsed)){const valid=parsed.filter(q=>q&&typeof q.question==='string'&&Array.isArray(q.options)&&q.options.length===4&&Number.isInteger(Number(q.correctIndex))&&Number(q.correctIndex)>=0&&Number(q.correctIndex)<=3).slice(0,questionCount);if(valid.length>=Math.min(5,questionCount))return valid.map((q,i)=>({...q,id:`q${i+1}`,correctIndex:Number(q.correctIndex)}));}}
-    } catch(e) { console.warn('AI question generation failed; using fallback question set:',e.message); }
-  }
-  return fallbackAssessmentQuestions(topics,round.name,questionCount);
-}
-function publicQuestions(questions) { return questions.map(({id,topic,question,options})=>({id,topic,question,options})); }
-async function scoreAssessmentAttempt(attemptId, studentId, forceAuto=false) {
-  const found=await pool.query('SELECT * FROM assessment_attempts WHERE id=$1 AND student_id=$2',[attemptId,studentId]);
-  const a=found.rows[0]; if(!a) return null;
-  if(a.status==='submitted') return {score:a.score,correctCount:a.correct_count,totalQuestions:a.total_questions,autoSubmitted:a.auto_submitted};
-  const questions=Array.isArray(a.questions)?a.questions:[]; const answers=a.answers&&typeof a.answers==='object'?a.answers:{};
-  let correct=0; for(const q of questions) if(Number(answers[q.id])===Number(q.correctIndex)) correct++;
-  const score=questions.length?Math.round(correct/questions.length*100):0;
-  const updated=await pool.query(`UPDATE assessment_attempts SET status='submitted',submitted_at=NOW(),score=$3,correct_count=$4,total_questions=$5,auto_submitted=$6 WHERE id=$1 AND student_id=$2 RETURNING score,correct_count,total_questions,auto_submitted`,[attemptId,studentId,score,correct,questions.length,Boolean(forceAuto)]);
-  return updated.rows[0]||null;
-}
-
-app.post('/api/student/assessments/prepare', requireStudent, async (req,res)=>{
-  try {
-    const appId=Number(req.body.applicationId), roundIndex=Number(req.body.roundIndex);
-    const r=await pool.query(`SELECT a.id,a.status,j.title,j.description,j.requirements,j.interview_rounds,c.name AS company_name,s.skills,s.department,s.degree,s.cgpa,s.projects,s.summary FROM job_applications a JOIN jobs j ON j.id=a.job_id JOIN companies c ON c.id=j.company_id JOIN students s ON s.id=a.student_id WHERE a.id=$1 AND a.student_id=$2`,[appId,req.student.studentId]);
-    const row=r.rows[0]; if(!row)return res.status(404).json({error:'Application not found.'});
-    if(!['selected','shortlisted','interview'].includes(String(row.status).toLowerCase()))return res.status(403).json({error:'Preparation unlocks after shortlisting or selection.'});
-    const rounds=parseConfiguredRounds(row.interview_rounds), round=rounds[roundIndex]; if(!round)return res.status(404).json({error:'Recruitment round not found.'});
-    const topics=String(round.topics||round.skills||round.description||row.description||row.title);
-    let tasks=[`Review the fundamentals of ${topics}.`,`Complete 20 practice questions related to ${round.name}.`,'Practise explaining your reasoning aloud.','Review your mistakes and retry similar questions.'];
-    let summary=`Prepare for ${round.name} by focusing on ${topics}. Use timed practice and review each incorrect answer.`;
-    if(GEMINI_API_KEY){try{const prompt=`Create a concise student preparation plan in JSON for a placement round. Role: ${row.title}; round: ${round.name}; topics: ${topics}; student skills: ${JSON.stringify(row.skills||[])}. Return {"summary":"...","tasks":["..." x 4-6]}. Do not invent student credentials or guarantee selection.`;const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.3,responseMimeType:'application/json',maxOutputTokens:1200}}),signal:AbortSignal.timeout(15000)});const p=await response.json();if(response.ok){const text=p.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||'';const plan=JSON.parse(text);if(plan.summary)summary=plan.summary;if(Array.isArray(plan.tasks))tasks=plan.tasks.slice(0,7);}}catch(e){console.warn('AI prep plan fallback:',e.message);}}
-    res.json({data:{title:`${round.name} preparation plan`,summary,tasks,aiGenerated:Boolean(GEMINI_API_KEY)}});
-  } catch(e){console.error(e);res.status(500).json({error:'Could not prepare this round.'});}
-});
-
-app.post('/api/student/assessments/start', requireStudent, async (req,res)=>{
-  try {
-    const applicationId=Number(req.body.applicationId), roundIndex=Number(req.body.roundIndex);
-    if(!Number.isSafeInteger(applicationId)||applicationId<1||!Number.isInteger(roundIndex)||roundIndex<0)return res.status(400).json({error:'Invalid application or round.'});
-    const r=await pool.query(`SELECT a.id,a.status,j.title,j.description,j.requirements,j.interview_rounds FROM job_applications a JOIN jobs j ON j.id=a.job_id WHERE a.id=$1 AND a.student_id=$2`,[applicationId,req.student.studentId]);
-    const row=r.rows[0]; if(!row)return res.status(404).json({error:'Application not found.'});
-    if(!['selected','shortlisted','interview'].includes(String(row.status).toLowerCase()))return res.status(403).json({error:'The company must shortlist or select you before you can start an assessment.'});
-    const rounds=parseConfiguredRounds(row.interview_rounds), round=rounds[roundIndex]; if(!round)return res.status(404).json({error:'Round configuration was not found.'});
-    if(!/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name} ${round.type||round.mode||''}`))return res.status(400).json({error:'This round is not configured as an online assessment. The recruiter will schedule it.'});
-    if(roundIndex>0){const prior=await pool.query(`SELECT status,score,company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3`,[applicationId,req.student.studentId,roundIndex-1]);const requiredScore=Number(String(rounds[roundIndex-1].cutoff??rounds[roundIndex-1].passingScore??rounds[roundIndex-1].passing_score??60).replace('%',''));if(!prior.rows[0]||prior.rows[0].status!=='submitted'||Number(prior.rows[0].score)<requiredScore||prior.rows[0].company_verified!==true||prior.rows[0].company_decision!=='Pass')return res.status(403).json({error:`The previous round must be passed and verified by the company before this assessment unlocks. Required score: ${requiredScore}%.`});}
-    const existing=await pool.query('SELECT * FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3',[applicationId,req.student.studentId,roundIndex]);
-    if(existing.rows[0]){const a=existing.rows[0];if(a.status==='submitted')return res.status(409).json({error:'This round has already been submitted. Retakes must be enabled by the recruiter.'});if(new Date(a.expires_at)<=new Date()){const result=await scoreAssessmentAttempt(a.id,req.student.studentId,true);return res.status(409).json({error:'Your previous attempt expired and was submitted automatically.',result});}const remaining=Math.max(1,Math.floor((new Date(a.expires_at)-Date.now())/1000));return res.json({data:{attemptId:a.id,roundName:a.round_name,questions:publicQuestions(a.questions),remainingSeconds:remaining,violationCount:a.violation_count,resumed:true}});}
-    const questions=await generateAssessmentQuestions(round,row);
-    const duration=assessmentDurationSeconds(round);
-    const inserted=await pool.query(`INSERT INTO assessment_attempts(application_id,student_id,round_index,round_name,questions,answers,status,started_at,expires_at,duration_seconds,violation_count) VALUES($1,$2,$3,$4,$5::jsonb,'{}'::jsonb,'in_progress',NOW(),NOW()+($6 * INTERVAL '1 second'),$6,0) RETURNING id,expires_at,violation_count`,[applicationId,req.student.studentId,roundIndex,round.name,JSON.stringify(questions),duration]);
-    const a=inserted.rows[0];res.status(201).json({data:{attemptId:a.id,roundName:round.name,questions:publicQuestions(questions),remainingSeconds:duration,expiresAt:a.expires_at,violationCount:0,strictMode:true}});
-  } catch(e){if(e.code==='23505')return res.status(409).json({error:'An attempt already exists for this round. Refresh the Progress page.'});console.error(e);res.status(500).json({error:'Could not start assessment.'});}
-});
-
-app.put('/api/student/assessments/:id/answer', requireStudent, async(req,res)=>{
-  try{const id=Number(req.params.id),questionId=String(req.body.questionId||''),answerIndex=Number(req.body.answerIndex);if(!Number.isSafeInteger(id)||!questionId||!Number.isInteger(answerIndex)||answerIndex<0||answerIndex>3)return res.status(400).json({error:'Invalid answer.'});const r=await pool.query(`UPDATE assessment_attempts SET answers=jsonb_set(answers,ARRAY[$3],to_jsonb($4::int),true) WHERE id=$1 AND student_id=$2 AND status='in_progress' AND expires_at>NOW() AND EXISTS(SELECT 1 FROM jsonb_array_elements(questions) q WHERE q->>'id'=$3 AND jsonb_array_length(q->'options')>$4) RETURNING id,expires_at`,[id,req.student.studentId,questionId,answerIndex]);if(!r.rows[0])return res.status(409).json({error:'Attempt expired, submitted, or answer is invalid.'});res.json({data:{saved:true,expiresAt:r.rows[0].expires_at}});}catch(e){console.error(e);res.status(500).json({error:'Could not save answer.'});}
-});
-
-app.post('/api/student/assessments/:id/violation', requireStudent, async(req,res)=>{
-  try{const id=Number(req.params.id),reason=String(req.body.reason||'Integrity event').slice(0,180);const r=await pool.query(`UPDATE assessment_attempts SET violation_count=violation_count+1, integrity_events=integrity_events || jsonb_build_array(jsonb_build_object('reason',$3::text,'at',NOW())), updated_at=NOW() WHERE id=$1 AND student_id=$2 AND status='in_progress' AND expires_at>NOW() RETURNING violation_count`,[id,req.student.studentId,reason]);if(!r.rows[0])return res.status(404).json({error:'Active attempt not found.'});const count=r.rows[0].violation_count;let result=null;if(count>=3)result=await scoreAssessmentAttempt(id,req.student.studentId,true);res.json({data:{violationCount:count,autoSubmitted:count>=3,result}});}catch(e){console.error(e);res.status(500).json({error:'Could not record integrity event.'});}
-});
-
-app.post('/api/student/assessments/:id/submit', requireStudent, async(req,res)=>{
-  try{const id=Number(req.params.id);const check=await pool.query('SELECT id,status,expires_at FROM assessment_attempts WHERE id=$1 AND student_id=$2',[id,req.student.studentId]);const a=check.rows[0];if(!a)return res.status(404).json({error:'Assessment attempt not found.'});if(a.status==='submitted'){const prev=await pool.query('SELECT score,correct_count,total_questions,auto_submitted FROM assessment_attempts WHERE id=$1',[id]);return res.json({data:prev.rows[0]});}const expired=new Date(a.expires_at)<=new Date();if(!expired&&req.body.answers&&typeof req.body.answers==='object'){const detail=await pool.query('SELECT questions FROM assessment_attempts WHERE id=$1 AND student_id=$2',[id,req.student.studentId]);const qs=Array.isArray(detail.rows[0]?.questions)?detail.rows[0].questions:[];const safe={};for(const q of qs){const v=req.body.answers[q.id];if(Number.isInteger(Number(v))&&Number(v)>=0&&Number(v)<(q.options||[]).length)safe[q.id]=Number(v);}if(Object.keys(safe).length){await pool.query("UPDATE assessment_attempts SET answers=answers || $3::jsonb WHERE id=$1 AND student_id=$2 AND status='in_progress'", [id,req.student.studentId,JSON.stringify(safe)]);}}const result=await scoreAssessmentAttempt(id,req.student.studentId,Boolean(req.body.autoSubmitted)||expired);if(!result)return res.status(409).json({error:'Could not submit this attempt.'});res.json({data:result});}catch(e){console.error(e);res.status(500).json({error:'Could not submit assessment.'});}
-});
-
-app.get('/api/student/assessments/:id/result', requireStudent, async(req,res)=>{try{const r=await pool.query(`SELECT id,round_name,status,score,correct_count,total_questions,violation_count,auto_submitted,started_at,submitted_at FROM assessment_attempts WHERE id=$1 AND student_id=$2`,[Number(req.params.id),req.student.studentId]);if(!r.rows[0])return res.status(404).json({error:'Result not found.'});if(r.rows[0].status!=='submitted')return res.status(409).json({error:'This assessment has not been submitted.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not load assessment result.'});}});
-
-/* =========================================================
-   COMPANY ROUND VERIFICATION — recruiter approves each submitted test
-========================================================= */
-app.get('/api/company/jobs/:id/assessments', requireCompany, async (req,res)=>{
-  try {
-    const job=await pool.query('SELECT id FROM jobs WHERE id=$1 AND company_id=$2',[req.params.id,req.company.companyId]);
-    if(!job.rows[0])return res.status(404).json({error:'Job not found for this company.'});
-    const r=await pool.query(`SELECT aa.id AS attempt_id,aa.application_id,aa.student_id,aa.round_index,aa.round_name,aa.status,aa.score,aa.correct_count,aa.total_questions,aa.violation_count,aa.auto_submitted,aa.company_verified,aa.company_decision,aa.company_feedback,aa.company_verified_at,aa.submitted_at,s.name AS student_name,s.email,a.status AS application_status FROM assessment_attempts aa JOIN job_applications a ON a.id=aa.application_id JOIN students s ON s.id=aa.student_id JOIN jobs j ON j.id=a.job_id WHERE j.id=$1 AND j.company_id=$2 AND aa.status='submitted' ORDER BY aa.submitted_at DESC`,[req.params.id,req.company.companyId]);
-    res.json({data:r.rows});
-  }catch(e){console.error(e);res.status(500).json({error:'Could not load submitted assessments.'});}
-});
-app.patch('/api/company/assessments/:id/verify', requireCompany, async(req,res)=>{
-  const decision=String(req.body.decision||'');
-  const feedback=clean(req.body.feedback)||null;
-  if(!['Pass','Fail','Needs review'].includes(decision))return res.status(400).json({error:'Choose Pass, Fail or Needs review.'});
-  try{
-    const r=await pool.query(`UPDATE assessment_attempts aa SET company_verified=($1<>'Needs review'),company_decision=$1,company_feedback=$2,company_verified_at=CASE WHEN $1='Needs review' THEN NULL ELSE NOW() END,updated_at=NOW() FROM job_applications a,jobs j WHERE aa.id=$3 AND aa.application_id=a.id AND a.job_id=j.id AND j.company_id=$4 AND aa.status='submitted' RETURNING aa.id AS attempt_id,aa.application_id,aa.round_index,aa.round_name,aa.score,aa.company_verified,aa.company_decision,aa.company_feedback,aa.company_verified_at`,[decision,feedback,req.params.id,req.company.companyId]);
-    if(!r.rows[0])return res.status(404).json({error:'Submitted assessment not found for your company.'});
-    res.json({data:r.rows[0]});
-  }catch(e){console.error(e);res.status(500).json({error:'Could not save round verification.'});}
 });
 
 /* =========================================================
