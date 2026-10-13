@@ -451,7 +451,8 @@
 }
 
 #view-progress .section-heading h2 {
-  color: var(--ink);
+  color: #20283a;
+  font-weight: 700;
 }
 
 #view-progress .section-heading p {
