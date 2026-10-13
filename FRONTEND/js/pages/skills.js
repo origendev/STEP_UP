@@ -120,7 +120,7 @@ const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" strok
 const CLIP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg>';
 
 const ALL_KEY = 'ALL';
-const state = { dept: ALL_KEY, year: 0, lang: 'Python' };
+const state = { dept: ALL_KEY, year: 0, lang: 'Python', q: '' };
 const PROG_LEVELS = [{ key: 'Beginner' }, { key: 'Intermediate' }, { key: 'Advanced' }];
 let locked = false;   // true when the student's year is known: they only see their own year
 
@@ -161,6 +161,14 @@ function card(c){
 }
 
 const yearOk = c => state.year === 0 || c.years.includes(state.year);
+
+/** Search: every word typed must appear in the title, company, description, certificate or language. */
+function matches(c){
+  const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+  if(!words.length) return true;
+  const hay = [c.title, c.company, c.desc, c.cert, c.lang, c.group, c.level].join(' ').toLowerCase();
+  return words.every(w => hay.includes(w));
+}
 
 /** Fill a scroller: cards, or one friendly message when there are none. */
 function fill(el, list, emptyText){
@@ -205,14 +213,15 @@ function render(){
   const order = GENERAL_GROUPS.map(g => g.key);
   /* ALL tab: general courses first, then every department's courses, in one grid.
      A department tab: only that department's courses. */
-  const isAll = state.dept === ALL_KEY;
-  const dept = COURSES.filter(c => yearOk(c) && (isAll
+  const searching = state.q.trim() !== '';
+  const isAll = state.dept === ALL_KEY || searching;   /* searching looks through every department */
+  const dept = COURSES.filter(c => yearOk(c) && matches(c) && (isAll
     ? true
     : !c.general && (c.depts === 'ALL' || c.depts.includes(state.dept))));
   if(isAll) dept.sort((a, b) => (b.general ? 1 : 0) - (a.general ? 1 : 0) ||
     (a.general ? order.indexOf(a.group) - order.indexOf(b.group) : 0));
 
-  fill($('#skDept'), dept, isAll
+  fill($('#skDept'), dept, searching ? 'No courses found.' : isAll
     ? `No courses added yet${yearWords}.`
     : `No ${state.dept}-specific free certificate courses added yet${yearWords}.`);
 
@@ -226,23 +235,29 @@ function render(){
     b.classList.toggle('active', on);
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
-    PROG_LEVELS.forEach(lv => {
+  let progTotal = 0;
+  PROG_LEVELS.forEach(lv => {
     const list = PROG_COURSES.filter(c =>
-      c.lang === state.lang &&
-      (c.level || 'Beginner') === lv.key &&
-      yearOk(c)
-    );
-    fill(
-      $(`#skProgLevels${lv.key}`),
-      list,
-      `${lv.key} ${state.lang} courses coming soon.`
-    );
-  });
-    PROG_LEVELS.forEach(lv => {
-    const list = PROG_COURSES.filter(c =>
-      c.lang === state.lang && (c.level || 'Beginner') === lv.key && yearOk(c));
+      (searching ? true : c.lang === state.lang) &&
+      (c.level || 'Beginner') === lv.key && yearOk(c) && matches(c));
+    progTotal += list.length;
     fill($('#skProgLevels' + lv.key), list, `${lv.key} ${state.lang} courses coming soon.`);
+    const sub = $('#skProgLevels' + lv.key).closest('.sk-sub');
+    if(sub) sub.hidden = searching && !list.length;
   });
+
+  /* Search mode: hide the tabs and empty sections, show a count, or a "nothing found" card */
+  const total = dept.length + progTotal;
+  $('#skDeptSec').hidden = searching && !dept.length;
+  $('.sk-gen-head').hidden = searching;
+  $('#skTabs').hidden = searching;
+  $('#skProgTabs').hidden = searching;
+  $('#skProgTitle').closest('.sk-section').hidden = searching && !progTotal;
+  const none = $('#skNone');
+  none.hidden = !(searching && !total);
+  none.textContent = `No courses found for “${state.q.trim()}”. Try a company (IBM), a skill (Python) or a topic (aptitude).`;
+  const cnt = $('#skCount');
+  if(cnt) cnt.textContent = searching ? `${total} result${total === 1 ? '' : 's'}` : '';
 }
 
 export function mount(){
@@ -329,6 +344,15 @@ export function mount(){
       if(saveCerts(all)) render();
     }
   });
+
+  const input = $('#skSearch'), clear = $('#skSearchClear');
+  if(input){
+    let t;
+    const apply = () => { state.q = input.value; clear.hidden = !input.value; render(); };
+    input.addEventListener('input', () => { clearTimeout(t); t = setTimeout(apply, 120); });
+    input.addEventListener('keydown', e => { if(e.key === 'Escape'){ input.value = ''; apply(); } });
+    clear.addEventListener('click', () => { input.value = ''; apply(); input.focus(); });
+  }
 
   state.dept = mine || ALL_KEY;
   state.year = myYear;
