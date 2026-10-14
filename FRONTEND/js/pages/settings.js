@@ -1,9 +1,8 @@
 /* ============================================================
    settings.js — wires up pages/settings.html
-   Preferences live in js/core/prefs.js; theme in js/core/theme.js.
+   Preferences live in js/core/prefs.js.
 ============================================================ */
 import * as prefs from '../core/prefs.js';
-import * as theme from '../core/theme.js';
 import { clearSession } from '../core/api.js';
 
 const go = name => { location.hash = '#/' + name; };
@@ -51,10 +50,6 @@ const TEMPLATE = `
   <section class="card st-card">
     <div class="card-head"><div class="card-title">Appearance</div>
       <span class="st-ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span></div>
-    <div class="st-row">
-      <div class="st-label"><b>Theme</b><small>Switch between light and dark mode</small></div>
-      <div class="seg" data-pref="theme"><button data-v="system">System</button><button data-v="light">Light</button><button data-v="dark">Dark</button></div>
-    </div>
     <div class="st-row">
       <div class="st-label"><b>Font family</b><small>Choose your preferred font</small></div>
       <select class="st-select" data-pref="font">
@@ -157,16 +152,6 @@ export function mount(){
   const root = document.getElementById('view-settings');
   root.innerHTML = TEMPLATE;
   const toggle = id => { const el = root.querySelector('#' + id); el.hidden = !el.hidden; };
-
-  /* Theme: System / Light / Dark */
-  const seg = root.querySelector('[data-pref="theme"]');
-  const paintSeg = () => seg.querySelectorAll('button')
-    .forEach(b => b.classList.toggle('on', b.dataset.v === theme.getMode()));
-  seg.addEventListener('click', e => {
-    const b = e.target.closest('button'); if(!b) return;
-    theme.setMode(b.dataset.v); paintSeg();
-  });
-  paintSeg();
 
   /* Font, navigation, zoom */
   root.querySelectorAll('select[data-pref]').forEach(sel => {

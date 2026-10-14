@@ -189,12 +189,6 @@
   .sk-arrows{ display:none; }          /* touch screens just swipe */
 }
 
-/* Dark mode: the note's cream background is too bright on a dark page */
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .sk-note{ background:#2a2212; color:#e8b64d; }
-}
-:root[data-theme="dark"] .sk-note{ background:#2a2212; color:#e8b64d; }
-
 
 /* Hide horizontal scrollbar while keeping course scrolling */
 .sk-scroller {

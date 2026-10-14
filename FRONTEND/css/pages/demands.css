@@ -1,4 +1,4 @@
-/* ---- Dashboard colour tokens: readable in light AND dark ---- */
+/* ---- Dashboard colour tokens: light theme ---- */
 :root{
   --d-accent:#146b50; --d-accent2:#18795f; --d-accent-hover:#0b513b;
   --d-hiring:#17805f; --d-layoff:#d36556;
@@ -10,32 +10,6 @@
   --d-mixed-bg:#f1eee2; --d-mixed-text:#806423;
   --d-thumb-a:#e0eee7; --d-thumb-b:#f2e8e1; --d-thumb-text:#456b5c;
   --violet-50:#f6f3ff; --ink-muted:#6a6482;
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --d-accent:#7be0b6; --d-accent2:#6fd8ac; --d-accent-hover:#b4f2d6;
-    --d-hiring:#4fd1a1; --d-layoff:#ff8b7b;
-    --d-chip-bg:rgba(123,224,182,.14); --d-chip-text:#9be8c8;
-    --d-tint:rgba(123,224,182,.09); --d-hover:rgba(255,255,255,.06); --d-panel:rgba(255,255,255,.04); --d-track:rgba(255,255,255,.10);
-    --d-skill-bg:rgba(123,224,182,.12); --d-skill-text:#bfeed7;
-    --d-hiring-bg:rgba(123,224,182,.16); --d-hiring-text:#8ee9c3;
-    --d-layoff-bg:rgba(255,139,123,.16); --d-layoff-text:#ffaa9d;
-    --d-mixed-bg:rgba(232,199,122,.16); --d-mixed-text:#f0d58f;
-    --d-thumb-a:#1d3a33; --d-thumb-b:#33241f; --d-thumb-text:#9be8c8;
-    --violet-50:#1a2350; --ink-muted:#93a0c9;
-  }
-}
-:root[data-theme="dark"]{
-  --d-accent:#7be0b6; --d-accent2:#6fd8ac; --d-accent-hover:#b4f2d6;
-  --d-hiring:#4fd1a1; --d-layoff:#ff8b7b;
-  --d-chip-bg:rgba(123,224,182,.14); --d-chip-text:#9be8c8;
-  --d-tint:rgba(123,224,182,.09); --d-hover:rgba(255,255,255,.06); --d-panel:rgba(255,255,255,.04); --d-track:rgba(255,255,255,.10);
-  --d-skill-bg:rgba(123,224,182,.12); --d-skill-text:#bfeed7;
-  --d-hiring-bg:rgba(123,224,182,.16); --d-hiring-text:#8ee9c3;
-  --d-layoff-bg:rgba(255,139,123,.16); --d-layoff-text:#ffaa9d;
-  --d-mixed-bg:rgba(232,199,122,.16); --d-mixed-text:#f0d58f;
-  --d-thumb-a:#1d3a33; --d-thumb-b:#33241f; --d-thumb-text:#9be8c8;
-  --violet-50:#1a2350; --ink-muted:#93a0c9;
 }
 .feed-market-pill{ display:inline-block; padding:6px 12px; border:1px solid var(--line); border-radius:5px; background:var(--d-chip-bg); color:var(--d-chip-text); font-size:11px; font-weight:800; }
 /* ============================================================

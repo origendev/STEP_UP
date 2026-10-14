@@ -45,18 +45,14 @@
 .ws-note-images img{width:auto;max-width:220px;max-height:220px;object-fit:contain;background:#f3f5f8}
 .ws-note-images img:focus{outline:2px solid #2878bb}
 
-/* Workspace theme integration: follow the site's explicit light/dark choice. */
+/* Workspace theme integration (light only). */
 .workspace-page{color:var(--ink,#1c1730);--ws-surface:var(--white,#fff);--ws-border:var(--line,#e7e1fb);--ws-muted:var(--ink-soft,#6a6482);--ws-page:var(--lilac-bg,#f6f3ff)}
 .workspace-page .ws-tool-card,.workspace-page .ws-note-editor,.workspace-page .ws-note-item,.workspace-page .ws-tab,.workspace-page .ws-note-feature,.workspace-page .ws-field input,.workspace-page .ws-field select,.workspace-page .ws-note-editor>input,.workspace-page .ws-note-editor textarea,.workspace-page .ws-extract-card textarea{background:var(--ws-surface);color:var(--ink);border-color:var(--ws-border)}
 .workspace-page .ws-section-head p,.workspace-page .ws-tool-card p,.workspace-page .ws-note-item small,.workspace-page .ws-small,.workspace-page .ws-footnote{color:var(--ws-muted)}
 .workspace-page .ws-note-feature{background:var(--ws-surface)}
-:root[data-theme="dark"] .workspace-page{--ws-surface:#151d35;--ws-border:#303c60;--ws-muted:#aab6d2;color:#f1f4ff}
-:root[data-theme="dark"] .workspace-page .ws-tool-card,:root[data-theme="dark"] .workspace-page .ws-note-editor,:root[data-theme="dark"] .workspace-page .ws-note-item,:root[data-theme="dark"] .workspace-page .ws-tab,:root[data-theme="dark"] .workspace-page .ws-note-feature,:root[data-theme="dark"] .workspace-page .ws-field input,:root[data-theme="dark"] .workspace-page .ws-field select,:root[data-theme="dark"] .workspace-page .ws-note-editor>input,:root[data-theme="dark"] .workspace-page .ws-note-editor textarea,:root[data-theme="dark"] .workspace-page .ws-extract-card textarea{background:var(--ws-surface);color:#f1f4ff;border-color:var(--ws-border)}
-:root[data-theme="dark"] .workspace-page .ws-secondary,:root[data-theme="dark"] .workspace-page .ws-file-button{background:#1b2744;color:#f1f4ff;border-color:#3a496d}
 .ws-file-preview{display:grid;gap:5px;margin:0 0 10px;min-width:0}.ws-file-preview-row{width:100%;text-align:left;border:1px solid var(--line,#dce3ec);border-radius:8px;padding:7px 9px;background:var(--white,#fff);color:var(--ink,#172033);font-size:11px;overflow-wrap:anywhere;cursor:pointer}.ws-file-preview-row:hover{border-color:#3984bd;background:var(--violet-100,#eef5ff)}
 .ws-dropzone.drag-over{outline:3px solid #5d9ed7;background:var(--violet-100,#eef5ff)}.ws-note-editor.ws-note-dragover{outline:3px dashed #3984bd;outline-offset:4px}
 .ws-preview-modal{position:fixed;inset:0;z-index:99999;background:#050914d9;display:grid;place-items:center;padding:3vh 3vw}.ws-preview-modal[hidden]{display:none!important}.ws-preview-dialog{width:min(1200px,96vw);height:min(900px,94vh);background:var(--white,#fff);color:var(--ink,#172033);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px #0008}.ws-preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line,#dce3ec);flex-wrap:wrap}.ws-preview-toolbar>div{display:flex;align-items:center;gap:14px}.ws-preview-toolbar a{font-size:12px;font-weight:700;color:var(--violet-700,#245b83)}.ws-preview-toolbar button{border:0;border-radius:8px;padding:8px 11px;background:#e9edf5;color:#172033}.ws-preview-content{flex:1;min-height:0;display:grid;place-items:center;overflow:auto;padding:12px}.ws-preview-content img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}.ws-preview-content iframe{width:100%;height:100%;border:0;background:white}.ws-preview-content p{padding:20px;text-align:center}.ws-note-images img{cursor:zoom-in}
-:root[data-theme="dark"] .ws-preview-dialog{background:#151d35;color:#f1f4ff}:root[data-theme="dark"] .ws-preview-toolbar{border-color:#303c60}:root[data-theme="dark"] .ws-preview-toolbar button{background:#263553;color:#f1f4ff}
 
 /* Consistent file upload, preview and responsive alignment refinements */
 .workspace-page, .workspace-page * { box-sizing: border-box; }
@@ -73,11 +69,6 @@
 .workspace-page .ws-tool-card > .ws-primary { margin-top:auto; min-height:42px; }
 .workspace-page .ws-actions > .ws-file-button { width:auto; max-width:100%; }
 .workspace-page .ws-preview-toolbar { background:var(--white,#fff); color:var(--ink,#172033); }
-:root[data-theme="dark"] .workspace-page .ws-file-preview-row { background:#1b2744; color:#f1f4ff; border-color:#3a496d; }
-:root[data-theme="dark"] .workspace-page .ws-file-preview-row span { color:#b9c5df; }
-:root[data-theme="dark"] .workspace-page .ws-pill { background:#1b3554; color:#c8e5ff; }
-:root[data-theme="dark"] .workspace-page .ws-tool-icon { background:#1b3554; color:#c8e5ff; }
-:root[data-theme="dark"] .workspace-page .ws-dropzone.drag-over { background:#203b5c!important; outline-color:#79baff; }
 @media (max-width: 850px) {
   .workspace-page .ws-tool-grid, .workspace-page .ws-tool-grid-two { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
@@ -92,13 +83,10 @@
 /* Integrated selected-file controls and compact status feedback. */
 .workspace-page .ws-alert{position:relative;margin:12px 0;padding:10px 14px;border-radius:10px;font-size:12px;line-height:1.45;overflow-wrap:anywhere;background:var(--violet-100,#eef5ff);color:var(--ink,#172033);border:1px solid var(--line,#dce3ec)}
 .workspace-page .ws-alert.error{background:#fff1f0;color:#9f2922;border-color:#ffd2ce}
-:root[data-theme="dark"] .workspace-page .ws-alert{background:#1b3554;color:#e7f2ff;border-color:#3a496d}
-:root[data-theme="dark"] .workspace-page .ws-alert.error{background:#3a2029;color:#ffdadd;border-color:#75404b}
 .workspace-page .ws-file-preview-row{display:flex;align-items:stretch;gap:8px;padding:6px 7px}
 .workspace-page .ws-file-preview-info{display:flex;flex:1;min-width:0;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;border:0;background:transparent;color:inherit;cursor:pointer;padding:2px;overflow-wrap:anywhere}
 .workspace-page .ws-file-remove{flex:0 0 28px;align-self:center;width:28px;height:28px;border:0;border-radius:7px;background:#fff0f0;color:#b42318;font-size:21px;line-height:1;cursor:pointer}
 .workspace-page .ws-file-remove:hover{background:#ffdedd}
-:root[data-theme="dark"] .workspace-page .ws-file-remove{background:#482832;color:#ffdadd}
 
 
 /* STEP_UP light-only styling: match the site's lilac canvas and violet actions. */

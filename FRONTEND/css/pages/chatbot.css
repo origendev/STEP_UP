@@ -107,20 +107,6 @@ body[data-route="home"] .sb-chat{ display:block; }
 /* expanded window */
 .sb-chat.big .sb-panel{ width:min(560px,calc(100vw - 32px)); height:calc(100vh - 130px); }
 
-/* ---- dark mode ---- */
-:root[data-theme="dark"] .sb-panel{ background:#1c1a30; color:#ece9ff; }
-:root[data-theme="dark"] .sb-body{ background:linear-gradient(180deg,#201d38,#1c1a30); }
-:root[data-theme="dark"] .sb-msg.bot .sb-text{ background:#2a2646; border-color:#3b3562; }
-:root[data-theme="dark"] .sb-chips, :root[data-theme="dark"] .sb-form{ background:#1c1a30; border-color:#2f2a52; }
-:root[data-theme="dark"] .sb-field textarea{ background:#2a2646; border-color:#3b3562; }
-:root[data-theme="dark"] .sb-confirm{ background:#3a3015; border-color:#5a4a1c; color:#ffe2a8; }
-:root[data-theme="dark"] .sb-confirm button:not(.go){ background:#2a2646; color:#ffe2a8; border-color:#5a4a1c; }
-:root[data-theme="dark"] .sb-jump{ background:#2a2646; color:#cfc3ff; }
-:root[data-theme="dark"] .sb-mic{ background:#2a2646; color:#cfc3ff; }
-:root[data-theme="dark"] .sb-acts button:hover{ background:#2a2646; }
-:root[data-theme="dark"] .sb-chips button{ background:#2a2646; border-color:#3b3562; color:#cfc3ff; }
-:root[data-theme="dark"] .sb-bubble, :root[data-theme="dark"] .sb-bubble::after{ background:#2a2646; color:#ece9ff; }
-
 @media (max-width:480px){
   .sb-chat{ right:14px; bottom:14px; }
   .sb-launcher{ width:64px; height:64px; }

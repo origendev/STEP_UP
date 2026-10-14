@@ -332,21 +332,12 @@
 /* ============================================================
    HOME BACKGROUND IMAGE (home page only)
    The glass graduation tile sits behind the hero on the right.
-   Dark mode inverts the image so it stays dark and text stays readable.
 ============================================================ */
 body[data-route="home"]::before{
   content:""; position:absolute; top:0; left:0; right:0; height:calc(max(100vw, 1200px) * .5625 - 70px); z-index:-1; pointer-events:none;
   background:url("../../assets/home-bg.jpg") 70% -70px / max(100%, 1200px) auto no-repeat;
   -webkit-mask-image:linear-gradient(#000 45%, transparent 100%);
           mask-image:linear-gradient(#000 45%, transparent 100%);
-}
-:root[data-theme="dark"] body[data-route="home"]::before{
-  filter:invert(1) hue-rotate(180deg) brightness(.72) saturate(1.25);
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) body[data-route="home"]::before{
-    filter:invert(1) hue-rotate(180deg) brightness(.72) saturate(1.25);
-  }
 }
 /* the image already carries the graduation-cap tile, so drop the flat purple one */
 #view-home .hero-visual{ display:none; }

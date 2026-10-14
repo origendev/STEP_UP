@@ -443,7 +443,7 @@
 }
 
 /* ------------------------------------------------------------
-   Progress page dark theme fix
+   Progress page heading colours
 ------------------------------------------------------------ */
 
 #view-progress {
@@ -1210,62 +1210,6 @@
 
 .application-row:hover {
   background-color: var(--surface-hover, var(--white)) !important;
-}
-
-
-/* ============================================================
-   Round 1 assessment — dark theme
-============================================================ */
-
-:root[data-theme="dark"] .round1-topbar,
-:root[data-theme="dark"] .round1-question-card {
-  background: var(--white);
-}
-
-:root[data-theme="dark"] .round1-timer {
-  background: var(--violet-100);
-  color: var(--violet-300);
-}
-
-:root[data-theme="dark"] .round1-timer strong {
-  color: #ffffff;
-}
-
-:root[data-theme="dark"] .round1-question-number {
-  background: var(--violet-100);
-  color: var(--violet-300);
-}
-
-:root[data-theme="dark"] .round1-option {
-  background: var(--lilac-bg);
-}
-
-:root[data-theme="dark"] .round1-option:hover {
-  background: var(--violet-100);
-  border-color: var(--violet-500);
-}
-
-:root[data-theme="dark"] .round1-option.selected {
-  background: var(--violet-100);
-  border-color: var(--violet-500);
-  color: #ffffff;
-}
-
-/* Previous button */
-:root[data-theme="dark"] .round1-navigation .round1-secondary {
-  background: var(--white) !important;
-  border: 1px solid var(--line) !important;
-}
-
-:root[data-theme="dark"] .round1-navigation .round1-secondary:hover:not(:disabled) {
-  background: var(--violet-100) !important;
-  border-color: var(--violet-500) !important;
-}
-
-:root[data-theme="dark"] .round1-navigation .round1-secondary:disabled {
-  background: var(--violet-100) !important;
-  color: var(--ink-soft) !important;
-  border: 1px solid var(--line) !important;
 }
 
 /* ============================================================

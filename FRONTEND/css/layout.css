@@ -10,20 +10,6 @@
     radial-gradient(40% 50% at 8% 0%, rgba(255,255,255,.95), transparent 70%),
     linear-gradient(180deg,#e9e5fa 0,#f2effc 380px,#f6f3ff 640px);
 }
-:root[data-theme="dark"]{
-  --page-glow:
-    radial-gradient(55% 60% at 90% 4%, rgba(139,63,251,.35), transparent 70%),
-    radial-gradient(45% 50% at 62% 0%, rgba(59,107,250,.28), transparent 70%),
-    linear-gradient(180deg,#141a3a 0,#0f1530 380px,#0b1020 640px);
-}
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --page-glow:
-      radial-gradient(55% 60% at 90% 4%, rgba(139,63,251,.35), transparent 70%),
-      radial-gradient(45% 50% at 62% 0%, rgba(59,107,250,.28), transparent 70%),
-      linear-gradient(180deg,#141a3a 0,#0f1530 380px,#0b1020 640px);
-  }
-}
 body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat; }
 
 .topbar{
@@ -40,11 +26,6 @@ body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat;
   white-space:nowrap;
 }
 .brand-logo{ height:44px; width:auto; display:block; }
-/* the logo has dark navy letters, so give it a light backing in dark mode */
-:root[data-theme="dark"] .brand-logo{ background:#fff; padding:4px 10px; border-radius:12px; height:46px; }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .brand-logo{ background:#fff; padding:4px 10px; border-radius:12px; height:46px; }
-}
 .brand-mark{
   width:38px; height:38px; border-radius:12px;
   background:linear-gradient(145deg,#8a6bff,#5b34e6);
@@ -119,10 +100,6 @@ body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat;
 }
 .icon-btn svg{ width:17px; height:17px; }
 .icon-btn:hover{ background:#fff; color:var(--violet-700); }
-:root[data-theme="dark"] .icon-btn{ background:rgba(255,255,255,.12); color:#f1eefc; box-shadow:none; }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]) .icon-btn{ background:rgba(255,255,255,.12); color:#f1eefc; box-shadow:none; }
-}
 .icon-btn.has-dot::after{
   content:""; position:absolute; top:7px; right:9px;
   width:9px; height:9px; border-radius:50%;
@@ -161,7 +138,6 @@ body{ background:var(--page-glow), var(--lilac-bg); background-repeat:no-repeat;
   .topbar{ padding:8px 10px; gap:8px; }
   .brand-mark{ width:32px; height:32px; font-size:15px; border-radius:10px; }
   .brand-logo{ height:26px !important; padding:3px 6px !important; }
-  .top-actions #themeToggle{ display:none; }   /* theme is still in Settings */
   .avatar{ width:32px; height:32px; font-size:13px; }
   .navlinks{ padding:2px; }
   .navlink{ min-width:42px; height:32px; padding:0 2px; font-size:9px; gap:0; border-radius:16px; }

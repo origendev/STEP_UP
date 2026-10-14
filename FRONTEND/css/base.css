@@ -1,5 +1,5 @@
 /* =========================================================
-   BASE — colour tokens, dark mode, reset, fonts
+   BASE — colour tokens, reset, fonts
 ========================================================= */
 :root{
   --violet-900:#241a4d;
@@ -25,37 +25,7 @@
   --shadow-card:0 1px 2px rgba(36,26,77,0.04), 0 8px 24px -12px rgba(36,26,77,0.12);
 }
 
-/* System dark mode, unless the user has explicitly chosen "light" */
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --violet-700:#7ea2ff;
-    --violet-600:#3b6bfa;
-    --violet-500:#8b3ffb;
-    --violet-300:#7ea2ff;
-    --ink:#f1eefc;
-    --ink-soft:#93a0c9;
-    --lilac-bg:#0b1020;
-    --white:#121a33;
-    --line:#232c52;
-    --violet-100:#1a2350;
-    --shadow-card:0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.6);
-  }
-}
-/* Explicit user choice, saved to localStorage by js/core/theme.js */
-:root[data-theme="dark"]{
-  --violet-700:#7ea2ff;
-  --violet-600:#3b6bfa;
-  --violet-500:#8b3ffb;
-  --violet-300:#7ea2ff;
-  --ink:#f1eefc;
-  --ink-soft:#93a0c9;
-  --lilac-bg:#0b1020;
-  --white:#121a33;
-  --line:#232c52;
-  --violet-100:#1a2350;
-  --shadow-card:0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.6);
-}
-
+html{color-scheme:light;}
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
