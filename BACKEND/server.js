@@ -376,7 +376,7 @@ function validateJob(b) {
   const isInternship = /intern/i.test(jobType);
   if (isInternship && !clean(b.stipend)) return 'Enter the stipend for this internship.';
   if (!isInternship && !clean(b.salary)) return 'Enter the salary for this job.';
-  const vacancies = Number(b.vacancies);
+  const vacancies = Number(b.vacancies ?? 1);
   if (!Number.isInteger(vacancies) || vacancies < 1) return 'Number of vacancies must be a positive whole number.';
   if (b.minCgpa !== '' && b.minCgpa != null && (!Number.isFinite(Number(b.minCgpa)) || Number(b.minCgpa) < 0 || Number(b.minCgpa) > 10)) {
     return 'Minimum CGPA must be between 0 and 10.';
@@ -1856,7 +1856,7 @@ app.post(
           b.applyBefore, clean(b.visitDate) || null, clean(b.visitTag) || null, clean(b.status) || 'Eligible',
           clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
           clean(b.description) || '', clean(b.category) || 'eligible', normalizeStringList(b.requiredSkills),
-          normalizeStringList(b.eligibleBatches), Number(b.vacancies), b.minCgpa === '' || b.minCgpa == null ? null : Number(b.minCgpa),
+          normalizeStringList(b.eligibleBatches), Number(b.vacancies ?? 1), b.minCgpa === '' || b.minCgpa == null ? null : Number(b.minCgpa),
           b.backlogsAllowed, clean(b.interviewRounds) || 'Not specified'
         ]
       );
@@ -1919,7 +1919,7 @@ app.patch(
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
           clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
           clean(b.location)||null,clean(b.workMode)||null,clean(b.category)||'eligible',
-          normalizeStringList(b.requiredSkills),normalizeStringList(b.eligibleBatches),Number(b.vacancies),
+          normalizeStringList(b.requiredSkills),normalizeStringList(b.eligibleBatches),Number(b.vacancies ?? 1),
           b.minCgpa===''||b.minCgpa==null?null:Number(b.minCgpa),b.backlogsAllowed,
           req.params.id,req.company.companyId
         ]
