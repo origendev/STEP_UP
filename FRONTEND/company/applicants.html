@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="../css/base.css">
 <link rel="stylesheet" href="../css/layout.css">
 <link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="../css/components/hr-interview.css?v=20261014a">
 <style>
 body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 32px;background:var(--white);border-bottom:1px solid var(--line)}.portal-actions{display:flex;gap:9px}.portal-btn{border:1px solid var(--line);background:var(--white);color:var(--ink);border-radius:9px;padding:9px 12px;font-weight:700;font-size:12px}.portal-btn.primary{border:0;background:var(--violet-600);color:#fff}.portal-main{max-width:1180px;margin:0 auto;padding:34px 32px 70px}.portal-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:22px}.portal-head h1{margin:0;font-size:28px}.portal-head p{margin:7px 0 0;color:var(--ink-soft);font-size:13px}.company-chip{padding:9px 12px;border-radius:10px;background:var(--violet-100);color:var(--violet-700);font-size:12px;font-weight:800}.message{display:none;margin-bottom:14px;padding:10px 12px;border-radius:9px;font-size:12px}.message.error{display:block;background:var(--rose-bg);color:var(--rose)}.message.ok{display:block;background:var(--green-bg);color:var(--green)}.applicant-list{display:flex;flex-direction:column;gap:14px}.applicant-card{background:var(--white);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow-card)}.applicant-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.student-id{display:flex;gap:12px;align-items:center}.student-avatar{width:48px;height:48px;border-radius:12px;background:var(--violet-100);color:var(--violet-700);display:grid;place-items:center;font-weight:800}.student-id h2{margin:0;font-size:17px}.student-id p{margin:4px 0 0;color:var(--ink-soft);font-size:11.5px}.status{padding:6px 10px;border-radius:999px;font-size:10.5px;font-weight:800}.status.applied{background:var(--violet-100);color:var(--violet-700)}.status.selected,.status.shortlisted{background:var(--green-bg);color:var(--green)}.status.rejected{background:var(--rose-bg);color:var(--rose)}.status.waitlisted{background:#fff3d6;color:#a86b00}.student-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:15px}.student-field{padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:var(--lilac-bg);min-width:0}.student-field small{display:block;color:var(--ink-soft);font-size:9.5px}.student-field strong{display:block;margin-top:3px;font-size:11.5px;overflow-wrap:anywhere}.resume-box{margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:12px}.resume-name{font-size:12px;font-weight:800}.resume-meta{margin-top:3px;color:var(--ink-soft);font-size:10.5px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.action{border:1px solid var(--line);border-radius:8px;padding:8px 12px;background:var(--white);color:var(--ink);font-size:11.5px;font-weight:800}.action.select{background:var(--green-bg);color:var(--green);border-color:#bfe9d3}.action.waitlist{background:var(--white);color:#a86b00;border-color:#e5d2a3}.action.reject{background:var(--rose-bg);color:var(--rose);border-color:#f0c5d2}.empty{padding:55px 20px;text-align:center;color:var(--ink-soft);border:1px dashed var(--line);border-radius:12px;font-size:12.5px}@media(max-width:800px){.portal-head{align-items:flex-start;flex-direction:column}.student-grid{grid-template-columns:1fr 1fr}.portal-top{padding:12px 16px}.portal-main{padding:25px 16px 50px}}@media(max-width:520px){.student-grid{grid-template-columns:1fr}.applicant-top{flex-direction:column}}
 
@@ -79,14 +80,15 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
   <section id="applicantList" class="applicant-list"><div class="empty">Loading applicants…</div></section>
   <section class="assessment-panel" id="roundConfigurationPanel">
     <h2>Recruitment rounds</h2>
-    <p class="panel-sub">Publish the job first, review applications, and shortlist at least one student. Set each round's question count and time limit here; these settings are enforced in the student's Progress-page assessment.</p>
+    <p class="panel-sub">Publish the job first, review applications, and shortlist at least one student. Set each round's question count and time limit here. For a one-on-one HR interview, choose HR interview as its type; schedule and start the built-in call from the shortlisted student's card.</p>
     <div id="roundConfigMessage" class="review-empty" role="status">Loading this job's recruitment setup…</div>
     <div id="roundConfigBuilder" class="round-config-builder"></div>
     <div class="review-actions"><button class="pass" type="button" id="addRecruitmentRound">+ Add round</button><button class="hold" type="button" id="saveRecruitmentRounds">Save rounds</button></div>
   </section>
   <section class="assessment-panel"><h2>Assessment verification</h2><p class="panel-sub">Review submitted scores and integrity signals. No camera or microphone recordings are stored; device/focus signals can be mistaken and should be reviewed before deciding.</p><div id="assessmentReviews" class="applicant-list"><div class="review-empty" role="status">Loading submitted assessments…</div></div></section>
 </main>
-<script>
+<script type="module">
+import { connectHrInterview } from '../js/core/hr-interview.js?v=20261014a';
 const API=window.STEPUP_API_BASE_URL||'http://localhost:3000/api';
 const token=localStorage.getItem('stepupCompanyToken');
 if(!token) location.replace('company-login.html');
@@ -97,6 +99,7 @@ let applicants=[];
 let roundConfigItems=[];
 function localDateTime(value){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);}
 function isoDateTime(value){if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toISOString();}
+function isHrRound(round){return /hr interview|human resources/i.test(`${round.name||''} ${round.type||''}`);}
 function parseJobRounds(raw){try{const v=typeof raw==='string'?JSON.parse(raw):raw;const rounds=Array.isArray(v)?v:Array.isArray(v?.rounds)?v.rounds:null;if(rounds)return rounds.map((r,i)=>({name:r.name||r.title||r.roundName||`Round ${i+1}`,type:r.type||'Online test',mode:r.mode||'Online',duration:Number(r.duration??r.durationMinutes??30),questionCount:Number(r.questionCount??r.question_count??10),cutoff:Number(String(r.cutoff??r.passingScore??60).replace('%','')),topics:r.topics||'',instructions:r.instructions||'',scheduledAt:r.scheduledAt||r.scheduled_at||'',active:r.active!==false}));}catch{}if(typeof raw==='string'&&raw.trim()&&raw.trim()!=='Not specified')return raw.split(/\r?\n/).map((line,i)=>({name:line.replace(/^\s*\d+[.)]\s*/,'').trim()||`Round ${i+1}`,type:'Online test',mode:'Online',duration:30,questionCount:10,cutoff:60,topics:'',instructions:'',scheduledAt:'',active:true})).filter(r=>r.name);return [];}
 function renderRoundConfig(){const host=$('roundConfigBuilder');if(!host)return;if(!roundConfigItems.length){host.innerHTML='<div class="empty-rounds">No rounds configured. If this role does not require interviews or tests, leave this empty.</div>';return;}host.innerHTML=roundConfigItems.map((r,i)=>`<article class="round-config-card" data-config-round="${i}"><div class="round-config-head"><strong>Round ${i+1}: ${esc(r.name||'New round')}</strong><button class="round-config-remove" type="button" data-remove-config-round="${i}">Remove</button></div><div class="round-config-grid"><label>Round name<input data-config-field="name" value="${esc(r.name)}" maxlength="120" required></label><label>Round type<select data-config-field="type"><option ${r.type==='Online test'?'selected':''}>Online test</option><option ${r.type==='Coding test'?'selected':''}>Coding test</option><option ${r.type==='Technical interview'?'selected':''}>Technical interview</option><option ${r.type==='HR interview'?'selected':''}>HR interview</option><option ${r.type==='Group discussion'?'selected':''}>Group discussion</option><option ${r.type==='Assignment'?'selected':''}>Assignment</option></select></label><label>Mode<select data-config-field="mode"><option ${r.mode==='Online'?'selected':''}>Online</option><option ${r.mode==='In-person'?'selected':''}>In-person</option><option ${r.mode==='Hybrid'?'selected':''}>Hybrid</option></select></label><label>Duration (minutes)<input data-config-field="duration" type="number" min="5" max="240" value="${esc(r.duration)}" required></label><label>Number of questions<input data-config-field="questionCount" type="number" min="1" max="100" value="${esc(r.questionCount)}" ${/interview|discussion|assignment/i.test(r.type)?'disabled':''} required></label><label>Passing score (%)<input data-config-field="cutoff" type="number" min="0" max="100" value="${esc(r.cutoff)}" required></label><label>Scheduled date / time<input data-config-field="scheduledAt" type="datetime-local" value="${esc(localDateTime(r.scheduledAt))}"></label><label class="wide"><input data-config-field="active" type="checkbox" ${r.active?'checked':''}> Round is active for eligible students</label><label class="wide">Topics / skills<textarea data-config-field="topics" rows="2">${esc(r.topics)}</textarea></label><label class="wide">Instructions for students<textarea data-config-field="instructions" rows="2">${esc(r.instructions)}</textarea></label></div></article>`).join('');host.querySelectorAll('[data-config-field]').forEach(el=>el.addEventListener('input',()=>{const i=Number(el.closest('[data-config-round]').dataset.configRound);roundConfigItems[i][el.dataset.configField]=el.type==='number'?Number(el.value):el.type==='checkbox'?el.checked:el.type==='datetime-local'?isoDateTime(el.value):el.value;if(el.dataset.configField==='type')renderRoundConfig();else host.querySelector(`[data-config-round="${i}"] .round-config-head strong`).textContent=`Round ${i+1}: ${roundConfigItems[i].name||'New round'}`;}));host.querySelectorAll('[data-remove-config-round]').forEach(b=>b.onclick=()=>{roundConfigItems.splice(Number(b.dataset.removeConfigRound),1);renderRoundConfig();});}
 async function loadRoundConfig(){const host=$('roundConfigMessage');try{const jobs=await api('/company/jobs');const job=(jobs||[]).find(j=>String(j.id)===String(jobId));if(!job){host.textContent='This job could not be found for your company.';return;}roundConfigItems=parseJobRounds(job.interview_rounds);renderRoundConfig();render();const hasShortlisted=applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));host.textContent=hasShortlisted?'A shortlisted applicant is available. Configure rounds below, or leave them empty if no interview is required.':'Shortlist at least one applicant above to enable saving recruitment rounds.';$('saveRecruitmentRounds').disabled=!hasShortlisted;}catch(e){host.textContent=`Could not load recruitment setup: ${e.message||'Unknown error'}`;}}
@@ -134,7 +137,9 @@ function manualRoundReviews(a){
   return `<section class="manual-round-reviews"><h3>Recruiter round decisions</h3>${rounds.map(({round,index})=>{
     const review=reviews.find(item=>Number(item.round_index)===index);
     const fieldId=`round-feedback-${a.application_id}-${index}`;
-    return `<div class="manual-round-review"><div class="manual-round-review-head"><span>Round ${index+1}: ${esc(round.name||`Round ${index+1}`)}</span><span>${esc(review?.decision||'Not reviewed')}</span></div><textarea id="${esc(fieldId)}" maxlength="3000" placeholder="Optional feedback for the student">${esc(review?.feedback||'')}</textarea><div class="actions"><button class="action select" type="button" data-round-review="${a.application_id}" data-round-index="${index}" data-decision="Pass">✓ Pass / approve</button><button class="action reject" type="button" data-round-review="${a.application_id}" data-round-index="${index}" data-decision="Fail">✕ Fail</button><button class="action" type="button" data-round-review="${a.application_id}" data-round-index="${index}" data-decision="Needs review">Needs review</button></div></div>`;
+    const interview=(Array.isArray(a.hr_interviews)?a.hr_interviews:[]).find(item=>Number(item.round_index)===index);
+    const hrControls=isHrRound(round)?`<div class="hr-schedule-box"><strong>One-on-one HR interview</strong><p>Schedule here. At the scheduled time, start the call from this applicant card; the student can join from Progress. The call ends after the round's configured duration.</p>${interview?`<span class="hr-session-state">${esc(interview.status==='active'?'Call in progress':interview.status==='ended'?'Previous call ended':`Scheduled for ${new Date(interview.scheduled_at).toLocaleString()}`)}</span>`:''}<label>Interview date and time<input type="datetime-local" id="hr-time-${a.application_id}-${index}" value="${esc(localDateTime(interview?.scheduled_at||round.scheduledAt))}"></label><div class="hr-schedule-actions"><button class="action select" type="button" data-schedule-hr="${a.application_id}" data-round-index="${index}">${interview?.status==='scheduled'?'Update schedule':'Schedule interview'}</button>${interview?.status==='scheduled'?`<button class="action select" type="button" data-start-hr="${esc(interview.id)}" data-scheduled-at="${esc(interview.scheduled_at)}">Start one-on-one call</button>`:''}${interview?.status==='active'?`<button class="action select" type="button" data-start-hr="${esc(interview.id)}" data-scheduled-at="${esc(interview.scheduled_at)}">Join live call</button>`:''}</div></div>`:'';
+    return `<div class="manual-round-review"><div class="manual-round-review-head"><span>Round ${index+1}: ${esc(round.name||`Round ${index+1}`)}</span><span>${esc(review?.decision||'Not reviewed')}</span></div>${hrControls}<textarea id="${esc(fieldId)}" maxlength="3000" placeholder="Optional feedback for the student">${esc(review?.feedback||'')}</textarea><div class="actions"><button class="action select" type="button" data-round-review="${a.application_id}" data-round-index="${index}" data-decision="Pass">✓ Pass / approve</button><button class="action reject" type="button" data-round-review="${a.application_id}" data-round-index="${index}" data-decision="Fail">✕ Fail</button><button class="action" type="button" data-round-review="${a.application_id}" data-round-index="${index}" data-decision="Needs review">Needs review</button></div></div>`;
   }).join('')}</section>`;
 }
 function profileSection(title, body){return body?`<section class="profile-section"><h3>${esc(title)}</h3><div class="profile-grid">${body}</div></section>`:'';}
@@ -175,6 +180,39 @@ function fullProfile(a){
     ${a.summary?section('Profile Summary',{summary:a.summary}):''}
   </div>`;
 }
+async function refreshApplicants(){
+  applicants=await api('/company/jobs/'+encodeURIComponent(jobId)+'/applications')||[];
+  render();
+}
+async function scheduleHrInterview(button){
+  const applicationId=button.dataset.scheduleHr,roundIndex=Number(button.dataset.roundIndex);
+  const input=$(`hr-time-${applicationId}-${roundIndex}`),scheduledAt=input?.value?new Date(input.value):null;
+  if(!scheduledAt||Number.isNaN(scheduledAt.getTime())||scheduledAt<=new Date()){
+    msg('Choose a future date and time for the HR interview.');
+    input?.focus();
+    return;
+  }
+  button.disabled=true;
+  try{
+    await api(`/company/applications/${encodeURIComponent(applicationId)}/hr-interviews`,{method:'POST',body:JSON.stringify({roundIndex,scheduledAt:scheduledAt.toISOString()})});
+    await refreshApplicants();
+    msg('One-on-one HR interview scheduled. The student will see it in Progress.','ok');
+  }catch(e){msg(e.message||'Could not schedule the HR interview.');button.disabled=false;}
+}
+async function startHrInterviewCall(button){
+  if(button.disabled)return;
+  const scheduledAt=new Date(button.dataset.scheduledAt);
+  if(button.dataset.scheduledAt&&scheduledAt>new Date()){
+    msg(`This interview can start at ${scheduledAt.toLocaleString()}.`);
+    return;
+  }
+  button.disabled=true;
+  try{
+    await connectHrInterview({sessionId:button.dataset.startHr,role:'company',request:api});
+    await refreshApplicants();
+  }catch(e){msg(e.message||'Could not start the HR interview.');}
+  finally{if(button.isConnected)button.disabled=false;}
+}
 function render(){
   $('applicantList').innerHTML=applicants.length?applicants.map(a=>`
     <article class="applicant-card">
@@ -198,6 +236,8 @@ function render(){
   document.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>updateStatus(b.dataset.id,b.dataset.status));
   document.querySelectorAll('[data-resume]').forEach(b=>b.onclick=()=>downloadResume(b.dataset.resume));
   document.querySelectorAll('[data-round-review]').forEach(b=>b.onclick=()=>reviewRecruitmentRound(b.dataset.roundReview,Number(b.dataset.roundIndex),b.dataset.decision,b));
+  document.querySelectorAll('[data-schedule-hr]').forEach(b=>b.onclick=()=>scheduleHrInterview(b));
+  document.querySelectorAll('[data-start-hr]').forEach(b=>b.onclick=()=>startHrInterviewCall(b));
 }
 
 let assessmentReviews=[];

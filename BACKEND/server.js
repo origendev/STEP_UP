@@ -642,9 +642,44 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE(application_id, round_index)
     );
-
     CREATE INDEX IF NOT EXISTS idx_company_round_reviews_application
       ON company_round_reviews(application_id, round_index);
+
+    CREATE TABLE IF NOT EXISTS hr_interview_sessions (
+      id BIGSERIAL PRIMARY KEY,
+      application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+      job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+      company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+      student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      round_index INTEGER NOT NULL CHECK (round_index >= 0),
+      round_name TEXT NOT NULL,
+      scheduled_at TIMESTAMPTZ NOT NULL,
+      duration_minutes INTEGER NOT NULL DEFAULT 60 CHECK (duration_minutes BETWEEN 5 AND 240),
+      status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','active','ended','cancelled')),
+      started_at TIMESTAMPTZ,
+      ended_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(application_id, round_index)
+    );
+    ALTER TABLE hr_interview_sessions
+      ADD COLUMN IF NOT EXISTS duration_minutes INTEGER NOT NULL DEFAULT 60;
+    CREATE INDEX IF NOT EXISTS idx_hr_interview_sessions_student
+      ON hr_interview_sessions(student_id, status, scheduled_at);
+
+    CREATE TABLE IF NOT EXISTS hr_interview_signals (
+      id BIGSERIAL PRIMARY KEY,
+      session_id BIGINT NOT NULL REFERENCES hr_interview_sessions(id) ON DELETE CASCADE,
+      sender_role TEXT NOT NULL CHECK (sender_role IN ('company','student')),
+      signal_type TEXT NOT NULL CHECK (signal_type IN ('offer','answer','ice')),
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_hr_interview_signals_single_sdp
+      ON hr_interview_signals(session_id,sender_role,signal_type)
+      WHERE signal_type IN ('offer','answer');
+    CREATE INDEX IF NOT EXISTS idx_hr_interview_signals_session
+      ON hr_interview_signals(session_id, id);
 
     CREATE TABLE IF NOT EXISTS job_approval_history (
       id BIGSERIAL PRIMARY KEY,
@@ -3162,6 +3197,7 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
               j.approval_status,j.approval_note,j.required_skills,j.eligible_batches,j.min_cgpa,j.vacancies,
               c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('status',ash.status,'changed_by_role',ash.changed_by_role,'created_at',ash.created_at) ORDER BY ash.created_at) FROM application_status_history ash WHERE ash.application_id=a.id),'[]'::jsonb) AS status_history,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',his.id,'round_index',his.round_index,'round_name',his.round_name,'scheduled_at',his.scheduled_at,'status',his.status) ORDER BY his.round_index) FROM hr_interview_sessions his WHERE his.application_id=a.id AND his.student_id=a.student_id AND his.status IN ('scheduled','active','ended')),'[]'::jsonb) AS hr_interviews,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',CASE WHEN aa.company_verified THEN aa.score END,'correct_count',CASE WHEN aa.company_verified THEN aa.correct_count END,'total_questions',CASE WHEN aa.company_verified THEN aa.total_questions END,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'company_verified',aa.company_verified,'company_decision',aa.company_decision,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at) ORDER BY crr.round_index) FROM company_round_reviews crr WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews
        FROM job_applications a
@@ -3782,6 +3818,209 @@ app.patch('/api/company/applications/:id/rounds/:roundIndex/review', requireComp
    COMPANY APPLICANT MANAGEMENT
 ========================================================= */
 
+function requireHrInterviewParticipant(req, res, next) {
+  const interviewId=Number(req.params.id);
+  if(!Number.isSafeInteger(interviewId)||interviewId<1)return res.status(400).json({error:'Invalid interview session.'});
+  const authorization = req.get('authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : null;
+  if (!token) return res.status(401).json({error:'Authentication required.'});
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.role === 'student' && payload.studentId) {
+      req.hrParticipant = {role:'student',id:payload.studentId};
+    } else if (payload.companyId) {
+      req.hrParticipant = {role:'company',id:payload.companyId};
+    } else {
+      return res.status(403).json({error:'Only the scheduled student and company can join this interview.'});
+    }
+    next();
+  } catch {
+    return res.status(401).json({error:'Session expired. Please sign in again.'});
+  }
+}
+
+async function loadHrInterviewParticipant(req, res) {
+  const {role,id}=req.hrParticipant;
+  const field=role==='student'?'student_id':'company_id';
+  const expired=await pool.query(
+    `UPDATE hr_interview_sessions SET status='ended',ended_at=NOW(),updated_at=NOW()
+     WHERE id=$1 AND ${field}=$2 AND status='active'
+       AND started_at + make_interval(mins=>duration_minutes)<=NOW()
+     RETURNING id`,
+    [req.params.id,id]
+  );
+  if(expired.rows[0])await pool.query('DELETE FROM hr_interview_signals WHERE session_id=$1',[expired.rows[0].id]);
+  const result=await pool.query(
+    `SELECT id,status FROM hr_interview_sessions
+     WHERE id=$1 AND ${field}=$2 AND status IN ('active','ended')`,
+    [req.params.id,id]
+  );
+  if(!result.rows[0]){
+    res.status(404).json({error:'Active interview not found for this account.'});
+    return null;
+  }
+  return result.rows[0];
+}
+
+app.post('/api/company/applications/:id/hr-interviews', requireCompany, async(req,res)=>{
+  const body=req.body||{},applicationId=Number(req.params.id),roundIndex=Number(body.roundIndex),scheduledAt=new Date(body.scheduledAt);
+  if(!Number.isSafeInteger(applicationId)||applicationId<1||!Number.isInteger(roundIndex)||roundIndex<0||Number.isNaN(scheduledAt.getTime())||scheduledAt<=new Date()){
+    return res.status(400).json({error:'Choose a valid HR round and a future interview date and time.'});
+  }
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const applicationResult=await client.query(
+      `SELECT a.id,a.job_id,a.student_id,a.status,j.interview_rounds,j.title
+       FROM job_applications a JOIN jobs j ON j.id=a.job_id
+       WHERE a.id=$1 AND j.company_id=$2 FOR UPDATE OF a`,
+      [applicationId,req.company.companyId]
+    );
+    const application=applicationResult.rows[0];
+    if(!application){await client.query('ROLLBACK');return res.status(404).json({error:'Applicant not found for this company.'});}
+    if(!['shortlisted','selected','interview'].includes(String(application.status).toLowerCase())){
+      await client.query('ROLLBACK');return res.status(403).json({error:'Shortlist the student before scheduling an HR interview.'});
+    }
+    const rounds=parseConfiguredRounds(application.interview_rounds);
+    const round=rounds[roundIndex];
+    if(!round||!/hr interview|human resources/i.test(`${round.name||''} ${round.type||''}`)){
+      await client.query('ROLLBACK');return res.status(400).json({error:'Select a configured HR interview round.'});
+    }
+    if(round.active===false){await client.query('ROLLBACK');return res.status(400).json({error:'This HR round is inactive.'});}
+    if(roundIndex>0){
+      const previous=rounds[roundIndex-1];
+      const prior=isOnlineAssessmentRound(previous)
+        ? await client.query(`SELECT company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3 AND status='submitted'`,[application.id,application.student_id,roundIndex-1])
+        : await client.query(`SELECT decision FROM company_round_reviews WHERE application_id=$1 AND round_index=$2`,[application.id,roundIndex-1]);
+      const approved=isOnlineAssessmentRound(previous)
+        ? prior.rows[0]?.company_verified===true&&prior.rows[0]?.company_decision==='Pass'
+        : prior.rows[0]?.decision==='Pass';
+      if(!approved){await client.query('ROLLBACK');return res.status(403).json({error:'The previous round must be passed before scheduling this HR interview.'});}
+    }
+    const existing=await client.query('SELECT id,status FROM hr_interview_sessions WHERE application_id=$1 AND round_index=$2 FOR UPDATE',[application.id,roundIndex]);
+    if(existing.rows[0]?.status==='active'){
+      await client.query('ROLLBACK');return res.status(409).json({error:'This HR interview is already in progress.'});
+    }
+    if(existing.rows[0])await client.query('DELETE FROM hr_interview_signals WHERE session_id=$1',[existing.rows[0].id]);
+    const durationMinutes=Math.min(240,Math.max(5,Number(round.durationMinutes??round.duration)||60));
+    const saved=await client.query(
+      `INSERT INTO hr_interview_sessions(application_id,job_id,company_id,student_id,round_index,round_name,scheduled_at,duration_minutes,status,started_at,ended_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,'scheduled',NULL,NULL)
+       ON CONFLICT(application_id,round_index) DO UPDATE SET
+         scheduled_at=EXCLUDED.scheduled_at,duration_minutes=EXCLUDED.duration_minutes,round_name=EXCLUDED.round_name,status='scheduled',
+         started_at=NULL,ended_at=NULL,updated_at=NOW()
+       RETURNING id,application_id,round_index,round_name,scheduled_at,status`,
+      [application.id,application.job_id,req.company.companyId,application.student_id,roundIndex,round.name,scheduledAt,durationMinutes]
+    );
+    await createNotification(client,{
+      recipientRole:'student',recipientId:application.student_id,type:'hr_interview_scheduled',
+      title:`${round.name}: one-on-one interview scheduled`,
+      message:`${application.title} · Your HR interview is scheduled for ${scheduledAt.toLocaleString()}. Join from Progress when the company starts the call.`,
+      jobId:application.job_id,applicationId:application.id,
+      dedupeKey:`hr-interview-${saved.rows[0].id}-${scheduledAt.toISOString()}`
+    });
+    await client.query('COMMIT');
+    res.status(201).json({data:saved.rows[0]});
+  }catch(e){
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('Could not schedule HR interview:',e);
+    res.status(500).json({error:'Could not schedule this HR interview.'});
+  }finally{client.release();}
+});
+
+app.post('/api/company/hr-interviews/:id/start', requireCompany, async(req,res)=>{
+  const sessionId=Number(req.params.id);
+  if(!Number.isSafeInteger(sessionId)||sessionId<1)return res.status(400).json({error:'Invalid interview session.'});
+  try{
+    const result=await pool.query(
+      `UPDATE hr_interview_sessions SET status='active',started_at=NOW(),updated_at=NOW()
+       WHERE id=$1 AND company_id=$2 AND status='scheduled' AND scheduled_at<=NOW()
+       RETURNING id,status,round_name,scheduled_at`,
+      [sessionId,req.company.companyId]
+    );
+    if(!result.rows[0]){
+      const existing=await pool.query('SELECT status,scheduled_at FROM hr_interview_sessions WHERE id=$1 AND company_id=$2',[sessionId,req.company.companyId]);
+      if(!existing.rows[0])return res.status(404).json({error:'HR interview not found for this company.'});
+      if(existing.rows[0].status==='active')return res.json({data:existing.rows[0]});
+      if(existing.rows[0].status==='scheduled')return res.status(409).json({error:`This interview can start at ${new Date(existing.rows[0].scheduled_at).toLocaleString()}.`});
+      return res.status(409).json({error:'This interview is no longer scheduled. Schedule a new time first.'});
+    }
+    res.json({data:result.rows[0]});
+  }catch(e){console.error('Could not start HR interview:',e);res.status(500).json({error:'Could not start the HR interview.'});}
+});
+
+app.post('/api/student/hr-interviews/:id/join', requireStudent, async(req,res)=>{
+  const sessionId=Number(req.params.id);
+  if(!Number.isSafeInteger(sessionId)||sessionId<1)return res.status(400).json({error:'Invalid interview session.'});
+  try{
+    const result=await pool.query(
+      `SELECT id,status,round_name,scheduled_at FROM hr_interview_sessions
+       WHERE id=$1 AND student_id=$2 AND status='active'`,
+      [sessionId,req.student.studentId]
+    );
+    if(!result.rows[0])return res.status(404).json({error:'The company has not started this interview yet.'});
+    res.json({data:result.rows[0]});
+  }catch(e){console.error('Could not join HR interview:',e);res.status(500).json({error:'Could not join the HR interview.'});}
+});
+
+app.get('/api/hr-interviews/:id/signals', requireHrInterviewParticipant, async(req,res)=>{
+  try{
+    const session=await loadHrInterviewParticipant(req,res);if(!session)return;
+    const after=Number(req.query.after||0);
+    if(!Number.isSafeInteger(after)||after<0)return res.status(400).json({error:'Invalid interview signal cursor.'});
+    const signals=await pool.query(
+      `SELECT id,sender_role,signal_type,payload FROM hr_interview_signals
+       WHERE session_id=$1 AND id>$2 ORDER BY id LIMIT 100`,
+      [session.id,after]
+    );
+    res.json({data:{status:session.status,signals:signals.rows}});
+  }catch(e){console.error('Could not poll HR interview:',e);res.status(500).json({error:'Could not load interview connection updates.'});}
+});
+
+app.post('/api/hr-interviews/:id/signals', requireHrInterviewParticipant, async(req,res)=>{
+  try{
+    const session=await loadHrInterviewParticipant(req,res);if(!session)return;
+    if(session.status!=='active')return res.status(409).json({error:'This interview has already ended.'});
+    const {type,payload}=req.body||{};
+    if(!['offer','answer','ice'].includes(type)||!payload||typeof payload!=='object'||Array.isArray(payload)||JSON.stringify(payload).length>120000){
+      return res.status(400).json({error:'Invalid or oversized interview connection update.'});
+    }
+    if((type==='offer'&&req.hrParticipant.role!=='company')||(type==='answer'&&req.hrParticipant.role!=='student')){
+      return res.status(403).json({error:'Only the company may offer a call and only the student may answer it.'});
+    }
+    if((type==='offer'||type==='answer')&&(payload.type!==type||typeof payload.sdp!=='string'||payload.sdp.length>100000)){
+      return res.status(400).json({error:'Invalid interview session description.'});
+    }
+    if(type==='ice'&&(typeof payload.candidate!=='string'||payload.candidate.length>4096))return res.status(400).json({error:'Invalid network candidate.'});
+    if(type!=='ice'){
+      const existing=await pool.query(
+        'SELECT 1 FROM hr_interview_signals WHERE session_id=$1 AND sender_role=$2 AND signal_type=$3 LIMIT 1',
+        [session.id,req.hrParticipant.role,type]
+      );
+      if(existing.rows[0])return res.status(409).json({error:`An interview ${type} has already been sent.`});
+    }
+    const saved=await pool.query(
+      `INSERT INTO hr_interview_signals(session_id,sender_role,signal_type,payload)
+       VALUES($1,$2,$3,$4::jsonb) RETURNING id`,
+      [session.id,req.hrParticipant.role,type,JSON.stringify(payload)]
+    );
+    res.status(201).json({data:{id:saved.rows[0].id}});
+  }catch(e){if(e.code==='23505')return res.status(409).json({error:'This participant already sent that interview connection update.'});console.error('Could not send HR interview connection update:',e);res.status(500).json({error:'Could not send interview connection update.'});}
+});
+
+app.post('/api/hr-interviews/:id/end', requireHrInterviewParticipant, async(req,res)=>{
+  try{
+    const session=await loadHrInterviewParticipant(req,res);if(!session)return;
+    const ended=await pool.query(
+      `UPDATE hr_interview_sessions SET status='ended',ended_at=NOW(),updated_at=NOW()
+       WHERE id=$1 AND status='active' RETURNING id,status`,
+      [session.id]
+    );
+    await pool.query('DELETE FROM hr_interview_signals WHERE session_id=$1',[session.id]);
+    res.json({data:ended.rows[0]||{id:session.id,status:'ended'}});
+  }catch(e){console.error('Could not end HR interview:',e);res.status(500).json({error:'Could not end the HR interview.'});}
+});
+
 app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) => {
   try {
     const r = await pool.query(
@@ -3791,6 +4030,7 @@ app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) =
               s.graduation_year,s.cgpa,s.education,s.skills,s.languages,s.experience,
               s.achievements,s.certifications,s.projects,s.summary,s.linkedin,s.github,s.portfolio,s.profile_details,
               sr.file_name AS resume_file_name,sr.mime_type AS resume_mime_type,sr.uploaded_at AS resume_uploaded_at,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',his.id,'round_index',his.round_index,'round_name',his.round_name,'scheduled_at',his.scheduled_at,'status',his.status) ORDER BY his.round_index) FROM hr_interview_sessions his WHERE his.application_id=a.id AND his.status IN ('scheduled','active','ended')),'[]'::jsonb) AS hr_interviews,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at) ORDER BY crr.round_index) FROM company_round_reviews crr WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id

@@ -150,6 +150,42 @@ CREATE TABLE IF NOT EXISTS company_round_reviews (
 CREATE INDEX IF NOT EXISTS idx_company_round_reviews_application
   ON company_round_reviews(application_id, round_index);
 
+CREATE TABLE IF NOT EXISTS hr_interview_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+  job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+  company_id BIGINT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  round_index INTEGER NOT NULL CHECK (round_index >= 0),
+  round_name TEXT NOT NULL,
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  duration_minutes INTEGER NOT NULL DEFAULT 60 CHECK (duration_minutes BETWEEN 5 AND 240),
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled','active','ended','cancelled')),
+  started_at TIMESTAMPTZ,
+  ended_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(application_id, round_index)
+);
+ALTER TABLE hr_interview_sessions
+  ADD COLUMN IF NOT EXISTS duration_minutes INTEGER NOT NULL DEFAULT 60;
+CREATE INDEX IF NOT EXISTS idx_hr_interview_sessions_student
+  ON hr_interview_sessions(student_id, status, scheduled_at);
+
+CREATE TABLE IF NOT EXISTS hr_interview_signals (
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES hr_interview_sessions(id) ON DELETE CASCADE,
+  sender_role TEXT NOT NULL CHECK (sender_role IN ('company','student')),
+  signal_type TEXT NOT NULL CHECK (signal_type IN ('offer','answer','ice')),
+  payload JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hr_interview_signals_single_sdp
+  ON hr_interview_signals(session_id,sender_role,signal_type)
+  WHERE signal_type IN ('offer','answer');
+CREATE INDEX IF NOT EXISTS idx_hr_interview_signals_session
+  ON hr_interview_signals(session_id, id);
+
 -- The exact PDF uploaded by the student.
 CREATE TABLE IF NOT EXISTS student_resumes (
   student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,
