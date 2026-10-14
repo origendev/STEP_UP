@@ -13,5 +13,18 @@ function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 async function load(){try{const company=await api('/company/me');$('companyName').textContent=company.name;jobs=await api('/company/jobs')||[];render();}catch(e){msg(e.message)}}
 $('jobForm').onsubmit=async e=>{e.preventDefault();const eligibleDepartments=[...document.querySelectorAll('input[name="eligibleDepartment"]:checked')].map(c=>c.value);const body={title:$('title').value,jobType:$('jobType').value,workMode:$('workMode').value,salary:$('salary').value,stipend:$('stipend').value,applyBefore:$('applyBefore').value,eligibleDepartments,visitDate:$('visitDate').value,batch:$('batch').value,location:$('location').value,status:$('status').value,category:$('category').value,interviewRounds:$('interviewRounds').value,description:$('description').value,statusClass:$('status').value==='Rejected'?'status-rose':$('status').value==='Offer Released'?'status-green':'status-amber'};try{if(editingId)await api('/company/jobs/'+editingId,{method:'PATCH',body:JSON.stringify(body)});else await api('/company/jobs',{method:'POST',body:JSON.stringify(body)});msg(editingId?'Changes saved. This role has been sent for admin re-approval.':'Job submitted successfully. It will appear to students after admin approval.','ok');clearForm();jobs=await api('/company/jobs');render();}catch(e){msg(e.message)}};
 async function removeJob(id){if(!confirm('Delete this job listing? This removes it for every StepUp user.'))return;try{await api('/company/jobs/'+id,{method:'DELETE'});jobs=await api('/company/jobs');render();msg('Job listing deleted.','ok');}catch(e){msg(e.message)}}
+const legacyRoundsField=$('interviewRounds');
+if(legacyRoundsField){legacyRoundsField.required=false;if(legacyRoundsField.closest('label'))legacyRoundsField.closest('label').hidden=true;}
+const roundsGuidance=document.createElement('div');
+roundsGuidance.className='rounds-guidance';
+roundsGuidance.innerHTML='Recruitment rounds are managed from the Applicants page after at least one student is shortlisted.';
+Object.assign(roundsGuidance.style,{marginTop:'12px',padding:'11px 13px',border:'1px solid #ded6f6',borderRadius:'9px',background:'#f7f4ff',color:'#514477',fontSize:'11px',lineHeight:'1.55'});
+$('jobForm').insertBefore(roundsGuidance,$('jobForm').querySelector('.form-actions'));
+const fillJobForEdit=fill;
+fill=function(job){fillJobForEdit(job);roundsGuidance.innerHTML=`This job editor does not save recruitment rounds. Use <a href="applicants.html?job=${encodeURIComponent(job.id)}">Applicants &amp; recruitment rounds</a> to add or update stages.`;};
+const clearJobForm=clearForm;
+clearForm=function(){clearJobForm();roundsGuidance.textContent='Recruitment rounds are managed from the Applicants page after at least one student is shortlisted.';};
+const renderJobs=render;
+render=function(){renderJobs();document.querySelectorAll('[data-applicants]').forEach(button=>{button.textContent=`Applicants & rounds (${Number(jobs.find(job=>String(job.id)===String(button.dataset.applicants))?.applicant_count||0)})`;});};
 $('cancelEdit').onclick=clearForm;$('logout').onclick=()=>{localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('company-login.html')};load();
 </script></body></html>
