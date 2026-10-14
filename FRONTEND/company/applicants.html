@@ -65,6 +65,7 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
 @media(max-width:760px){.review-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.assessment-panel{padding:16px}.review-card{padding:14px}}
 @media(max-width:420px){.review-metrics strong{font-size:16px}.review-actions button{flex:1 1 100%}}\n
 .round-config-builder{display:grid;gap:12px;margin-top:14px}.round-config-card{border:1px solid #2a3b5d;border-radius:13px;padding:15px;background:#101a30;color:#edf3ff}.round-config-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.round-config-head strong{font-size:13px;color:#f4f7ff}.round-config-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.round-config-grid label{display:block;color:#cbd8f0;font-size:11px;font-weight:800}.round-config-grid input,.round-config-grid select,.round-config-grid textarea{display:block;box-sizing:border-box;width:100%;margin-top:6px;padding:9px 10px;border:1px solid #34496f;border-radius:8px;background:#091225;color:#f4f7ff;font:500 12px Inter,sans-serif}.round-config-grid .wide{grid-column:1/-1}.round-config-remove{border:1px solid #793e50;background:#3a1c2a;color:#ffb4c3;border-radius:8px;padding:7px 10px;font-weight:800}.round-config-builder .empty-rounds{padding:16px;border:1px dashed #34496f;border-radius:10px;color:#9eafd0;font-size:12px}@media(max-width:800px){.round-config-grid{grid-template-columns:1fr 1fr}}@media(max-width:520px){.round-config-grid{grid-template-columns:1fr}.round-config-grid .wide{grid-column:auto}}
+.round-plan-controls{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:16px 0}.round-plan-count{display:grid;gap:6px;color:#cbd8f0;font-size:11px;font-weight:800}.round-plan-count input{width:130px;padding:10px;border:1px solid #34496f;border-radius:8px;background:#091225;color:#f4f7ff;font:600 13px Inter,sans-serif}.round-plan-list{display:grid;gap:10px;margin:12px 0}.round-plan-item{padding:13px;border:1px solid #2a3b5d;border-radius:11px;background:#101a30;color:#edf3ff}.round-plan-item legend{padding:0 4px;color:#f4f7ff;font-size:12px;font-weight:800}.round-plan-options{display:flex;flex-wrap:wrap;gap:8px}.round-plan-options label{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #34496f;border-radius:8px;background:#091225;color:#cbd8f0;font-size:11px;font-weight:700;cursor:pointer}.round-plan-options label:has(input:checked){border-color:#7c8ff7;background:#202d50;color:#fff}.round-plan-options input{accent-color:#8b9cff}.round-plan-note{margin:6px 0 0;color:#9eafd0;font-size:11px}
 </style>
 <script src="../js/config.js"></script>
 </head>
@@ -84,8 +85,11 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
     <h2>Recruitment rounds</h2>
     <p class="panel-sub">Publish the job first, review applications, and shortlist at least one student. Configure interview and discussion rounds here, including an external HTTPS meeting link that students can open from Progress.</p>
     <div id="roundConfigMessage" class="review-empty" role="status">Loading this job's recruitment setup…</div>
+    <div class="round-plan-controls"><label class="round-plan-count" for="roundPlanCount">How many rounds?<input id="roundPlanCount" type="number" min="0" max="10" step="1" value="0"></label><button class="pass" type="button" id="setRoundPlan">Choose round types</button></div>
+    <p class="round-plan-note">Set a count from 0–10. For each round, check one type. You can use the same type more than once.</p>
+    <div id="roundPlanList" class="round-plan-list"></div>
     <div id="roundConfigBuilder" class="round-config-builder"></div>
-    <div class="review-actions"><button class="pass" type="button" id="addRecruitmentRound">+ Add round</button><button class="hold" type="button" id="saveRecruitmentRounds">Save rounds</button></div>
+    <div class="review-actions"><button class="hold" type="button" id="applyRoundPlan">Apply round plan</button><button class="hold" type="button" id="saveRecruitmentRounds">Save rounds</button></div>
   </section>
   <section class="assessment-panel"><h2>Assessment verification</h2><p class="panel-sub">Review submitted scores and integrity signals. No camera or microphone recordings are stored; device/focus signals can be mistaken and should be reviewed before deciding.</p><div id="assessmentReviews" class="applicant-list"><div class="review-empty" role="status">Loading submitted assessments…</div></div></section>
 </main>
@@ -100,6 +104,9 @@ const $=id=>document.getElementById(id);
 let applicants=[];
 let roundConfigItems=[];
 let roundConfigLoaded=false;
+let roundPlanSelections=[];
+let roundPlanDirty=false;
+const roundTypes=['Online test','Coding test','Technical interview','HR interview','Group discussion','Assignment'];
 function localDateTime(value){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);}
 function isoDateTime(value){if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toISOString();}
 function isHrRound(round){return /hr interview|human resources/i.test(`${round.name||''} ${round.type||''}`);}
@@ -131,6 +138,31 @@ function parseJobRounds(raw){
   }
   return [];
 }
+function roundDefaults(type){
+  return {name:type,type,mode:'Online',duration:30,questionCount:/interview|discussion|assignment/i.test(type)?0:10,cutoff:60,topics:'',instructions:'',scheduledAt:'',meetingUrl:'',active:true};
+}
+function renderRoundPlan(){
+  const host=$('roundPlanList');
+  if(!host)return;
+  host.innerHTML=roundPlanSelections.map((selected,index)=>`<fieldset class="round-plan-item"><legend>Round ${index+1} — choose one type</legend><div class="round-plan-options">${roundTypes.map(type=>`<label><input type="checkbox" data-plan-round="${index}" value="${esc(type)}" ${selected===type?'checked':''}>${esc(type)}</label>`).join('')}</div></fieldset>`).join('');
+  host.querySelectorAll('[data-plan-round]').forEach(input=>input.addEventListener('change',()=>{
+    if(input.checked){
+      host.querySelectorAll(`[data-plan-round="${input.dataset.planRound}"]`).forEach(other=>{if(other!==input)other.checked=false});
+      roundPlanSelections[Number(input.dataset.planRound)]=input.value;
+    }else roundPlanSelections[Number(input.dataset.planRound)]='';
+    roundPlanDirty=true;
+  }));
+}
+function setRoundPlanCount(){
+  const raw=$('roundPlanCount').value;
+  const count=Number(raw);
+  if(!Number.isInteger(count)||count<0||count>10){msg('Choose a whole number from 0 to 10 for the number of rounds.');return false;}
+  roundPlanSelections=Array.from({length:count},(_,index)=>roundPlanSelections[index]||roundConfigItems[index]?.type||'');
+  $('roundPlanCount').value=String(count);
+  roundPlanDirty=true;
+  renderRoundPlan();
+  return true;
+}
 function renderRoundConfig(){
   const host=$('roundConfigBuilder');
   if(!host)return;
@@ -157,15 +189,19 @@ function renderRoundConfig(){
   host.querySelectorAll('[data-config-field]').forEach(element=>element.addEventListener('input',()=>{
     const index=Number(element.closest('[data-config-round]').dataset.configRound);
     roundConfigItems[index][element.dataset.configField]=element.type==='number'?Number(element.value):element.type==='checkbox'?element.checked:element.type==='datetime-local'?isoDateTime(element.value):element.value;
-    if(element.dataset.configField==='type')renderRoundConfig();
+    if(element.dataset.configField==='type'){roundPlanSelections[index]=roundConfigItems[index].type;renderRoundConfig();renderRoundPlan();}
     else host.querySelector(`[data-config-round="${index}"] .round-config-head strong`).textContent=`Round ${index+1}: ${roundConfigItems[index].name||'New round'}`;
   }));
   host.querySelectorAll('[data-remove-config-round]').forEach(button=>button.onclick=()=>{
     roundConfigItems.splice(Number(button.dataset.removeConfigRound),1);
+    roundPlanSelections.splice(Number(button.dataset.removeConfigRound),1);
+    $('roundPlanCount').value=String(roundConfigItems.length);
+    roundPlanDirty=false;
+    renderRoundPlan();
     renderRoundConfig();
   });
 }
-async function loadRoundConfig(){const host=$('roundConfigMessage');roundConfigLoaded=false;try{const jobs=await api('/company/jobs');const job=(jobs||[]).find(j=>String(j.id)===String(jobId));if(!job){host.textContent='This job could not be found for your company.';return;}roundConfigItems=parseJobRounds(job.interview_rounds);roundConfigLoaded=true;renderRoundConfig();render();const hasShortlisted=applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));host.textContent=hasShortlisted?'A shortlisted applicant is available. Configure rounds below, or leave them empty if no interview is required.':'Shortlist at least one applicant above to enable saving recruitment rounds.';$('saveRecruitmentRounds').disabled=!hasShortlisted;}catch(e){host.textContent=`Could not load recruitment setup: ${e.message||'Unknown error'}`;}}
+async function loadRoundConfig(){const host=$('roundConfigMessage');roundConfigLoaded=false;try{const jobs=await api('/company/jobs');const job=(jobs||[]).find(j=>String(j.id)===String(jobId));if(!job){host.textContent='This job could not be found for your company.';return;}roundConfigItems=parseJobRounds(job.interview_rounds);roundPlanSelections=roundConfigItems.map(round=>round.type);roundPlanDirty=false;$('roundPlanCount').value=String(roundConfigItems.length);roundConfigLoaded=true;renderRoundPlan();renderRoundConfig();render();const hasShortlisted=applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));host.textContent=hasShortlisted?'Choose the number and type of rounds, configure each round, then save.':'Shortlist at least one applicant above to configure recruitment rounds.';$('saveRecruitmentRounds').disabled=!hasShortlisted;}catch(e){host.textContent=`Could not load recruitment setup: ${e.message||'Unknown error'}`;}}
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function initials(n){return String(n||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'S';}
@@ -392,8 +428,22 @@ async function verifyAssessment(id,decision,button) {
     if(button){button.disabled=false;button.textContent=original||'Retry decision';}
   }
 }
-$('addRecruitmentRound').onclick=()=>{if(roundConfigItems.length>=10){msg('A job can have at most 10 rounds.');return;}roundConfigItems.push({name:`Round ${roundConfigItems.length+1}`,type:'Online test',mode:'Online',duration:30,questionCount:10,cutoff:60,topics:'',instructions:'',scheduledAt:'',active:true});renderRoundConfig();};
-$('saveRecruitmentRounds').onclick=async()=>{const b=$('saveRecruitmentRounds');if(b.disabled)return;b.disabled=true;const original=b.textContent;b.textContent='Saving…';try{const result=await api('/company/jobs/'+encodeURIComponent(jobId)+'/rounds',{method:'PATCH',body:JSON.stringify({rounds:roundConfigItems})});roundConfigItems=parseJobRounds(result.interview_rounds);renderRoundConfig();render();$('roundConfigMessage').textContent=roundConfigItems.length?`Saved ${roundConfigItems.length} round(s). Students will see updates in Progress within seconds.`:'Recruitment rounds removed. Students will see that no rounds are configured.';msg('Recruitment rounds saved.','ok');}catch(e){$('roundConfigMessage').textContent=e.message||'Could not save rounds.';}finally{b.textContent=original;b.disabled=!applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));}};
+$('setRoundPlan').onclick=setRoundPlanCount;
+$('roundPlanCount').addEventListener('input',()=>{roundPlanDirty=true;});
+$('applyRoundPlan').onclick=()=>{
+  if(!setRoundPlanCount())return;
+  const missing=roundPlanSelections.findIndex(type=>!type);
+  if(missing!==-1){msg(`Select a round type for Round ${missing+1}.`);return;}
+  roundConfigItems=roundPlanSelections.map((type,index)=>{
+    const existing=roundConfigItems[index];
+    return existing?.type===type?{...existing}:roundDefaults(type);
+  });
+  roundPlanDirty=false;
+  renderRoundConfig();
+  render();
+  msg('Round plan applied. Configure details below, then save the rounds.','ok');
+};
+$('saveRecruitmentRounds').onclick=async()=>{const b=$('saveRecruitmentRounds');if(b.disabled)return;if(roundPlanDirty){msg('Apply the round plan before saving.');return;}b.disabled=true;const original=b.textContent;b.textContent='Saving…';try{const result=await api('/company/jobs/'+encodeURIComponent(jobId)+'/rounds',{method:'PATCH',body:JSON.stringify({rounds:roundConfigItems})});roundConfigItems=parseJobRounds(result.interview_rounds);roundPlanSelections=roundConfigItems.map(round=>round.type);roundPlanDirty=false;$('roundPlanCount').value=String(roundConfigItems.length);renderRoundPlan();renderRoundConfig();render();$('roundConfigMessage').textContent=roundConfigItems.length?`Saved ${roundConfigItems.length} round(s). Students will see updates in Progress within seconds.`:'Recruitment rounds removed. Students will see that no rounds are configured.';msg('Recruitment rounds saved.','ok');}catch(e){$('roundConfigMessage').textContent=e.message||'Could not save rounds.';}finally{b.textContent=original;b.disabled=!applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));}};
 async function updateStatus(id,status){
   if(status==='Selected'&&!confirm('Mark this student as placed? They will receive a placement notification.'))return;
   try{
