@@ -17,7 +17,7 @@ import { mount as mountProfile } from './pages/profile.js';
 import { mount as mountJobs } from './pages/jobs.js';
 import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261008c';
 import { mount as mountSkills } from './pages/skills.js?v=20261009f';
-import { mount as mountProgress } from './pages/progress.js?v=20261014a';
+import { mount as mountProgress } from './pages/progress.js?v=20261014b';
 import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 import { mount as mountRound2 } from './pages/round2.js';

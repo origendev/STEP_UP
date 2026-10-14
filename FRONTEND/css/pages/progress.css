@@ -2112,3 +2112,349 @@
     animation-duration: 1.5s;
   }
 }
+
+/* Secure assessment dialog */
+.pr-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: clamp(12px, 3vw, 32px);
+  overflow: auto;
+  background: rgba(13, 22, 39, .76);
+  backdrop-filter: blur(5px);
+  box-sizing: border-box;
+}
+
+.pr-assessment-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(780px, 100%);
+  max-height: min(900px, 94vh);
+  max-height: min(900px, 94dvh);
+  overflow: hidden;
+  color: #202b3d;
+  background: #fff;
+  border: 1px solid #dce4ed;
+  border-radius: 20px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .35);
+}
+
+.pr-assessment-modal > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 23px 26px 18px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.pr-assessment-modal > header h2 {
+  margin: 5px 0 4px;
+  color: #17243a;
+  font-size: clamp(20px, 3vw, 26px);
+  line-height: 1.25;
+}
+
+.pr-assessment-modal > header p {
+  margin: 0;
+  color: #66758a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pr-modal-close {
+  display: grid;
+  flex: 0 0 38px;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #dce4ed;
+  border-radius: 50%;
+  color: #3d4c61;
+  background: #f7f9fc;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.pr-assessment-modal.is-locked .pr-modal-close {
+  display: none;
+}
+
+.pr-modal-body {
+  min-height: 0;
+  padding: 22px 26px 26px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.pr-proctor-consent {
+  display: grid;
+  justify-items: start;
+  gap: 15px;
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 10px 0;
+}
+
+.pr-proctor-consent h3,
+.pr-question h3,
+.pr-result-state h3 {
+  margin: 0;
+  color: #17243a;
+}
+
+.pr-proctor-consent > p:not(.pr-proctor-error) {
+  margin: 0;
+  color: #56667d;
+  line-height: 1.65;
+}
+
+.pr-proctor-consent label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.5;
+}
+
+.pr-proctor-consent input {
+  margin-top: 4px;
+  accent-color: #315f9d;
+}
+
+.pr-proctor-error {
+  min-height: 0;
+  margin: 0;
+  color: #b4233b;
+  font-size: 13px;
+}
+
+.pr-proctor-status {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 18px;
+  padding: 10px 13px;
+  border: 1px solid #dce7f2;
+  border-radius: 12px;
+  background: #f5f9fd;
+  color: #3d4c61;
+  font-size: 12px;
+}
+
+.pr-proctor-preview {
+  width: 90px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #1c2635;
+  object-fit: cover;
+}
+
+.pr-proctor-status small {
+  display: block;
+  margin-top: 4px;
+  color: #718096;
+}
+
+.pr-test-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: #586a82;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+.pr-test-timer {
+  color: #243f67;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.pr-test-progress {
+  height: 6px;
+  margin: 12px 0 23px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e9eef4;
+}
+
+.pr-test-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #3978b9;
+  transition: width .2s ease;
+}
+
+.pr-question-tag {
+  display: inline-block;
+  margin-bottom: 9px;
+  color: #5678a0;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.pr-question h3 {
+  margin-bottom: 18px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.pr-options {
+  display: grid;
+  gap: 10px;
+}
+
+.pr-option {
+  display: grid;
+  grid-template-columns: 18px 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 13px;
+  border: 1px solid #dce4ed;
+  border-radius: 12px;
+  color: #33445c;
+  background: #fff;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.pr-option:hover,
+.pr-option.is-picked {
+  border-color: #74a3d1;
+  background: #f0f6fc;
+}
+
+.pr-option input {
+  margin: 0;
+  accent-color: #315f9d;
+}
+
+.pr-option-letter {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  color: #456589;
+  background: #edf3f9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pr-test-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.pr-test-footer > span {
+  color: #66758a;
+  font-size: 12px;
+}
+
+.pr-test-warning {
+  margin: 16px 0 0;
+  color: #7a5b19;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pr-primary-action:disabled,
+.pr-secondary-action:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.pr-result-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 25px 5px;
+  text-align: center;
+}
+
+.pr-result-state > p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.pr-result-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  color: #176b4b;
+  background: #e3f5ec;
+  font-size: 27px;
+  font-weight: 800;
+}
+
+.pr-muted {
+  color: #6a788b;
+  font-size: 13px;
+}
+
+.pr-modal-body .pr-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d7e0ea;
+  border-top-color: #3978b9;
+  border-radius: 50%;
+  animation: pr-modal-spin .8s linear infinite;
+}
+
+@keyframes pr-modal-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .pr-modal-backdrop {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .pr-assessment-modal {
+    max-height: 96vh;
+    max-height: 96dvh;
+    border-radius: 18px 18px 12px 12px;
+  }
+
+  .pr-assessment-modal > header {
+    padding: 17px 17px 14px;
+  }
+
+  .pr-modal-body {
+    padding: 17px;
+  }
+
+  .pr-proctor-preview {
+    width: 72px;
+    height: 54px;
+  }
+
+  .pr-test-footer {
+    flex-wrap: wrap;
+  }
+
+  .pr-test-footer > span {
+    order: 3;
+    width: 100%;
+    text-align: center;
+  }
+}
