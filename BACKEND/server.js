@@ -1877,6 +1877,41 @@ app.post(
     const b = req.body;
     const err = validateJob(b);
     if (err) return res.status(400).json({ error: err });
+    let interviewRounds = clean(b.interviewRounds) || 'Not specified';
+    if (interviewRounds.startsWith('[') || interviewRounds.startsWith('{')) {
+      let rawRounds;
+      try { rawRounds = JSON.parse(interviewRounds); } catch {
+        return res.status(400).json({ error: 'Recruitment rounds must be valid JSON.' });
+      }
+      const parsedRounds = Array.isArray(rawRounds) ? rawRounds : rawRounds?.rounds;
+      if (!Array.isArray(parsedRounds)) {
+        return res.status(400).json({ error: 'Recruitment rounds must be a list.' });
+      }
+      if (parsedRounds.length > 10) {
+        return res.status(400).json({ error: 'A job can have at most 10 recruitment rounds.' });
+      }
+      const allowedRoundTypes = new Set(['Online test','Coding test','Technical interview','HR interview','Group discussion','Assignment']);
+      for (const [index, round] of parsedRounds.entries()) {
+        if (!round || !allowedRoundTypes.has(clean(round.type))) {
+          return res.status(400).json({ error: `Choose a valid type for Round ${index + 1}.` });
+        }
+      }
+      interviewRounds = JSON.stringify(parsedRounds.map((round,index)=>({
+        name:clean(round.name)||clean(round.type),
+        type:clean(round.type),
+        mode:'Online',
+        duration:30,
+        questionCount:/interview|discussion|assignment/i.test(round.type)?0:10,
+        cutoff:60,
+        passingScore:'60%',
+        topics:'',
+        instructions:'',
+        scheduledAt:null,
+        meetingUrl:'',
+        active:false,
+        order:index+1
+      })));
+    }
 
     const client = await pool.connect();
     try {
@@ -1892,7 +1927,7 @@ app.post(
           clean(b.statusClass) || 'status-amber', clean(b.batch) || null, clean(b.location) || null, clean(b.workMode) || null,
           clean(b.description) || '', clean(b.category) || 'eligible', normalizeStringList(b.requiredSkills),
           normalizeStringList(b.eligibleBatches), Number(b.vacancies ?? 1), b.minCgpa === '' || b.minCgpa == null ? null : Number(b.minCgpa),
-          b.backlogsAllowed, clean(b.interviewRounds) || 'Not specified'
+          b.backlogsAllowed, interviewRounds
         ]
       );
       const departments = normalizeEligibleDepartments(b.eligibleDepartments);
