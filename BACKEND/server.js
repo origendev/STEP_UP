@@ -2624,6 +2624,56 @@ app.get('/api/admin/students/:id', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/students/:id/performance', requireAdmin, async (req, res) => {
+  const studentId = Number(req.params.id);
+  if (!Number.isSafeInteger(studentId) || studentId < 1) {
+    return res.status(400).json({ error: 'Invalid student ID.' });
+  }
+  try {
+    const studentResult = await pool.query(`${adminStudentSelect} WHERE id=$1`, [studentId]);
+    const student = studentResult.rows[0];
+    if (!student) return res.status(404).json({ error: 'Student not found.' });
+    const applications = await pool.query(
+      `SELECT a.id,a.job_id,a.status,a.applied_at,a.updated_at,
+              j.title,j.job_type,j.location,j.work_mode,j.salary,j.stipend,j.interview_rounds,
+              c.name AS company_name,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'status',ash.status,'changed_by_role',ash.changed_by_role,'created_at',ash.created_at
+              ) ORDER BY ash.created_at) FROM application_status_history ash
+                WHERE ash.application_id=a.id),'[]'::jsonb) AS status_history,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,
+                'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at
+              ) ORDER BY crr.round_index) FROM company_round_reviews crr
+                WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,
+                'score',CASE WHEN aa.company_verified THEN aa.score END,
+                'correct_count',CASE WHEN aa.company_verified THEN aa.correct_count END,
+                'total_questions',CASE WHEN aa.company_verified THEN aa.total_questions END,
+                'company_verified',aa.company_verified,'company_decision',aa.company_decision,
+                'company_feedback',aa.company_feedback,'submitted_at',aa.submitted_at
+              ) ORDER BY aa.round_index) FROM assessment_attempts aa
+                WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'id',his.id,'round_index',his.round_index,'round_name',his.round_name,
+                'scheduled_at',his.scheduled_at,'status',his.status,'started_at',his.started_at,'ended_at',his.ended_at
+              ) ORDER BY his.round_index) FROM hr_interview_sessions his
+                WHERE his.application_id=a.id AND his.student_id=a.student_id),'[]'::jsonb) AS hr_interviews
+       FROM job_applications a
+       JOIN jobs j ON j.id=a.job_id
+       JOIN companies c ON c.id=j.company_id
+       WHERE a.student_id=$1
+       ORDER BY a.applied_at DESC`,
+      [studentId]
+    );
+    res.json({ data: { student, applications: applications.rows } });
+  } catch (e) {
+    console.error('Could not load student performance:', e);
+    res.status(500).json({ error: 'Could not load the student performance report.' });
+  }
+});
+
 app.post('/api/admin/students', requireAdmin, async (req, res) => {
   const name = clean(req.body.name);
   const regNo = clean(req.body.regNo);
