@@ -91,11 +91,19 @@ const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" strok
 const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 const CLIP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg>';
 
-const state = { dept: 'CSE', year: 0, lang: 'Python' };
+const state = { dept: 'CSE', year: 0, lang: 'Python', query: '' };
 const PROG_LEVELS = [{ key: 'Beginner' }, { key: 'Intermediate' }, { key: 'Advanced' }];
 let locked = false;   // true when the student's year is known: they only see their own year
 
 function ordinal(y){ return y + (y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'); }
+
+function focusCourseSearch(event){
+  if(document.body.dataset.route !== 'skills') return;
+  if(event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+  if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable) return;
+  event.preventDefault();
+  document.getElementById('skSearch')?.focus();
+}
 
 function card(c){
   const levels = c.years.map(y => YEARS.find(v => v.key === y)?.level).filter(Boolean);
@@ -161,6 +169,10 @@ function render(){
   ensureLevels();
   const y = YEARS.find(v => v.key === state.year);
   const yearWords = y ? ` for ${y.label}` : '';
+  const query = state.query.trim().toLowerCase();
+  const searchResults = $('#skSearchResults');
+  const searchList = $('#skSearchResultsList');
+  const searching = Boolean(query);
 
   $$('#skTabs .sk-tab').forEach(b => {
     const on = b.dataset.tab === state.dept;
@@ -177,6 +189,28 @@ function render(){
     ? (locked ? `${y.label} · ${y.level} — ${y.blurb}` : y.blurb)
     : 'Showing courses for every year. Pick a year to see what suits you now.';
 
+  const sections = [$('#skGenSec'), $('#skDeptSec'), $('#skProgTitle')?.closest('.sk-section')].filter(Boolean);
+  sections.forEach(section => { section.hidden = searching; });
+  searchResults.hidden = !searching;
+  $('#skSearchClear').hidden = !searching;
+  $('#skSearchHint').textContent = searching
+    ? 'Showing matches across all course categories for your study year.'
+    : 'Search every course by topic, provider, certificate or skill.';
+  if(searching){
+    const uniqueCourses = new Map([...COURSES, ...PROG_COURSES].filter(yearOk).map(course => [courseId(course), course]));
+    const terms = query.split(/\s+/).filter(Boolean);
+    const matches = [...uniqueCourses.values()].filter(course => {
+      const searchable = Object.values(course).flat().join(' ').toLowerCase();
+      return terms.every(term => searchable.includes(term));
+    });
+    $('#skSearchResultCount').textContent = `${matches.length} found`;
+    $('#skCount').textContent = `${matches.length} course${matches.length === 1 ? '' : 's'}`;
+    searchList.innerHTML = matches.length
+      ? matches.map(card).join('')
+      : `<div class="card sk-empty">No courses match “${esc(state.query.trim())}”. Try another skill, provider or topic.</div>`;
+    return;
+  }
+
   /* General: everything flagged `general`, grouped in a fixed order */
   const order = GENERAL_GROUPS.map(g => g.key);
   const general = COURSES
@@ -187,6 +221,9 @@ function render(){
   const dept = COURSES.filter(c =>
     !c.general && (c.depts === 'ALL' || c.depts.includes(state.dept)) && yearOk(c));
 
+  const programming = PROG_COURSES.filter(c => c.lang === state.lang && yearOk(c));
+  const visibleCount = new Set([...general, ...dept, ...programming].map(courseId)).size;
+  $('#skCount').textContent = `${visibleCount} course${visibleCount === 1 ? '' : 's'}`;
   fill($('#skGeneral'), general, `No general courses added yet${yearWords}.`);
   fill($('#skDept'), dept,
     `No ${state.dept}-specific free certificate courses added yet${yearWords}. Check the General courses above.`);
@@ -203,18 +240,6 @@ function render(){
   });
     PROG_LEVELS.forEach(lv => {
     const list = PROG_COURSES.filter(c =>
-      c.lang === state.lang &&
-      (c.level || 'Beginner') === lv.key &&
-      yearOk(c)
-    );
-    fill(
-      $(`#skProgLevels${lv.key}`),
-      list,
-      `${lv.key} ${state.lang} courses coming soon.`
-    );
-  });
-    PROG_LEVELS.forEach(lv => {
-    const list = PROG_COURSES.filter(c =>
       c.lang === state.lang && (c.level || 'Beginner') === lv.key && yearOk(c));
     fill($('#skProgLevels' + lv.key), list, `${lv.key} ${state.lang} courses coming soon.`);
   });
@@ -225,6 +250,10 @@ export function mount(){
   const years = $('#skYears');
   const view = $('#view-skills');
   if(!tabs || !years || !view) return;
+  const search = $('#skSearch');
+  const clearSearch = $('#skSearchClear');
+  state.query = '';
+  if(search) search.value = '';
 
   const mine = studentDept();
   const myYear = studentYear();
@@ -262,6 +291,25 @@ export function mount(){
     const b = e.target.closest('.sk-year');
     if(b){ state.year = Number(b.dataset.year); render(); }
   });
+  search?.addEventListener('input', () => {
+    state.query = search.value;
+    render();
+  });
+  clearSearch?.addEventListener('click', () => {
+    state.query = '';
+    search.value = '';
+    render();
+    search.focus();
+  });
+  search?.addEventListener('keydown', event => {
+    if(event.key === 'Escape' && search.value){
+      state.query = '';
+      search.value = '';
+      render();
+    }
+  });
+  document.removeEventListener('keydown', focusCourseSearch);
+  document.addEventListener('keydown', focusCourseSearch);
 
   /* ‹ › buttons nudge a row sideways (handy with a mouse that has no sideways wheel) */
   view.addEventListener('click', e => {

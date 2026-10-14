@@ -17,6 +17,10 @@ $('jobForm').onsubmit=async e=>{e.preventDefault();const eligibleDepartments=[..
 async function removeJob(id){if(!confirm('Delete this job listing? This removes it for every StepUp user.'))return;try{await api('/company/jobs/'+id,{method:'DELETE'});jobs=await api('/company/jobs');render();msg('Job listing deleted.','ok');}catch(e){msg(e.message)}}
 const legacyRoundsField=$('interviewRounds');
 if(legacyRoundsField){legacyRoundsField.required=false;if(legacyRoundsField.closest('label'))legacyRoundsField.closest('label').hidden=true;}
+for(const id of ['description','status','category']){
+  const field=$(id);
+  if(field){field.required=false;if(field.closest('label'))field.closest('label').hidden=true;}
+}
 const roundsGuidance=document.createElement('div');
 roundsGuidance.className='rounds-guidance';
 roundsGuidance.innerHTML='Recruitment rounds are managed from the Applicants page after at least one student is shortlisted.';

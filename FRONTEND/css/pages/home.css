@@ -284,6 +284,10 @@
    HOME — richer layout
 ============================================================ */
 .hero-date{ margin-top:10px!important; font-size:13px!important; font-weight:600; color:var(--violet-600)!important; }
+.home-live-status{display:flex;align-items:center;gap:8px;margin-top:7px!important;color:var(--ink-soft)!important;font-size:11px!important}
+.home-live-status button{padding:0;border:0;background:none;color:var(--violet-700);font-family:inherit;font-size:11px;font-weight:700;text-decoration:underline;cursor:pointer}
+.home-skill-row{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:0 0 11px}
+.home-skill-level{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--violet-100);color:var(--violet-700);font-size:10px;font-weight:700}
 .hero-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
 .hero-actions .btn-solid,.hero-actions .btn-outline{ padding:11px 20px; border-radius:12px; font-size:14px; cursor:pointer; }
 .hero-actions .btn-outline{ border:1px solid var(--violet-300); }

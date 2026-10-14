@@ -5,6 +5,31 @@
    Department courses  -> .sk-two-rows  (two rows, scrolls sideways)
 ============================================================ */
 
+/* ---------- Course search ---------- */
+.sk-search-wrap{margin:2px 0 20px}
+.sk-search{
+  position:relative;display:flex;align-items:center;gap:12px;max-width:760px;min-height:58px;
+  padding:0 16px;border:1px solid var(--line);border-radius:17px;background:var(--white);
+  box-shadow:0 10px 28px rgba(39,31,75,.07);transition:border-color .18s,box-shadow .18s,transform .18s;
+}
+.sk-search:focus-within{border-color:var(--violet-500);box-shadow:0 0 0 4px rgba(111,78,214,.12),0 14px 30px rgba(39,31,75,.09);transform:translateY(-1px)}
+.sk-search-ic{flex:0 0 auto;color:var(--violet-600)}
+.sk-search input{flex:1;min-width:0;height:56px;border:0;outline:0;background:transparent;color:var(--ink);font-family:inherit;font-size:15px;font-weight:500;line-height:1.4}
+.sk-search input::placeholder{color:var(--ink-soft);opacity:.82}
+.sk-search-shortcut{display:grid;place-items:center;width:25px;height:25px;border:1px solid var(--line);border-radius:7px;color:var(--ink-soft);font-family:inherit;font-size:13px;font-weight:600;line-height:1;background:var(--page,#f7f6fb)}
+.sk-search-x{width:30px;height:30px;border:0;border-radius:9px;background:var(--violet-100);color:var(--violet-700);font-size:21px;line-height:1;cursor:pointer}
+.sk-search-x[hidden]{display:none}
+.sk-search-x:hover{background:var(--violet-200,var(--violet-100))}
+.sk-search-hint{margin:8px 0 0 4px;color:var(--ink-soft);font-size:12px}
+.sk-search-results{margin:20px 0 30px}
+.sk-search-results[hidden]{display:none}
+.sk-search-results-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sk-search-results-head h3{margin:0;font-size:18px}
+.sk-search-results-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
+.sk-search-results-grid .sk-card{min-width:0}
+.sk-search-results-grid .sk-empty{grid-column:1/-1}
+@media(max-width:680px){.sk-search{min-height:54px;padding:0 12px;border-radius:14px}.sk-search input{height:52px;font-size:14px}.sk-search-shortcut{display:none}.sk-search-results-grid{grid-template-columns:1fr}}
+
 /* ---------- Year filter (only shown when the student's year is unknown) ---------- */
 .sk-years{ display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 6px; }
 .sk-years[hidden]{ display:none; }

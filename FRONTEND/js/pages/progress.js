@@ -23,6 +23,7 @@ function parseRounds(raw) {
 const roundDuration = r => { const v=r.durationMinutes??r.duration??r.duration_minutes; return v?( /^\d+$/.test(String(v))?`${v} min`:String(v)):''; };
 const roundType = r => r.type||r.assessmentType||r.assessment_type||r.mode||'';
 const isHrInterview = r => /hr interview|human resources/i.test(`${r.name||''} ${roundType(r)}`);
+const safeMeetingUrl = r => { try { const url=new URL(r.meetingUrl||r.meeting_url||''); return url.protocol==='https:'?url.href:''; } catch { return ''; } };
 const roundTopics = r => r.topics||r.skills||r.description||r.instructions||'';
 const isTest = r => /aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${r.name||''} ${roundType(r)}`);
 function progressMarkup(app) {
@@ -66,6 +67,8 @@ function progressMarkup(app) {
     else if(isHrInterview(r)&&hrInterview?.status==='scheduled') action=`<span class="pr-interview-note">HR interview scheduled for ${esc(new Date(hrInterview.scheduled_at).toLocaleString())}. The Join button appears when the company starts the call.</span>`;
     else if(isHrInterview(r)&&hrInterview?.status==='ended') action='<span class="pr-interview-note">This HR interview has ended. Contact the company if a follow-up is needed.</span>';
     else action=`<span class="pr-interview-note">${!applicationActive?'This stage unlocks after shortlisting':!roundActive?'This round is not active yet':(notYetScheduled?`Scheduled for ${esc(scheduledDate.toLocaleString())}`:roundReview?.decision==='Pass'?'The company approved this round.':roundReview?.decision==='Fail'?'The company did not pass this round.':roundReview?.decision==='Needs review'?'The company is reviewing this round.':'Recruiter will schedule this round')}</span>`;
+    const externalMeetingUrl=safeMeetingUrl(r);
+    if(externalMeetingUrl&&available) action=`<a class="pr-primary-action" href="${esc(externalMeetingUrl)}" target="_blank" rel="noopener noreferrer">Join external meeting <span>↗</span></a>${action}`;
     const key=`${app.id}-${i}`;
     const decisionFeedback=roundReview?.feedback?`<div class="pr-company-feedback"><strong>Company feedback</strong><p>${esc(roundReview.feedback)}</p>${roundReview.reviewed_at?`<small>Updated ${esc(new Date(roundReview.reviewed_at).toLocaleString())}</small>`:''}</div>`:'';
     const details=`${meta?`<p class="pr-round-topics">${esc(meta)}</p>`:''}${topics?`<p class="pr-round-topics">${esc(topics)}</p>`:''}${scheduledDate&&!Number.isNaN(scheduledDate.getTime())?`<p class="pr-round-topics">Scheduled: ${esc(scheduledDate.toLocaleString())}</p>`:''}${test?`<p class="pr-round-topics">Qualifying score: ${esc(r.passingScore?String(r.passingScore).includes('%')?r.passingScore:`${r.passingScore}%`:'60%')}</p>`:''}${decisionFeedback}<div class="pr-round-actions">${roundActive?`<button class="pr-secondary-action" type="button" data-prep-round="${i}">AI preparation plan</button>`:''}${action}</div><div class="pr-prep-panel" data-prep-panel="${i}" hidden><div class="pr-prep-loading">Generating a preparation plan…</div></div>`;

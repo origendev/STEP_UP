@@ -2017,6 +2017,14 @@ app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
     if (scheduledAt && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(scheduledAt) || Number.isNaN(Date.parse(scheduledAt)))) {
       return res.status(400).json({ error: `Round ${i + 1}: schedule must be a valid ISO date and time.` });
     }
+    const meetingUrl = String(r.meetingUrl || r.meeting_url || '').trim();
+    if (meetingUrl) {
+      let parsedMeetingUrl;
+      try { parsedMeetingUrl = new URL(meetingUrl); } catch {}
+      if (!parsedMeetingUrl || parsedMeetingUrl.protocol !== 'https:' || meetingUrl.length > 2048) {
+        return res.status(400).json({ error: `Round ${i + 1}: meeting link must be a valid HTTPS URL of at most 2048 characters.` });
+      }
+    }
     if (r.active != null && typeof r.active !== 'boolean') {
       return res.status(400).json({ error: `Round ${i + 1}: active must be true or false.` });
     }
@@ -2025,7 +2033,7 @@ app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
       passingScore: `${cutoff}%`, order: i + 1,
       topics: String(r.topics || '').trim().slice(0, 1500),
       instructions: String(r.instructions || '').trim().slice(0, 3000),
-      scheduledAt, active: r.active !== false
+      scheduledAt, meetingUrl, active: r.active !== false
     });
   }
   const client = await pool.connect();
@@ -2053,7 +2061,7 @@ app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
       const signature = values => JSON.stringify(values.map(r => ({
         name:r.name,type:r.type,mode:r.mode,duration:Number(r.duration),questionCount:Number(r.questionCount),
         cutoff:Number(String(r.cutoff ?? r.passingScore ?? 60).replace('%','')),topics:r.topics||'',
-        instructions:r.instructions||'',scheduledAt:r.scheduledAt||null,active:r.active!==false
+        instructions:r.instructions||'',scheduledAt:r.scheduledAt||null,meetingUrl:r.meetingUrl||'',active:r.active!==false
       })));
       const decidedThrough = Math.max(...decidedRounds.rows.map(row => Number(row.round_index)));
       const configuredRounds = parseConfiguredRounds(job.rows[0].interview_rounds);
