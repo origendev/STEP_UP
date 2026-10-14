@@ -193,9 +193,6 @@ function render(){
   sections.forEach(section => { section.hidden = searching; });
   searchResults.hidden = !searching;
   $('#skSearchClear').hidden = !searching;
-  $('#skSearchHint').textContent = searching
-    ? 'Showing matches across all course categories for your study year.'
-    : 'Search every course by topic, provider, certificate or skill.';
   if(searching){
     const uniqueCourses = new Map([...COURSES, ...PROG_COURSES].filter(yearOk).map(course => [courseId(course), course]));
     const terms = query.split(/\s+/).filter(Boolean);
