@@ -631,6 +631,21 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_job_applications_student_id
       ON job_applications(student_id);
 
+    CREATE TABLE IF NOT EXISTS company_round_reviews (
+      id BIGSERIAL PRIMARY KEY,
+      application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+      round_index INTEGER NOT NULL CHECK (round_index >= 0),
+      round_name TEXT NOT NULL,
+      decision TEXT NOT NULL CHECK (decision IN ('Pass','Fail','Needs review')),
+      feedback TEXT,
+      reviewed_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(application_id, round_index)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_company_round_reviews_application
+      ON company_round_reviews(application_id, round_index);
+
     CREATE TABLE IF NOT EXISTS job_approval_history (
       id BIGSERIAL PRIMARY KEY,
       job_id BIGINT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
@@ -1991,23 +2006,26 @@ app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Shortlist at least one applicant before configuring recruitment rounds.' });
     }
-    const attempts = await client.query(
-      `SELECT DISTINCT round_index FROM assessment_attempts aa
-       JOIN job_applications a ON a.id=aa.application_id WHERE a.job_id=$1`,
+    const decidedRounds = await client.query(
+      `SELECT round_index FROM assessment_attempts aa
+       JOIN job_applications a ON a.id=aa.application_id WHERE a.job_id=$1
+       UNION
+       SELECT crr.round_index FROM company_round_reviews crr
+       JOIN job_applications a ON a.id=crr.application_id WHERE a.job_id=$1`,
       [jobId]
     );
-    if (attempts.rows.length) {
+    if (decidedRounds.rows.length) {
       const signature = values => JSON.stringify(values.map(r => ({
         name:r.name,type:r.type,mode:r.mode,duration:Number(r.duration),questionCount:Number(r.questionCount),
         cutoff:Number(String(r.cutoff ?? r.passingScore ?? 60).replace('%','')),topics:r.topics||'',
         instructions:r.instructions||'',scheduledAt:r.scheduledAt||null,active:r.active!==false
       })));
-      const attemptedThrough = Math.max(...attempts.rows.map(row => Number(row.round_index)));
+      const decidedThrough = Math.max(...decidedRounds.rows.map(row => Number(row.round_index)));
       const configuredRounds = parseConfiguredRounds(job.rows[0].interview_rounds);
-      if (rounds.length <= attemptedThrough ||
-          signature(rounds.slice(0, attemptedThrough + 1)) !== signature(configuredRounds.slice(0, attemptedThrough + 1))) {
+      if (rounds.length <= decidedThrough ||
+          signature(rounds.slice(0, decidedThrough + 1)) !== signature(configuredRounds.slice(0, decidedThrough + 1))) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'Rounds with assessment attempts cannot be changed or removed, to preserve recorded results. You can add or edit rounds after the last round with an attempt.' });
+        return res.status(409).json({ error: 'Rounds with assessment attempts or company decisions cannot be changed or removed. You can add or edit rounds after the last decided round.' });
       }
     }
     const saved = await client.query('UPDATE jobs SET interview_rounds=$1,updated_at=NOW() WHERE id=$2 AND company_id=$3 RETURNING id,title,interview_rounds,updated_at', [JSON.stringify(rounds), jobId, req.company.companyId]);
@@ -3144,7 +3162,8 @@ app.get('/api/student/applications', requireStudent, async (req, res) => {
               j.approval_status,j.approval_note,j.required_skills,j.eligible_batches,j.min_cgpa,j.vacancies,
               c.id AS company_id,c.name AS company_name,c.industry,c.location AS company_location,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('status',ash.status,'changed_by_role',ash.changed_by_role,'created_at',ash.created_at) ORDER BY ash.created_at) FROM application_status_history ash WHERE ash.application_id=a.id),'[]'::jsonb) AS status_history,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',aa.score,'correct_count',aa.correct_count,'total_questions',aa.total_questions,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'company_verified',aa.company_verified,'company_decision',aa.company_decision,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('id',aa.id,'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,'score',aa.score,'correct_count',aa.correct_count,'total_questions',aa.total_questions,'violation_count',aa.violation_count,'auto_submitted',aa.auto_submitted,'company_verified',aa.company_verified,'company_decision',aa.company_decision,'submitted_at',aa.submitted_at) ORDER BY aa.round_index) FROM assessment_attempts aa WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at) ORDER BY crr.round_index) FROM company_round_reviews crr WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
        JOIN companies c ON c.id=j.company_id
@@ -3536,6 +3555,9 @@ function parseConfiguredRounds(raw) {
   try { const parsed=JSON.parse(text); if(Array.isArray(parsed))return parseConfiguredRounds(parsed); if(parsed&&Array.isArray(parsed.rounds))return parseConfiguredRounds(parsed.rounds); } catch {}
   return text.split(/\r?\n/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}));
 }
+function isOnlineAssessmentRound(round) {
+  return /aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name||''} ${round.type||round.mode||''}`);
+}
 function assessmentDurationSeconds(round) {
   const raw=round.durationMinutes??round.duration_minutes??round.duration;
   let v=Number(raw);
@@ -3611,8 +3633,17 @@ app.post('/api/student/assessments/start', requireStudent, async (req,res)=>{
     const rounds=parseConfiguredRounds(row.interview_rounds), round=rounds[roundIndex]; if(!round)return res.status(404).json({error:'Round configuration was not found.'});
     if(round.active===false)return res.status(403).json({error:'This recruitment round is not active yet.'});
     if(round.scheduledAt&&new Date(round.scheduledAt)>new Date())return res.status(403).json({error:`This round is scheduled for ${new Date(round.scheduledAt).toLocaleString()}.`});
-    if(!/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name} ${round.type||round.mode||''}`))return res.status(400).json({error:'This round is not configured as an online assessment. The recruiter will schedule it.'});
-    if(roundIndex>0){const prior=await pool.query(`SELECT status,company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3`,[applicationId,req.student.studentId,roundIndex-1]);if(!prior.rows[0]||prior.rows[0].status!=='submitted'||prior.rows[0].company_verified!==true||prior.rows[0].company_decision!=='Pass')return res.status(403).json({error:'The previous round must be passed and verified by the company before this assessment unlocks.'});}
+    if(!isOnlineAssessmentRound(round))return res.status(400).json({error:'This round is not configured as an online assessment. The recruiter will schedule it.'});
+    if(roundIndex>0){
+      const previousRound=rounds[roundIndex-1];
+      const prior=isOnlineAssessmentRound(previousRound)
+        ? await pool.query(`SELECT status,company_verified,company_decision FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3`,[applicationId,req.student.studentId,roundIndex-1])
+        : await pool.query(`SELECT decision FROM company_round_reviews WHERE application_id=$1 AND round_index=$2`,[applicationId,roundIndex-1]);
+      const approved=isOnlineAssessmentRound(previousRound)
+        ? prior.rows[0]?.status==='submitted'&&prior.rows[0]?.company_verified===true&&prior.rows[0]?.company_decision==='Pass'
+        : prior.rows[0]?.decision==='Pass';
+      if(!approved)return res.status(403).json({error:'The previous round must be passed and verified by the company before this assessment unlocks.'});
+    }
     const existing=await pool.query('SELECT * FROM assessment_attempts WHERE application_id=$1 AND student_id=$2 AND round_index=$3',[applicationId,req.student.studentId,roundIndex]);
     if(existing.rows[0]){const a=existing.rows[0];if(a.status==='submitted')return res.status(409).json({error:'This round has already been submitted. Retakes must be enabled by the recruiter.'});if(new Date(a.expires_at)<=new Date()){const result=await scoreAssessmentAttempt(a.id,req.student.studentId,true);return res.status(409).json({error:'Your previous attempt expired and was submitted automatically.',result});}const remaining=Math.max(1,Math.floor((new Date(a.expires_at)-Date.now())/1000));return res.json({data:{attemptId:a.id,roundName:a.round_name,questions:publicQuestions(a.questions),savedAnswers:a.answers||{},remainingSeconds:remaining,violationCount:a.violation_count,resumed:true}});}
     const questions=await generateAssessmentQuestions(round,row);
@@ -3689,6 +3720,64 @@ app.patch('/api/company/assessments/:id/verify', requireCompany, async(req,res)=
   finally{client.release();}
 });
 
+app.patch('/api/company/applications/:id/rounds/:roundIndex/review', requireCompany, async(req,res)=>{
+  const applicationId=Number(req.params.id), roundIndex=Number(req.params.roundIndex);
+  const decision=String(req.body.decision||'');
+  const feedback=typeof req.body.feedback==='string'?req.body.feedback.trim(): '';
+  if(!Number.isSafeInteger(applicationId)||applicationId<1||!Number.isInteger(roundIndex)||roundIndex<0){
+    return res.status(400).json({error:'Invalid application or round.'});
+  }
+  if(!['Pass','Fail','Needs review'].includes(decision)){
+    return res.status(400).json({error:'Choose Pass, Fail or Needs review.'});
+  }
+  if(feedback.length>3000)return res.status(400).json({error:'Feedback must be 3000 characters or fewer.'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const current=await client.query(
+      `SELECT a.id,a.student_id,a.job_id,a.status,j.title,j.interview_rounds
+       FROM job_applications a JOIN jobs j ON j.id=a.job_id
+       WHERE a.id=$1 AND j.company_id=$2 FOR UPDATE OF a,j`,
+      [applicationId,req.company.companyId]
+    );
+    const application=current.rows[0];
+    if(!application){await client.query('ROLLBACK');return res.status(404).json({error:'Application not found for your company.'});}
+    if(!['shortlisted','selected','interview'].includes(String(application.status).toLowerCase())){
+      await client.query('ROLLBACK');
+      return res.status(403).json({error:'Shortlist or select the student before reviewing recruitment rounds.'});
+    }
+    const round=parseConfiguredRounds(application.interview_rounds)[roundIndex];
+    if(!round){await client.query('ROLLBACK');return res.status(404).json({error:'Recruitment round not found.'});}
+    if(isOnlineAssessmentRound(round)){
+      await client.query('ROLLBACK');
+      return res.status(400).json({error:'Online assessment decisions must be saved from Assessment verification.'});
+    }
+    const roundName=round.name||`Round ${roundIndex+1}`;
+    const saved=await client.query(
+      `INSERT INTO company_round_reviews(application_id,round_index,round_name,decision,feedback,reviewed_at,updated_at)
+       VALUES($1,$2,$3,$4,$5,CASE WHEN $4='Needs review' THEN NULL ELSE NOW() END,NOW())
+       ON CONFLICT(application_id,round_index) DO UPDATE
+       SET round_name=EXCLUDED.round_name,decision=EXCLUDED.decision,feedback=EXCLUDED.feedback,
+           reviewed_at=EXCLUDED.reviewed_at,updated_at=NOW()
+       RETURNING round_index,round_name,decision,feedback,reviewed_at,updated_at`,
+      [applicationId,roundIndex,roundName,decision,feedback||null]
+    );
+    await createNotification(client,{
+      recipientRole:'student',recipientId:application.student_id,type:'round_verification',
+      title:`${roundName}: ${decision}`,
+      message:`${application.title} · The company marked ${roundName} ${decision}.${feedback?` Feedback: ${feedback}`:''}`,
+      jobId:application.job_id,applicationId,
+      dedupeKey:`round-review-${applicationId}-${roundIndex}-${saved.rows[0].updated_at.toISOString()}`
+    });
+    await client.query('COMMIT');
+    res.json({data:saved.rows[0]});
+  }catch(e){
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('Could not save company round decision:',e);
+    res.status(500).json({error:'Could not save the round decision.'});
+  }finally{client.release();}
+});
+
 /* =========================================================
    COMPANY APPLICANT MANAGEMENT
 ========================================================= */
@@ -3701,7 +3790,8 @@ app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) =
               s.id AS student_id,s.name,s.reg_no,s.email,s.phone,s.college,s.degree,s.department,
               s.graduation_year,s.cgpa,s.education,s.skills,s.languages,s.experience,
               s.achievements,s.certifications,s.projects,s.summary,s.linkedin,s.github,s.portfolio,s.profile_details,
-              sr.file_name AS resume_file_name,sr.mime_type AS resume_mime_type,sr.uploaded_at AS resume_uploaded_at
+              sr.file_name AS resume_file_name,sr.mime_type AS resume_mime_type,sr.uploaded_at AS resume_uploaded_at,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at) ORDER BY crr.round_index) FROM company_round_reviews crr WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
        JOIN students s ON s.id=a.student_id

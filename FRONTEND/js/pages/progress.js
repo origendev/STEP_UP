@@ -20,13 +20,22 @@ function parseRounds(raw) {
   return text.split(/\r?\n/).map(x=>x.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}));
 }
 const roundDuration = r => { const v=r.durationMinutes??r.duration??r.duration_minutes; return v?( /^\d+$/.test(String(v))?`${v} min`:String(v)):''; };
-const roundType = r => r.type||r.assessmentType||r.assessment_type||r.mode||'Assessment';
+const roundType = r => r.type||r.assessmentType||r.assessment_type||r.mode||'';
 const roundTopics = r => r.topics||r.skills||r.description||r.instructions||'';
 const isTest = r => /aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${r.name||''} ${roundType(r)}`);
 function progressMarkup(app) {
   const rounds=parseRounds(app.interview_rounds), status=String(app.status||'Applied'), applicationActive=ACTIVE_STATUSES.includes(status.toLowerCase());
   const attempts=Array.isArray(app.assessment_attempts)?app.assessment_attempts:[];
-  const passed = index => { const a=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted'); return Boolean(a&&a.company_verified===true&&a.company_decision==='Pass'); };
+  const roundReviews=Array.isArray(app.round_reviews)?app.round_reviews:[];
+  const passed = index => {
+    const round=rounds[index];
+    const isTest=/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round?.name||''} ${roundType(round||{})}`);
+    if(isTest){
+      const attempt=attempts.find(x=>Number(x.round_index)===index&&x.status==='submitted');
+      return Boolean(attempt&&attempt.company_verified===true&&attempt.company_decision==='Pass');
+    }
+    return roundReviews.some(review=>Number(review.round_index)===index&&review.decision==='Pass');
+  };
   const completed = rounds.filter((r,i)=>passed(i)).length;
   const notSelected=['rejected','not selected'].includes(status.toLowerCase());
   const applicationReviewed=['shortlisted','selected','interview','rejected','not selected','waitlisted'].includes(status.toLowerCase());
@@ -36,18 +45,20 @@ function progressMarkup(app) {
   const screeningDetails=`<p class="pr-round-topics">Application status: <b>${esc(status)}</b></p><p class="pr-round-topics">Submitted ${esc(app.applied_at?new Date(app.applied_at).toLocaleString():'date unavailable')}. ${applicationReviewed?'The company has recorded a decision on your application.':'Your application is awaiting the company’s review.'}</p>${applicationHistory.length?`<ul class="pr-round-history">${applicationHistory.map(item=>`<li><b>${esc(item.status)}</b> · ${esc(new Date(item.created_at).toLocaleString())}</li>`).join('')}</ul>`:''}`;
   const roundRows=rounds.map((r,i)=>{
     const name=r.name||`Round ${i+1}`, topics=roundTopics(r), meta=[roundType(r),roundDuration(r)].filter(Boolean).join(' · '), test=isTest(r);
-    const attempt=attempts.find(a=>Number(a.round_index)===i), done=attempt?.status==='submitted';
+    const attempt=attempts.find(a=>Number(a.round_index)===i), roundReview=roundReviews.find(review=>Number(review.round_index)===i);
+    const done=attempt?.status==='submitted'||Boolean(roundReview);
+    const failed=attempt?.company_verified===true&&attempt?.company_decision==='Fail'||roundReview?.decision==='Fail';
     const previousPassed=i===0||passed(i-1), scheduledAt=r.scheduledAt||r.scheduled_at;
     const scheduledDate=scheduledAt?new Date(scheduledAt):null, notYetScheduled=scheduledDate&&!Number.isNaN(scheduledDate.getTime())&&scheduledDate>Date.now();
     const roundActive=r.active!==false, available=!done&&previousPassed&&roundActive&&!notYetScheduled&&applicationActive;
     const waitingState=!roundActive?'Inactive':notYetScheduled?'Scheduled':'Locked';
-    const state=done?(passed(i)?'Completed':(attempt.company_verified===true&&attempt.company_decision==='Fail'?'Not passed':'Awaiting review')):!roundActive?'Inactive':notSelected?'Not proceeding':available?'On Going':applicationActive&&previousPassed?waitingState:'Upcoming';
-    const stateClass=done?(passed(i)?'passed':(attempt.company_verified===true&&attempt.company_decision==='Fail'?'completed':'pending')):notSelected?'completed':available?'ready':'upcoming';
+    const state=done?(passed(i)?'Completed':(failed?'Not passed':'Awaiting review')):!roundActive?'Inactive':notSelected?'Not proceeding':available?'On Going':applicationActive&&previousPassed?waitingState:'Upcoming';
+    const stateClass=done?(passed(i)?'passed':(failed?'completed':'pending')):notSelected?'completed':available?'ready':'upcoming';
     let action='';
     if(test&&done) action=`<button type="button" class="pr-secondary-action" data-result-id="${esc(attempt.id)}">View result · ${esc(String(attempt.score??0))}%</button>`;
     else if(test&&available) action=`<button type="button" class="pr-primary-action" data-start-round="${i}" data-application-id="${esc(app.id)}">Start assessment <span>→</span></button>`;
     else if(test) action=`<button type="button" class="pr-secondary-action" disabled title="${previousPassed?'This assessment is not active or has not reached its scheduled time':'Pass the previous round to unlock this assessment'}">${previousPassed?esc(waitingState):'Locked until previous round is passed'}</button>`;
-    else action=`<span class="pr-interview-note">${!applicationActive?'This stage unlocks after shortlisting':!roundActive?'This round is not active yet':(notYetScheduled?`Scheduled for ${esc(scheduledDate.toLocaleString())}`:'Recruiter will schedule this round')}</span>`;
+    else action=`<span class="pr-interview-note">${!applicationActive?'This stage unlocks after shortlisting':!roundActive?'This round is not active yet':(notYetScheduled?`Scheduled for ${esc(scheduledDate.toLocaleString())}`:roundReview?.decision==='Pass'?'The company approved this round.':roundReview?.decision==='Fail'?'The company did not pass this round.':roundReview?.decision==='Needs review'?'The company is reviewing this round.':'Recruiter will schedule this round')}</span>`;
     const key=`${app.id}-${i}`;
     const details=`${meta?`<p class="pr-round-topics">${esc(meta)}</p>`:''}${topics?`<p class="pr-round-topics">${esc(topics)}</p>`:''}${scheduledDate&&!Number.isNaN(scheduledDate.getTime())?`<p class="pr-round-topics">Scheduled: ${esc(scheduledDate.toLocaleString())}</p>`:''}${test?`<p class="pr-round-topics">Qualifying score: ${esc(r.passingScore?String(r.passingScore).includes('%')?r.passingScore:`${r.passingScore}%`:'60%')}</p>`:''}<div class="pr-round-actions">${roundActive?`<button class="pr-secondary-action" type="button" data-prep-round="${i}">AI preparation plan</button>`:''}${action}</div><div class="pr-prep-panel" data-prep-panel="${i}" hidden><div class="pr-prep-loading">Generating a preparation plan…</div></div>`;
     const stageState=!applicationReviewed?'Upcoming':state;

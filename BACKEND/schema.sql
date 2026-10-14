@@ -135,6 +135,21 @@ CREATE TABLE IF NOT EXISTS job_applications (
 CREATE INDEX IF NOT EXISTS idx_job_applications_job_id ON job_applications(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_applications_student_id ON job_applications(student_id);
 
+CREATE TABLE IF NOT EXISTS company_round_reviews (
+  id BIGSERIAL PRIMARY KEY,
+  application_id BIGINT NOT NULL REFERENCES job_applications(id) ON DELETE CASCADE,
+  round_index INTEGER NOT NULL CHECK (round_index >= 0),
+  round_name TEXT NOT NULL,
+  decision TEXT NOT NULL CHECK (decision IN ('Pass','Fail','Needs review')),
+  feedback TEXT,
+  reviewed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(application_id, round_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_company_round_reviews_application
+  ON company_round_reviews(application_id, round_index);
+
 -- The exact PDF uploaded by the student.
 CREATE TABLE IF NOT EXISTS student_resumes (
   student_id BIGINT PRIMARY KEY REFERENCES students(id) ON DELETE CASCADE,

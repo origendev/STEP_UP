@@ -26,7 +26,8 @@ This is a focused patch, not a full repository. It intentionally does not includ
 - Scores are calculated server-side using saved answers.
 - Assessment attempts, expiry, scores and integrity events are stored in PostgreSQL. The server's existing `ensureSchema()` creates the `assessment_attempts` table automatically on startup.
 - An attempt is limited to one per application/round. The timer is enforced by the server expiry timestamp. Attempts expire and are submitted when the server receives a submit request after expiry.
-- Later online assessment rounds require the previous online assessment to be submitted and passed. The default pass threshold is 60% unless the company configures `passingScore`/`passing_score`.
+- Later rounds require the previous round to be explicitly passed by the company. Assessment scores and configured cutoffs are recorded for review but do not override a company Pass decision. Interview, discussion, and assignment rounds can be reviewed directly from the company Applicants page.
+- Newly configured rounds are returned with the student's applications and appear on Progress when the page refreshes.
 
 ### Integrity checks
 - Requests fullscreen when the assessment starts, when supported by the browser.
