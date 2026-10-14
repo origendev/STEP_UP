@@ -17,6 +17,8 @@ body{min-height:100vh}.portal-top{position:sticky;top:0;z-index:20;display:flex;
 .profile-full{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
 .profile-section{border:1px solid var(--line);border-radius:10px;background:var(--lilac-bg);padding:12px;margin-top:9px}
 .profile-section h3{margin:0 0 9px;font-size:12.5px}.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px}.profile-row{display:grid;grid-template-columns:150px 1fr;gap:8px;font-size:10.5px;line-height:1.45}.profile-row span{color:var(--ink-soft)}.profile-row strong{overflow-wrap:anywhere}.profile-sub{margin:8px 0 0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--white);font-size:10.5px}.profile-list{margin:0;padding-left:18px;font-size:10.5px}.profile-photo{width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);float:right}.resume-box button:disabled{opacity:.45;cursor:not-allowed}@media(max-width:800px){.profile-grid{grid-template-columns:1fr}.profile-row{grid-template-columns:120px 1fr}}
+.placement-ready{display:inline-flex;align-items:center;gap:6px;border:1px solid #bfe9d3;border-radius:8px;padding:8px 12px;background:var(--green-bg);color:var(--green);font-size:11.5px;font-weight:800}
+.placement-hint{align-self:center;color:var(--ink-soft);font-size:11px}
 /* Assessment review: explicit colors prevent theme variables from making text unreadable. */
 .assessment-panel{margin-top:24px;padding:22px;border:1px solid #263653;border-radius:18px;background:#0d1528;color:#edf3ff;box-shadow:0 14px 34px rgba(0,0,0,.16)}
 .assessment-panel h2{margin:0;font-size:22px;letter-spacing:-.025em;color:#f4f7ff}
@@ -97,6 +99,7 @@ const jobId=params.get('job');
 const $=id=>document.getElementById(id);
 let applicants=[];
 let roundConfigItems=[];
+let roundConfigLoaded=false;
 function localDateTime(value){if(!value)return '';const d=new Date(value);if(Number.isNaN(d.getTime()))return '';d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,16);}
 function isoDateTime(value){if(!value)return '';const d=new Date(value);return Number.isNaN(d.getTime())?'':d.toISOString();}
 function isHrRound(round){return /hr interview|human resources/i.test(`${round.name||''} ${round.type||''}`);}
@@ -162,7 +165,7 @@ function renderRoundConfig(){
     renderRoundConfig();
   });
 }
-async function loadRoundConfig(){const host=$('roundConfigMessage');try{const jobs=await api('/company/jobs');const job=(jobs||[]).find(j=>String(j.id)===String(jobId));if(!job){host.textContent='This job could not be found for your company.';return;}roundConfigItems=parseJobRounds(job.interview_rounds);renderRoundConfig();render();const hasShortlisted=applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));host.textContent=hasShortlisted?'A shortlisted applicant is available. Configure rounds below, or leave them empty if no interview is required.':'Shortlist at least one applicant above to enable saving recruitment rounds.';$('saveRecruitmentRounds').disabled=!hasShortlisted;}catch(e){host.textContent=`Could not load recruitment setup: ${e.message||'Unknown error'}`;}}
+async function loadRoundConfig(){const host=$('roundConfigMessage');roundConfigLoaded=false;try{const jobs=await api('/company/jobs');const job=(jobs||[]).find(j=>String(j.id)===String(jobId));if(!job){host.textContent='This job could not be found for your company.';return;}roundConfigItems=parseJobRounds(job.interview_rounds);roundConfigLoaded=true;renderRoundConfig();render();const hasShortlisted=applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));host.textContent=hasShortlisted?'A shortlisted applicant is available. Configure rounds below, or leave them empty if no interview is required.':'Shortlist at least one applicant above to enable saving recruitment rounds.';$('saveRecruitmentRounds').disabled=!hasShortlisted;}catch(e){host.textContent=`Could not load recruitment setup: ${e.message||'Unknown error'}`;}}
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function initials(n){return String(n||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'S';}
@@ -176,6 +179,20 @@ async function api(path,opts={}){
 }
 function statusClass(s){return String(s).toLowerCase();}
 function value(v){return v===null||v===undefined||v===''?'-':v;}
+function isOnlineAssessmentRound(round){return /aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name||''} ${round.type||round.mode||''}`);}
+function canMarkPlaced(applicant){
+  if(!roundConfigLoaded)return false;
+  if(!['shortlisted','interview'].includes(String(applicant.status).toLowerCase()))return false;
+  const rounds=roundConfigItems.filter(round=>round.active!==false);
+  return rounds.every((round,index)=>{
+    if(isOnlineAssessmentRound(round)){
+      const attempt=(applicant.assessment_attempts||[]).find(item=>Number(item.round_index)===roundConfigItems.indexOf(round));
+      return attempt?.status==='submitted'&&attempt.company_verified===true&&attempt.company_decision==='Pass';
+    }
+    const review=(applicant.round_reviews||[]).find(item=>Number(item.round_index)===roundConfigItems.indexOf(round));
+    return review?.decision==='Pass';
+  });
+}
 function fmt(v){
   if(v===null||v===undefined||v==='') return '-';
   if(Array.isArray(v)) return v.map(x=>typeof x==='object'?Object.entries(x).map(([k,val])=>`${k}: ${value(val)}`).join(' • '):String(x)).join(', ');
@@ -280,7 +297,7 @@ function render(){
     <article class="applicant-card">
       <div class="applicant-top">
         <div class="student-id"><div class="student-avatar">${esc(initials(a.name))}</div><div><h2>${esc(a.name)}</h2><p>${esc(a.reg_no||'-')} • ${esc(a.email||'-')} • Applied ${a.applied_at?new Date(a.applied_at).toLocaleDateString():'-'}</p></div></div>
-        <span class="status ${statusClass(a.status)}">${esc(a.status)}</span>
+        <span class="status ${statusClass(a.status)}">${String(a.status).toLowerCase()==='selected'?'Placed':esc(a.status)}</span>
       </div>
       <div class="student-grid">
         <div class="student-field"><small>Phone</small><strong>${esc(value(a.phone))}</strong></div>
@@ -292,7 +309,7 @@ function render(){
       </div>
       ${fullProfile(a)}
       <div class="resume-box"><div><div class="resume-name">Uploaded Student Resume</div><div class="resume-meta">${a.resume_file_name?esc(a.resume_file_name):'No PDF resume uploaded'}</div></div><button class="action" data-resume="${a.application_id}" ${a.resume_file_name?'':'disabled'}>${a.resume_file_name?'View / Download Resume':'No Resume'}</button></div>
-      <div class="actions"><button class="action select" data-status="Shortlisted" data-id="${a.application_id}" ${['shortlisted','selected'].includes(String(a.status).toLowerCase())?'disabled':''}>✓ ${['shortlisted','selected'].includes(String(a.status).toLowerCase())?'Shortlisted':'Shortlist'}</button><button class="action waitlist" data-status="Waitlisted" data-id="${a.application_id}">⏳ Waitlist</button><button class="action reject" data-status="Rejected" data-id="${a.application_id}">✕ Reject</button>${a.status!=='Applied'?'<button class="action" data-status="Applied" data-id="'+a.application_id+'">Reset to Applied</button>':''}</div>
+      <div class="actions">${String(a.status).toLowerCase()==='selected'?'<span class="placement-ready">✓ Student placed</span>':`<button class="action select" data-status="Shortlisted" data-id="${a.application_id}" ${String(a.status).toLowerCase()==='shortlisted'?'disabled':''}>✓ ${String(a.status).toLowerCase()==='shortlisted'?'Shortlisted':'Shortlist'}</button><button class="action waitlist" data-status="Waitlisted" data-id="${a.application_id}">⏳ Waitlist</button><button class="action reject" data-status="Rejected" data-id="${a.application_id}">✕ Reject</button>${a.status!=='Applied'?'<button class="action" data-status="Applied" data-id="'+a.application_id+'">Reset to Applied</button>':''}${canMarkPlaced(a)?`<button class="action select" data-status="Selected" data-id="${a.application_id}">✓ Place student</button>`:(['shortlisted','interview'].includes(String(a.status).toLowerCase())&&roundConfigItems.some(round=>round.active!==false)?'<span class="placement-hint">Complete and pass every active round to place this student.</span>':'')}</div>`}
       ${manualRoundReviews(a)}
     </article>`).join(''):'<div class="empty">No students have applied to this job yet.</div>';
   document.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>updateStatus(b.dataset.id,b.dataset.status));
@@ -360,7 +377,14 @@ async function verifyAssessment(id,decision,button) {
   const original=button?.textContent;
   if(button){button.disabled=true;button.textContent='Saving decision…';}
   try {
-    await api('/company/assessments/'+encodeURIComponent(id)+'/verify',{method:'PATCH',body:JSON.stringify({decision,feedback})});
+    const verified=await api('/company/assessments/'+encodeURIComponent(id)+'/verify',{method:'PATCH',body:JSON.stringify({decision,feedback})});
+    const applicant=applicants.find(item=>String(item.application_id)===String(verified.application_id));
+    if(applicant){
+      applicant.assessment_attempts=(Array.isArray(applicant.assessment_attempts)?applicant.assessment_attempts:[])
+        .filter(item=>Number(item.round_index)!==Number(verified.round_index))
+        .concat({...verified,status:'submitted'});
+      render();
+    }
     msg(`Assessment decision saved: ${decision}. The student's Progress page will reflect the result after it refreshes.`,'ok');
     await loadAssessmentReviews();
   } catch(e) {
@@ -371,13 +395,14 @@ async function verifyAssessment(id,decision,button) {
 $('addRecruitmentRound').onclick=()=>{if(roundConfigItems.length>=10){msg('A job can have at most 10 rounds.');return;}roundConfigItems.push({name:`Round ${roundConfigItems.length+1}`,type:'Online test',mode:'Online',duration:30,questionCount:10,cutoff:60,topics:'',instructions:'',scheduledAt:'',active:true});renderRoundConfig();};
 $('saveRecruitmentRounds').onclick=async()=>{const b=$('saveRecruitmentRounds');if(b.disabled)return;b.disabled=true;const original=b.textContent;b.textContent='Saving…';try{const result=await api('/company/jobs/'+encodeURIComponent(jobId)+'/rounds',{method:'PATCH',body:JSON.stringify({rounds:roundConfigItems})});roundConfigItems=parseJobRounds(result.interview_rounds);renderRoundConfig();render();$('roundConfigMessage').textContent=roundConfigItems.length?`Saved ${roundConfigItems.length} round(s). Students will see updates in Progress within seconds.`:'Recruitment rounds removed. Students will see that no rounds are configured.';msg('Recruitment rounds saved.','ok');}catch(e){$('roundConfigMessage').textContent=e.message||'Could not save rounds.';}finally{b.textContent=original;b.disabled=!applicants.some(x=>['shortlisted','selected'].includes(String(x.status).toLowerCase()));}};
 async function updateStatus(id,status){
+  if(status==='Selected'&&!confirm('Mark this student as placed? They will receive a placement notification.'))return;
   try{
     await api('/company/applications/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status})});
     const a=applicants.find(x=>String(x.application_id)===String(id));
     if(a)a.status=status;
     render();
     await loadRoundConfig();
-    msg(`Applicant marked ${status.toLowerCase()}.`,'ok');
+    msg(status==='Selected'?'Student marked as placed. A placement notification has been sent.':`Applicant marked ${status.toLowerCase()}.`,'ok');
   }catch(e){msg(e.message);}
 }
 async function reviewRecruitmentRound(applicationId,roundIndex,decision,button){

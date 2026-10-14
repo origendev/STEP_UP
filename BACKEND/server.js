@@ -4089,7 +4089,16 @@ app.get('/api/company/jobs/:id/applications', requireCompany, async (req, res) =
               s.achievements,s.certifications,s.projects,s.summary,s.linkedin,s.github,s.portfolio,s.profile_details,
               sr.file_name AS resume_file_name,sr.mime_type AS resume_mime_type,sr.uploaded_at AS resume_uploaded_at,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('id',his.id,'round_index',his.round_index,'round_name',his.round_name,'scheduled_at',his.scheduled_at,'status',his.status) ORDER BY his.round_index) FROM hr_interview_sessions his WHERE his.application_id=a.id AND his.status IN ('scheduled','active','ended')),'[]'::jsonb) AS hr_interviews,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at) ORDER BY crr.round_index) FROM company_round_reviews crr WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('round_index',crr.round_index,'round_name',crr.round_name,'decision',crr.decision,'feedback',crr.feedback,'reviewed_at',crr.reviewed_at,'updated_at',crr.updated_at) ORDER BY crr.round_index) FROM company_round_reviews crr WHERE crr.application_id=a.id),'[]'::jsonb) AS round_reviews,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'round_index',aa.round_index,'round_name',aa.round_name,'status',aa.status,
+                'company_verified',aa.company_verified,'company_decision',aa.company_decision,
+                'score',CASE WHEN aa.company_verified THEN aa.score END,
+                'correct_count',CASE WHEN aa.company_verified THEN aa.correct_count END,
+                'total_questions',CASE WHEN aa.company_verified THEN aa.total_questions END,
+                'submitted_at',aa.submitted_at
+              ) ORDER BY aa.round_index) FROM assessment_attempts aa
+                WHERE aa.application_id=a.id AND aa.student_id=a.student_id),'[]'::jsonb) AS assessment_attempts
        FROM job_applications a
        JOIN jobs j ON j.id=a.job_id
        JOIN students s ON s.id=a.student_id
@@ -4114,7 +4123,7 @@ app.patch('/api/company/applications/:id', requireCompany, async (req, res) => {
   try {
     await client.query('BEGIN');
     const current = await client.query(
-      `SELECT a.id,a.job_id,a.student_id,a.status,j.title
+      `SELECT a.id,a.job_id,a.student_id,a.status,j.title,j.interview_rounds
        FROM job_applications a JOIN jobs j ON j.id=a.job_id
        WHERE a.id=$1 AND j.company_id=$2 FOR UPDATE OF a`,
       [req.params.id, req.company.companyId]
@@ -4124,9 +4133,47 @@ app.patch('/api/company/applications/:id', requireCompany, async (req, res) => {
       return res.status(404).json({ error: 'Application not found for your company.' });
     }
     const application = current.rows[0];
+    if (application.status === 'Selected' && status !== 'Selected') {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This student is already placed. Contact an administrator if the placement status needs correction.' });
+    }
     if (application.status === status) {
       await client.query('COMMIT');
       return res.json({ data: { ...application, updated_at: null, unchanged: true } });
+    }
+    if (status === 'Selected') {
+      if (!['Shortlisted','Interview'].includes(application.status)) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: 'Only a shortlisted applicant can be marked as placed.' });
+      }
+      const rounds = parseConfiguredRounds(application.interview_rounds);
+      if (rounds.length) {
+        const [assessmentResult, reviewResult] = await Promise.all([
+          client.query(
+            `SELECT round_index,company_verified,company_decision,status
+             FROM assessment_attempts WHERE application_id=$1 AND student_id=$2`,
+            [application.id, application.student_id]
+          ),
+          client.query(
+            `SELECT round_index,decision FROM company_round_reviews WHERE application_id=$1`,
+            [application.id]
+          )
+        ]);
+        const assessments = new Map(assessmentResult.rows.map(row => [Number(row.round_index), row]));
+        const reviews = new Map(reviewResult.rows.map(row => [Number(row.round_index), row]));
+        const incomplete = rounds.findIndex((round, index) => {
+          if (round.active === false) return false;
+          if (isOnlineAssessmentRound(round)) {
+            const attempt = assessments.get(index);
+            return !attempt || attempt.status !== 'submitted' || !attempt.company_verified || attempt.company_decision !== 'Pass';
+          }
+          return reviews.get(index)?.decision !== 'Pass';
+        });
+        if (incomplete !== -1) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: `Complete and pass round ${incomplete + 1} before placing this student.` });
+        }
+      }
     }
     const r = await client.query(
       `UPDATE job_applications SET status=$1,updated_at=NOW()
@@ -4141,13 +4188,13 @@ app.patch('/api/company/applications/:id', requireCompany, async (req, res) => {
     const messages = {
       Applied: 'Your application was returned to the Applied stage.',
       Shortlisted: 'The company shortlisted your application.',
-      Selected: 'The company selected you for the next stage.',
+      Selected: `Congratulations! You have been selected and placed for ${application.title}.`,
       Rejected: 'The company has updated your application status.',
       Waitlisted: 'The company placed your application on the waitlist.'
     };
     await createNotification(client, {
       recipientRole: 'student', recipientId: application.student_id, type: 'application_status',
-      title: `${status === 'Applied' ? 'Application status updated' : status}: ${application.title}`,
+      title: `${status === 'Selected' ? 'Placed' : status === 'Applied' ? 'Application status updated' : status}: ${application.title}`,
       message: messages[status],
       jobId: application.job_id, applicationId: application.id,
       dedupeKey: `application-${application.id}-status-${r.rows[0].updated_at.toISOString()}`
