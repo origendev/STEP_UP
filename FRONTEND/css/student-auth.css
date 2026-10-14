@@ -2,7 +2,7 @@
 .student-auth-page{min-height:100vh;display:grid;place-items:center;padding:32px;background:var(--lilac-bg);}
 .student-auth-wrap{width:min(480px,100%);}
 .student-auth-brand{text-align:center;margin-bottom:22px;}
-.student-auth-logo{height:48px;width:auto;display:inline-block;}
+.student-auth-logo{height:64px;width:auto;display:inline-block;}
 .student-auth-brand p{margin:7px 0 0;color:var(--ink-soft);font-size:13px;}
 .student-auth-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:32px;box-shadow:var(--shadow-card);}
 .student-auth-card .eyebrow{margin:0 0 8px;color:var(--violet-600);font-size:11px;font-weight:800;letter-spacing:.12em;}
@@ -53,3 +53,13 @@
  .profile-setup-card.full{grid-column:auto;}
  .profile-setup-header{align-items:flex-start;flex-direction:column;}
 }
+/* ---- Glass background, shared with portal-access, company and admin login ---- */
+.student-auth-page{background:url('../assets/home-bg.jpg') center right/cover no-repeat,var(--lilac-bg);}
+.student-auth-card{
+ background:linear-gradient(180deg,rgba(255,255,255,.74),rgba(255,255,255,.52));
+ -webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);
+ border:1px solid rgba(255,255,255,.9);
+ box-shadow:0 18px 50px rgba(88,76,200,.18),inset 0 1px 0 rgba(255,255,255,.9);
+}
+.student-auth-card input,.student-auth-card select,.student-auth-card textarea{background:rgba(255,255,255,.88);}
+@media(max-width:820px){.student-auth-page{background-position:72% center;}}
