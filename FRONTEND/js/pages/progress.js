@@ -5,6 +5,7 @@ import { api } from '../core/api.js';
 import { esc } from '../core/dom.js';
 import * as router from '../core/router.js';
 import { connectHrInterview } from '../core/hr-interview.js?v=20261014a';
+import { runAiInterview } from '../core/ai-interview.js?v=20261015a';
 
 const ACTIVE_STATUSES = ['selected','shortlisted','interview'];
 const statusClass = value => {
@@ -23,6 +24,7 @@ function parseRounds(raw) {
 const roundDuration = r => { const v=r.durationMinutes??r.duration??r.duration_minutes; return v?( /^\d+$/.test(String(v))?`${v} min`:String(v)):''; };
 const roundType = r => r.type||r.assessmentType||r.assessment_type||r.mode||'';
 const isHrInterview = r => /hr interview|human resources/i.test(`${r.name||''} ${roundType(r)}`);
+const isAiRound = r => /technical interview|hr interview|human resources|group discussion/i.test(`${r.name||''} ${roundType(r)}`);
 const safeMeetingUrl = r => { try { const url=new URL(r.meetingUrl||r.meeting_url||''); return url.protocol==='https:'?url.href:''; } catch { return ''; } };
 const roundTopics = r => r.topics||r.skills||r.description||r.instructions||'';
 const isTest = r => /aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${r.name||''} ${roundType(r)}`);
@@ -50,7 +52,9 @@ function progressMarkup(app) {
     const name=r.name||`Round ${i+1}`, topics=roundTopics(r), meta=[roundType(r),roundDuration(r)].filter(Boolean).join(' · '), test=isTest(r);
     const attempt=attempts.find(a=>Number(a.round_index)===i), roundReview=roundReviews.find(review=>Number(review.round_index)===i);
     const hrInterview=(Array.isArray(app.hr_interviews)?app.hr_interviews:[]).find(item=>Number(item.round_index)===i);
-    const done=attempt?.status==='submitted'||Boolean(roundReview);
+    const aiSession=(Array.isArray(app.ai_interviews)?app.ai_interviews:[]).find(item=>Number(item.round_index)===i);
+    const aiRound=isAiRound(r)&&!hrInterview, aiAwaiting=aiRound&&aiSession?.status==='completed'&&!roundReview;
+    const done=attempt?.status==='submitted'||Boolean(roundReview)||aiAwaiting;
     const failed=attempt?.company_verified===true&&attempt?.company_decision==='Fail'||roundReview?.decision==='Fail';
     const previousPassed=i===0||passed(i-1), scheduledAt=isHrInterview(r)&&hrInterview?.scheduled_at||r.scheduledAt||r.scheduled_at;
     const scheduledDate=scheduledAt?new Date(scheduledAt):null, notYetScheduled=scheduledDate&&!Number.isNaN(scheduledDate.getTime())&&scheduledDate>Date.now();
@@ -63,6 +67,8 @@ function progressMarkup(app) {
     else if(test&&done) action='<span class="pr-interview-note">Submitted · awaiting company verification</span>';
     else if(test&&available) action=`<button type="button" class="pr-primary-action" data-start-round="${i}" data-application-id="${esc(app.id)}">Start assessment <span>→</span></button>`;
     else if(test) action=`<button type="button" class="pr-secondary-action" disabled title="${previousPassed?'This assessment is not active or has not reached its scheduled time':'Pass the previous round to unlock this assessment'}">${previousPassed?esc(waitingState):'Locked until previous round is passed'}</button>`;
+    else if(aiAwaiting) action='<span class="pr-interview-note">AI interview completed · your transcript was shared with the company. Awaiting their decision.</span>';
+    else if(aiRound&&available) action=`<button type="button" class="pr-primary-action" data-start-ai="${i}" data-application-id="${esc(app.id)}" data-round-name="${esc(name)}">${aiSession?.status==='in_progress'?'Resume AI interview':'Start AI interview'} <span>→</span></button>`;
     else if(isHrInterview(r)&&hrInterview?.status==='active') action=`<button type="button" class="pr-primary-action" data-join-hr="${esc(hrInterview.id)}">Join one-on-one HR interview <span>→</span></button>`;
     else if(isHrInterview(r)&&hrInterview?.status==='scheduled') action=`<span class="pr-interview-note">HR interview scheduled for ${esc(new Date(hrInterview.scheduled_at).toLocaleString())}. The Join button appears when the company starts the call.</span>`;
     else if(isHrInterview(r)&&hrInterview?.status==='ended') action='<span class="pr-interview-note">This HR interview has ended. Contact the company if a follow-up is needed.</span>';
@@ -85,10 +91,11 @@ function progressMarkup(app) {
     const scheduledAt=round.scheduledAt||round.scheduled_at;
     const scheduledDate=scheduledAt?new Date(scheduledAt):null;
     const waitingForSchedule=scheduledDate&&!Number.isNaN(scheduledDate.getTime())&&scheduledDate>Date.now();
-    return applicationActive&&previousPassed&&!attempt&&!review&&!interview&&round.active!==false&&!waitingForSchedule;
+    const aiDone=(Array.isArray(app.ai_interviews)?app.ai_interviews:[]).some(item=>Number(item.round_index)===index&&item.status==='completed');
+    return applicationActive&&previousPassed&&!attempt&&!review&&!interview&&!aiDone&&round.active!==false&&!waitingForSchedule;
   });
   const nextStep=nextRoundIndex>=0
-    ? `<div class="pr-next-step is-ready"><span class="pr-next-step-icon" aria-hidden="true">→</span><div><strong>You’re eligible for ${esc(rounds[nextRoundIndex].name||`Round ${nextRoundIndex+1}`)}</strong><p>${isTest(rounds[nextRoundIndex])?'Start the assessment when you’re ready.':'The company can schedule or review this stage.'}</p></div></div>`
+    ? `<div class="pr-next-step is-ready"><span class="pr-next-step-icon" aria-hidden="true">→</span><div><strong>You’re eligible for ${esc(rounds[nextRoundIndex].name||`Round ${nextRoundIndex+1}`)}</strong><p>${isTest(rounds[nextRoundIndex])?'Start the assessment when you’re ready.':isAiRound(rounds[nextRoundIndex])?'Start your AI interview when you’re ready.':'The company can schedule or review this stage.'}</p></div></div>`
     : completed===rounds.length&&rounds.length
       ? '<div class="pr-next-step is-complete"><span class="pr-next-step-icon" aria-hidden="true">✓</span><div><strong>All configured rounds passed</strong><p>Watch for the company’s final decision or next update.</p></div></div>'
       : '';
@@ -245,6 +252,7 @@ export function mount() {
     const toggle=event.target.closest('[data-toggle-progress]');if(toggle){const content=list.querySelector(`[data-progress-content="${CSS.escape(toggle.dataset.toggleProgress)}"]`);if(content){const expanded=content.hidden;content.hidden=!expanded;toggle.setAttribute('aria-expanded',String(expanded));toggle.closest('.progress-applied-card')?.classList.toggle('is-expanded',expanded);const label=toggle.querySelector('[data-toggle-label]');if(label)label.textContent=expanded?'Hide details':'View details';const chevron=toggle.querySelector('.pr-summary-chevron');if(chevron)chevron.textContent=expanded?'⌃':'⌄';}return;}
     const roundToggle=event.target.closest('[data-toggle-round]');if(roundToggle){const key=roundToggle.dataset.toggleRound;const details=list.querySelector(`[data-round-details="${CSS.escape(key)}"]`);if(details){const expanded=details.hidden;details.hidden=!expanded;roundToggle.setAttribute('aria-expanded',String(expanded));roundToggle.closest('.pr-round-item')?.classList.toggle('is-expanded',expanded);const chevron=roundToggle.querySelector('.pr-round-chevron');if(chevron)chevron.textContent=expanded?'⌃':'⌄';}return;}
     const prep=event.target.closest('[data-prep-round]');if(prep){const idx=prep.dataset.prepRound, panel=list.querySelector(`[data-prep-panel="${CSS.escape(idx)}"]`);if(!panel)return;panel.hidden=!panel.hidden;if(!panel.hidden&&!panel.dataset.loaded){panel.dataset.loaded='1';try{const card=prep.closest('[data-application-card]');const appId=card?.dataset.applicationCard;const result=await api('/student/assessments/prepare',{method:'POST',body:JSON.stringify({applicationId:Number(appId),roundIndex:Number(idx)})});panel.innerHTML=`<h5>${esc(result.data.title||'Your AI preparation plan')}</h5><p>${esc(result.data.summary||'Focus on the core competencies for this round.')}</p><ul>${(result.data.tasks||[]).map(t=>`<li>${esc(t)}</li>`).join('')}</ul><p class="pr-muted">AI suggestions are preparation guidance, not a hiring decision.</p>`;}catch(e){panel.innerHTML=`<p>${esc(e.message||'Preparation plan unavailable.')}</p>`;panel.dataset.loaded='';}}return;}
+    const startAi=event.target.closest('[data-start-ai]');if(startAi){startAi.disabled=true;try{await runAiInterview({applicationId:Number(startAi.dataset.applicationId),roundIndex:Number(startAi.dataset.startAi),roundName:startAi.dataset.roundName||'AI interview',request:async(path,options)=>{const result=await api(path,options);return result.data;}});loadApplicationsRef?.();}catch(e){alert(e.message||'Could not start the AI interview.');}finally{if(startAi.isConnected)startAi.disabled=false;}return;}
     const joinHr=event.target.closest('[data-join-hr]');if(joinHr){joinHr.disabled=true;try{await connectHrInterview({sessionId:joinHr.dataset.joinHr,role:'student',request:async(path,options)=>{const result=await api(path,options);return result.data;}});loadApplicationsRef?.();}catch(e){alert(e.message||'Could not join the HR interview.');}finally{if(joinHr.isConnected)joinHr.disabled=false;}return;}
     const resultBtn=event.target.closest('[data-result-id]');if(resultBtn){try{const r=await api(`/student/assessments/${resultBtn.dataset.resultId}/result`);const d=r.data;const modal=openAssessmentShell('Assessment result',d.round_name||'Completed round');modal.querySelector('#prAssessmentBody').innerHTML=`<div class="pr-result-state"><div class="pr-result-icon">✓</div><span class="pr-eyebrow">SAVED RESULT</span><h3>${esc(String(d.score))}%</h3><p>${esc(String(d.correct_count))} of ${esc(String(d.total_questions))} correct answers</p><p class="pr-muted">Integrity events recorded: ${esc(String(d.violation_count||0))}${d.auto_submitted?' · Automatically submitted':''}</p><button class="pr-primary-action" data-close-assessment type="button">Close</button></div>`;modal.querySelector('[data-close-assessment]').addEventListener('click',()=>modal.remove());}catch(e){alert(e.message||'Could not load result.');}return;}
     const start=event.target.closest('[data-start-round]');if(start){startAssessment(start.dataset.applicationId,start.dataset.startRound,start.closest('.pr-round-content')?.querySelector('.pr-round-title > strong')?.textContent||'Assessment');return;}
