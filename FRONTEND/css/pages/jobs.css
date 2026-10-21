@@ -131,3 +131,15 @@
   .jobs-locked-card { padding: 34px 20px; }
   .jobs-journey { grid-template-columns: repeat(2, 1fr); }
 }
+
+.saved-toggle{height:44px;padding:0 16px;border-radius:11px;border:1px solid var(--line);background:var(--white);color:var(--ink);font-weight:600;font-size:13px;white-space:nowrap;}
+.saved-toggle:hover{background:var(--violet-100);}
+.saved-toggle.active{background:var(--violet-600);border-color:var(--violet-600);color:#fff;}
+.jobs-confirm-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(20,14,45,.5);backdrop-filter:blur(4px);}
+.jobs-confirm-card{width:min(400px,100%);background:var(--white);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-lg);padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.3);}
+.jobs-confirm-card h3{margin:0 0 8px;font-size:18px;}
+.jobs-confirm-card p{margin:0;color:var(--ink-soft);font-size:14px;line-height:1.5;}
+.jobs-confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+.jobs-confirm-actions button{padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;border:1px solid var(--line);background:var(--white);color:var(--ink);}
+.jobs-confirm-actions .jc-confirm{background:#d1466f;border-color:#d1466f;color:#fff;}
+@media(max-width:680px){.saved-toggle{width:100%;}}

@@ -12,6 +12,7 @@
         <span class="search-symbol">⌕</span>
         <input id="jobSearch" type="search" placeholder="Search companies, skills (e.g. React, Java, Python), or roles..." autocomplete="off">
       </div>
+      <button type="button" class="saved-toggle" id="savedToggle" aria-pressed="false">☆ Saved</button>
       <details class="dropdown jobs-sort" id="ddApplyBy">
         <summary>Sort: <strong id="applyByLabel">Latest</strong> ▾</summary>
         <div class="dropdown-menu">
@@ -29,7 +30,6 @@
         <button class="chip" data-industry="Product">Product</button>
         <button class="chip" data-industry="Finance">Finance</button>
         <button class="chip" data-industry="Consulting">Consulting</button>
-        <button class="chip" data-industry="Saved">Saved</button>
       </div>
       <div class="jobs-count" id="jobsCount">Showing 0 companies</div>
     </div>

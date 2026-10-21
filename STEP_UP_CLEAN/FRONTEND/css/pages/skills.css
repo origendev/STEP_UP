@@ -1,0 +1,207 @@
+/* ============================================================
+   skills.css — styles used only by pages/skills.html
+
+   General courses     -> .sk-one-row   (one row, scrolls sideways)
+   Department courses  -> .sk-two-rows  (two rows, scrolls sideways)
+============================================================ */
+
+/* ---------- Course search ---------- */
+.sk-search-wrap{width:100%;margin:0 0 22px}
+.sk-search{
+  position:relative;display:flex;align-items:center;gap:11px;width:100%;min-height:50px;
+  padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--lilac-bg);
+  transition:border-color .18s,box-shadow .18s,background .18s;
+}
+.sk-search:focus-within{border-color:var(--violet-500);background:var(--white);box-shadow:0 0 0 3px rgba(111,78,214,.12)}
+.sk-search-ic{flex:0 0 auto;color:var(--ink-soft)}
+.sk-search input{flex:1;min-width:0;height:48px;border:0;outline:0;background:transparent;color:var(--ink);font-family:inherit;font-size:14px;font-weight:500;line-height:1.4}
+.sk-search input::placeholder{color:var(--ink-soft);opacity:.9}
+.sk-search-x{width:29px;height:29px;border:0;border-radius:8px;background:transparent;color:var(--ink-soft);font-size:20px;line-height:1;cursor:pointer}
+.sk-search-x[hidden]{display:none}
+.sk-search-x:hover{background:var(--violet-100);color:var(--violet-700)}
+.sk-search-results{margin:20px 0 30px}
+.sk-search-results[hidden]{display:none}
+.sk-search-results-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.sk-search-results-head h3{margin:0;font-size:18px}
+.sk-search-results-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px}
+.sk-search-results-grid .sk-card{min-width:0}
+.sk-search-results-grid .sk-empty{grid-column:1/-1}
+@media(max-width:680px){.sk-search{min-height:48px;padding:0 11px;border-radius:10px}.sk-search input{height:46px;font-size:14px}.sk-search-results-grid{grid-template-columns:1fr}}
+
+/* ---------- Year filter (only shown when the student's year is unknown) ---------- */
+.sk-years{ display:flex; flex-wrap:wrap; gap:8px; margin:4px 0 6px; }
+.sk-years[hidden]{ display:none; }
+.sk-year{
+  padding:7px 14px; border-radius:10px;
+  border:1px solid var(--line); background:var(--white); color:var(--ink);
+  font:inherit; font-weight:600; font-size:13px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px;
+  transition:background .15s, border-color .15s, color .15s;
+}
+.sk-year:hover{ background:var(--violet-100); }
+.sk-year.active{ background:var(--violet-100); border-color:var(--violet-500); color:var(--violet-700); }
+.sk-year:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
+.sk-level{ font-size:11.5px; font-weight:600; color:var(--ink-soft); }
+.sk-year.active .sk-level{ color:var(--violet-700); }
+.sk-blurb{ margin:6px 0 4px; font-size:13.5px; color:var(--ink-soft); }
+
+/* ---------- Sections ---------- */
+.sk-section{ margin-top:26px; }
+.sk-sec-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.sk-sec-head h3{ margin:0; font-size:18px; letter-spacing:-0.01em; }
+.sk-sec-head p{ margin:2px 0 0; font-size:13px; color:var(--ink-soft); }
+
+.sk-arrows{ display:flex; gap:8px; flex-shrink:0; }
+.sk-arrow{
+  width:34px; height:34px; border-radius:50%;
+  border:1px solid var(--line); background:var(--white); color:var(--ink);
+  font-size:20px; line-height:1; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:background .15s, border-color .15s;
+}
+.sk-arrow:hover{ background:var(--violet-100); border-color:var(--violet-300); }
+.sk-arrow:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
+
+/* ---------- Department tabs ---------- */
+.sk-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+.sk-tab{
+  position:relative; padding:9px 16px; border-radius:999px;
+  border:1px solid var(--line); background:var(--white); color:var(--ink);
+  font:inherit; font-weight:600; font-size:13.5px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:8px;
+  transition:background .15s, border-color .15s, color .15s;
+}
+.sk-tab:hover{ background:var(--violet-100); }
+.sk-tab.active{
+  background:linear-gradient(135deg,var(--violet-600),var(--violet-500));
+  border-color:transparent; color:#fff;
+}
+.sk-tab:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
+.sk-mine{
+  font-size:10.5px; font-weight:700; letter-spacing:.02em;
+  padding:2px 7px; border-radius:999px;
+  background:var(--violet-100); color:var(--violet-700);
+}
+.sk-tab.active .sk-mine{ background:rgba(255,255,255,.22); color:#fff; }
+
+/* ---------- Notes ---------- */
+.sk-note{
+  margin:0 0 14px; padding:12px 16px; border-radius:var(--radius-md);
+  background:var(--amber-bg); color:var(--amber);
+  font-size:13.5px; font-weight:600;
+}
+.sk-note[hidden]{ display:none; }
+.sk-foot{ margin:28px 0 0; font-size:12.5px; color:var(--ink-soft); }
+
+/* ---------- Sideways scrolling rows ---------- */
+.sk-scroller{
+  --card-w:300px;
+  gap:18px;
+  overflow-x:auto; overflow-y:hidden;
+  padding:4px 4px 14px;            /* room for the card shadow + scrollbar */
+  scroll-snap-type:x proximity;
+  scrollbar-width:thin; scrollbar-color:var(--violet-300) transparent;
+  -webkit-overflow-scrolling:touch;
+}
+.sk-scroller:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; border-radius:var(--radius-md); }
+.sk-scroller::-webkit-scrollbar{ height:8px; }
+.sk-scroller::-webkit-scrollbar-thumb{ background:var(--violet-300); border-radius:999px; }
+.sk-scroller::-webkit-scrollbar-track{ background:transparent; }
+
+/* General: ONE row */
+.sk-one-row{ display:flex; flex-wrap:nowrap; }
+.sk-one-row > .sk-card{ flex:0 0 var(--card-w); scroll-snap-align:start; }
+
+/* Department: TWO rows, filling top-to-bottom then moving right */
+.sk-two-rows{
+  display:grid;
+  grid-template-rows:repeat(2, auto);
+  grid-auto-flow:column;
+  grid-auto-columns:var(--card-w);
+}
+.sk-two-rows > .sk-card{ scroll-snap-align:start; }
+
+/* Empty message: just a normal block, not a scrolling track */
+.sk-scroller.is-empty{ display:block; overflow-x:visible; }
+.sk-empty{ text-align:center; color:var(--ink-soft); font-size:14px; }
+
+/* ---------- Programming: Beginner / Intermediate / Advanced sub-headings ---------- */
+.sk-sub{ margin-top:18px; }
+.sk-sub-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; }
+.sk-sub-head h4{ margin:0; font-size:15px; font-weight:700; color:var(--violet-700); }
+.sk-sub .sk-arrow{ width:30px; height:30px; font-size:18px; }
+
+/* ---------- Course card ---------- */
+.sk-card{ display:flex; flex-direction:column; gap:10px; padding:20px; }
+.sk-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.sk-co{
+  font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--violet-700);
+}
+.sk-title{ margin:2px 0 0; font-size:16px; line-height:1.3; font-weight:700; }
+.sk-desc{ margin:0; font-size:13.5px; line-height:1.5; color:var(--ink-soft); flex:1; }
+.sk-bottom{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; flex-wrap:wrap; }
+.sk-go{
+  text-decoration:none;
+  display:inline-flex; align-items:center; gap:7px;
+}
+.sk-go:hover{ filter:brightness(1.06); }
+.sk-go:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
+.sk-yr{ font-size:12px; font-weight:600; color:var(--ink-soft); }
+
+/* ---------- Certificate attach ---------- */
+.sk-cert-row{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:nowrap; min-height:48px; box-sizing:border-box;
+  margin-top:10px; padding-top:12px; border-top:1px dashed var(--line, rgba(128,128,150,.28));
+}
+.sk-attach{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  padding:7px 14px; border-radius:999px; font:600 13px inherit; font-family:inherit;
+  background:transparent; color:var(--violet-700);
+  border:1.5px dashed var(--violet-500);
+}
+.sk-attach:hover{ background:var(--violet-100); }
+.sk-cert-ok{ white-space:nowrap; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:var(--green); }
+.sk-cert-actions{ display:inline-flex; gap:10px; white-space:nowrap; }
+.sk-link{
+  background:none; border:0; padding:0; cursor:pointer;
+  font:600 12px inherit; font-family:inherit; color:var(--violet-700); text-decoration:underline;
+}
+.sk-link.danger{ color:var(--rose); }
+.sk-attach:focus-visible, .sk-link:focus-visible{ outline:2px solid var(--violet-500); outline-offset:2px; }
+
+.sk-lb{ position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(8,8,24,.78); }
+.sk-lb-box{ display:flex; flex-direction:column; align-items:center; gap:14px; max-width:min(900px,100%); max-height:100%; }
+.sk-lb-box img{ max-width:100%; max-height:78vh; border-radius:12px; background:#fff; }
+.sk-lb-box iframe{ width:min(860px,92vw); height:78vh; border:0; border-radius:12px; background:#fff; }
+.sk-toast{
+  position:fixed; left:50%; bottom:28px; transform:translate(-50%,20px); z-index:1100;
+  padding:10px 18px; border-radius:12px; font-size:14px; font-weight:600; max-width:90vw;
+  background:#1b1b3a; color:#fff; opacity:0; pointer-events:none; transition:.25s;
+}
+.sk-toast.show{ opacity:1; transform:translate(-50%,0); }
+
+/* ---------- Phone ---------- */
+@media (max-width:680px){
+  .sk-scroller{ --card-w:264px; }
+  .sk-tabs, .sk-years{ flex-wrap:nowrap; overflow-x:auto; padding-bottom:4px; margin-right:-16px; }
+  .sk-tab, .sk-year{ flex-shrink:0; }
+  .sk-arrows{ display:none; }          /* touch screens just swipe */
+}
+
+/* Dark mode: the note's cream background is too bright on a dark page */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .sk-note{ background:#2a2212; color:#e8b64d; }
+}
+:root[data-theme="dark"] .sk-note{ background:#2a2212; color:#e8b64d; }
+
+
+/* Hide horizontal scrollbar while keeping course scrolling */
+.sk-scroller {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sk-scroller::-webkit-scrollbar {
+  display: none;
+}

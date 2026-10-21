@@ -1,0 +1,257 @@
+<!-- ============================================================
+     home.html — Home / Dashboard
+============================================================ -->
+
+<div class="view" id="view-home">
+
+  <!-- HERO -->
+  <div class="hero">
+
+    <div class="hero-content">
+      <h1><span id="homeGreeting">Welcome</span>, <span id="homeName"></span> 👋</h1>
+
+      <p>
+        Welcome to your placement hub. Explore opportunities,
+        build your skills, and track your journey toward an offer.
+      </p>
+      <p class="hero-date" id="homeDate"></p>
+      <p class="home-live-status" id="homeLiveStatus" role="status" aria-live="polite">Loading current placement data…</p>
+      <div class="hero-actions">
+        <button class="btn-solid" data-goto="jobs" type="button">Browse jobs</button>
+        <button class="btn-outline hero-ghost" id="askStepBtn" type="button">Ask Step ✨</button>
+      </div>
+    </div>
+
+    <div class="hero-visual">
+      <svg
+        width="90"
+        height="90"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="white"
+        stroke-width="1.5"
+      >
+        <path d="M22 10v6" />
+        <path d="M2 10l10-5 10 5-10 5-10-5z" />
+        <path d="M6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5" />
+      </svg>
+    </div>
+
+  </div>
+
+
+
+  <!-- STAT STRIP -->
+  <div class="home-stats" id="homeStats" aria-label="Your placement numbers"></div>
+
+  <!-- DASHBOARD CARDS -->
+  <div class="grid3">
+
+
+    <!-- ========================================================
+         PLACEMENT PROGRESS
+    ========================================================= -->
+    <div class="card placement-card">
+
+      <div class="card-head">
+
+        <div class="card-title">
+
+          <span class="ic">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-4 3 3 5-6" />
+            </svg>
+          </span>
+
+          Placement Progress
+
+        </div>
+
+      </div>
+
+
+      <!-- RING -->
+      <div class="placement-progress">
+
+        <svg
+          class="placement-ring"
+          viewBox="0 0 100 100"
+          role="img"
+          aria-label="Placement progress"
+        >
+
+          <!-- Background ring -->
+          <circle
+            class="placement-ring-track"
+            cx="50"
+            cy="50"
+            r="38"
+          ></circle>
+
+
+          <!-- Filled progress ring -->
+          <circle
+            id="placementRingFill"
+            class="placement-ring-fill"
+            cx="50"
+            cy="50"
+            r="38"
+            pathLength="100"
+          ></circle>
+
+
+          <!-- Percentage -->
+          <text
+            id="placementRingValue"
+            x="50"
+            y="54"
+            text-anchor="middle"
+          >
+            0%
+          </text>
+
+        </svg>
+
+
+        <!-- Completed -->
+        <div class="placement-completed">
+          Offers / applications
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+    <!-- ========================================================
+         SKILLS SNAPSHOT
+    ========================================================= -->
+    <div class="card">
+
+      <div class="card-head">
+
+        <div class="card-title">
+
+          <span class="ic">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 20V10" />
+              <path d="M18 20V4" />
+              <path d="M6 20v-4" />
+            </svg>
+          </span>
+
+          Skills Snapshot
+
+        </div>
+
+        <span
+          class="card-link"
+          data-goto="skills"
+        >
+          View all →
+        </span>
+
+      </div>
+
+
+      <div id="snapshotList"></div>
+
+    </div>
+
+
+
+    <!-- ========================================================
+         RECENT MILESTONES
+    ========================================================= -->
+    <div class="card">
+
+      <div class="card-head">
+
+        <div class="card-title">
+
+          <span class="ic">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+              />
+
+              <path d="M12 7v5l3 3" />
+            </svg>
+          </span>
+
+          Recent Application Activity
+
+        </div>
+
+        <span
+          class="card-link"
+          data-goto="progress"
+        >
+          View all →
+        </span>
+
+      </div>
+
+
+      <div id="milestoneList"></div>
+
+    </div>
+
+  </div>
+
+  <!-- ROW 2: openings + upcoming -->
+  <div class="grid2 home-row">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="ic">💼</span> Open Opportunities</div>
+        <span class="card-link" data-goto="jobs">All jobs →</span>
+      </div>
+      <div id="openingList"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title"><span class="ic">🗓️</span> Coming Up</div>
+        <span class="card-link" data-goto="progress">Timeline →</span>
+      </div>
+      <div id="upcomingList"></div>
+    </div>
+  </div>
+
+  <!-- ROW 3: funnel + quick actions -->
+  <div class="grid2 home-row">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="ic">📈</span> Application Funnel</div></div>
+      <div id="funnelList"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="ic">⚡</span> Quick Actions</div></div>
+      <div class="quick-grid" id="quickGrid"></div>
+    </div>
+  </div>
+
+</div>

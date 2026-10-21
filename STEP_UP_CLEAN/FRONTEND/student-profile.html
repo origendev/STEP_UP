@@ -1,0 +1,390 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>StepUp — Student Profile</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/student-auth.css">
+</head>
+
+<body class="profile-setup-page">
+
+<main class="profile-setup-wrap">
+
+<header class="profile-setup-header">
+  <div>
+    <div class="profile-setup-brand">
+      <span class="brand-mark">S</span>StepUp
+    </div>
+    <h1>Complete your student profile</h1>
+    <p>These details are securely saved and can be used later to generate your resume.</p>
+  </div>
+</header>
+
+<div id="message" class="student-auth-message"></div>
+
+<form id="profileForm">
+
+<div class="profile-setup-grid">
+
+<!-- PERSONAL DETAILS -->
+<section class="profile-setup-card">
+<h2>Personal details</h2>
+<p>Basic information used in your student profile.</p>
+
+<div class="form-grid">
+<label>Full name *
+<input id="name" required>
+</label>
+
+<label>Registration number *
+<input id="regNo" required>
+</label>
+</div>
+
+<div class="form-grid">
+<label>Email *
+<input id="email" type="email" required>
+</label>
+
+<label>Phone number
+<input id="phone" type="tel">
+</label>
+</div>
+
+<div class="form-grid">
+<label>Date of birth
+<input id="dob" type="date">
+</label>
+
+<label>Gender
+<select id="gender">
+<option value="">Select</option>
+<option>Male</option>
+<option>Female</option>
+<option>Other</option>
+<option>Prefer not to say</option>
+</select>
+</label>
+</div>
+
+<label>Address
+<textarea id="address"></textarea>
+</label>
+</section>
+
+<!-- EDUCATION -->
+<section class="profile-setup-card">
+<h2>Education</h2>
+<p>Add the qualification information you want available for your future resume.</p>
+
+<div class="form-grid">
+<label>College / Institution
+<input id="college">
+</label>
+
+<label>Degree / Qualification *
+<input id="degree" placeholder="B.E / B.Tech / B.Sc" required>
+</label>
+</div>
+
+<div class="form-grid">
+<label>Department / Branch *
+<input id="department" placeholder="Computer Science and Engineering" required>
+</label>
+
+<label>Graduation year
+<input id="graduationYear" type="number" min="2000" max="2100">
+</label>
+</div>
+
+<label>CGPA / Percentage
+<input id="cgpa" type="number" step="0.01">
+</label>
+
+<label>Other educational qualifications
+<textarea id="education" placeholder="Example: Higher Secondary — ABC School — 2022 — 92%"></textarea>
+</label>
+</section>
+
+<!-- SKILLS -->
+<section class="profile-setup-card">
+<h2>Skills & languages</h2>
+<p>Separate multiple entries with commas.</p>
+
+<label>Technical / professional skills
+<input id="skills" placeholder="Python, SQL, JavaScript, Git">
+</label>
+
+<label>Languages known
+<input id="languages" placeholder="English, Malayalam, Tamil">
+</label>
+
+<label>Certifications
+<textarea id="certifications" placeholder="Certification — Issuer — Year"></textarea>
+</label>
+</section>
+
+<!-- EXPERIENCE -->
+<section class="profile-setup-card">
+<h2>Experience & projects</h2>
+<p>Internships, previous experience and academic projects.</p>
+
+<label>Previous experience
+<textarea id="experience" placeholder="Role — Organization — Duration — Key responsibilities"></textarea>
+</label>
+
+<label>Projects
+<textarea id="projects" placeholder="Project name — technologies — short description"></textarea>
+</label>
+</section>
+
+<!-- ACHIEVEMENTS -->
+<section class="profile-setup-card full">
+<h2>Achievements & professional links</h2>
+<p>Anything useful for your future resume.</p>
+
+<label>Achievements
+<textarea id="achievements" placeholder="Awards, hackathons, leadership, competitions, publications, etc."></textarea>
+</label>
+
+<label>Profile / career summary
+<textarea id="summary" placeholder="A short professional summary about yourself"></textarea>
+</label>
+
+<div class="form-grid three">
+
+<label>LinkedIn
+<input id="linkedin" type="url" placeholder="https://linkedin.com/in/...">
+</label>
+
+<label>GitHub
+<input id="github" type="url" placeholder="https://github.com/...">
+</label>
+
+<label>Portfolio
+<input id="portfolio" type="url" placeholder="https://...">
+</label>
+
+</div>
+
+<div class="profile-actions">
+<a class="student-auth-link"
+   style="align-self:center;margin:0 8px 0 0"
+   href="student-change-password.html">
+Change password
+</a>
+
+<button class="student-auth-button"
+        style="width:auto;padding:11px 24px"
+        type="submit"
+        id="saveBtn">
+Save & Continue to Dashboard
+</button>
+</div>
+
+</section>
+
+</div>
+</form>
+</main>
+
+<script type="module">
+
+import { api, getToken, clearSession } from './js/core/api.js';
+
+const $ = id => document.getElementById(id);
+
+const msg = $('message');
+const form = $('profileForm');
+const save = $('saveBtn');
+
+if (!getToken()) {
+  location.href = 'student-login.html';
+}
+
+function show(text, type = 'error') {
+  msg.textContent = text;
+  msg.className = `student-auth-message show ${type}`;
+}
+
+const csv = value =>
+  value.split(',').map(x => x.trim()).filter(Boolean);
+
+const lines = value =>
+  value.split('\n')
+    .map(x => x.trim())
+    .filter(Boolean)
+    .map(x => ({ details: x }));
+
+// Load existing student profile
+const load = async () => {
+  try {
+    const response = await api('/student/me');
+    const student = response.data;
+
+    const fields = [
+      'name',
+      'regNo',
+      'email',
+      'phone',
+      'dob',
+      'gender',
+      'address',
+      'college',
+      'degree',
+      'department',
+      'graduationYear',
+      'cgpa',
+      'achievements',
+      'summary',
+      'linkedin',
+      'github',
+      'portfolio'
+    ];
+
+    fields.forEach(key => {
+      const element = $(key);
+
+      if (
+        student[key] !== null &&
+        student[key] !== undefined &&
+        element
+      ) {
+        element.value = student[key];
+      }
+    });
+
+    $('skills').value =
+      (student.skills || []).join(', ');
+
+    $('languages').value =
+      (student.languages || []).join(', ');
+
+    $('education').value =
+      (student.education || [])
+        .map(item => item.details || '')
+        .join('\n');
+
+    $('experience').value =
+      (student.experience || [])
+        .map(item => item.details || '')
+        .join('\n');
+
+    $('certifications').value =
+      (student.certifications || [])
+        .map(item => item.details || '')
+        .join('\n');
+
+    $('projects').value =
+      (student.projects || [])
+        .map(item => item.details || '')
+        .join('\n');
+
+  } catch (error) {
+    clearSession();
+    location.href = 'student-login.html';
+  }
+};
+
+load();
+
+// Save student profile
+form.addEventListener('submit', async event => {
+
+  event.preventDefault();
+
+  save.disabled = true;
+  save.textContent = 'Saving...';
+
+  // Read values directly from the form fields
+  const data = {
+    name: $('name').value.trim(),
+    regNo: $('regNo').value.trim(),
+    email: $('email').value.trim(),
+
+    phone: $('phone').value,
+    dob: $('dob').value,
+    gender: $('gender').value,
+    address: $('address').value,
+
+    college: $('college').value.trim(),
+    degree: $('degree').value.trim(),
+    department: $('department').value.trim(),
+
+    graduationYear: $('graduationYear').value,
+    cgpa: $('cgpa').value,
+
+    skills: csv($('skills').value),
+    languages: csv($('languages').value),
+
+    education: lines($('education').value),
+    experience: lines($('experience').value),
+    certifications: lines($('certifications').value),
+    projects: lines($('projects').value),
+
+    achievements: $('achievements').value,
+    summary: $('summary').value,
+
+    linkedin: $('linkedin').value,
+    github: $('github').value,
+    portfolio: $('portfolio').value
+  };
+
+  // Validate required fields
+  if (
+    !data.name ||
+    !data.regNo ||
+    !data.email ||
+    !data.degree ||
+    !data.department
+  ) {
+    show(
+      'Name, registration number, email, degree and department are required.'
+    );
+
+    save.disabled = false;
+    save.textContent = 'Save & Continue to Dashboard';
+    return;
+  }
+
+  try {
+
+    await api('/student/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+
+    show(
+      'Profile saved successfully. Opening your placement dashboard...',
+      'success'
+    );
+
+    window.setTimeout(() => {
+      location.href = 'index.html#/home';
+    }, 500);
+
+  } catch (error) {
+
+    show(error.message || 'Unable to save your profile.');
+
+  } finally {
+
+    save.disabled = false;
+    save.textContent = 'Save & Continue to Dashboard';
+
+  }
+
+});
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!-- ============================================================
+     progress.html — Placement Progress page
+============================================================ -->
+
+<div class="view" id="view-progress">
+
+  
+
+
+  <!-- Applied Jobs -->
+  <section class="progress-applied-section" id="appliedJobsSection">
+    <div class="section-heading" style="margin-top:24px;">
+      <div>
+        <h2>My Applied Jobs</h2>
+        <p>Jobs you have actually applied to and their current recruitment status.</p>
+      </div>
+    </div>
+    <div id="appliedJobsList" class="progress-applied-list">
+
+  <div class="card progress-applied-card">
+    <div class="progress-applied-top">
+      <div>
+        <h3>ORIGEN</h3>
+        <p>Software Developer</p>
+      </div>
+      <span class="progress-applied-status applied">Applied</span>
+    </div>
+
+    <div class="progress-applied-meta">
+      <div>
+        <small>Role</small>
+        <strong>Software Developer</strong>
+      </div>
+      <div>
+        <small>CTC</small>
+        <strong>₹8 LPA</strong>
+      </div>
+      <div>
+        <small>Status</small>
+        <strong>Applied</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card progress-applied-card">
+    <div class="progress-applied-top">
+      <div>
+        <h3>FinaTech</h3>
+        <p>Software Testing Engineer</p>
+      </div>
+      <span class="progress-applied-status applied">Applied</span>
+    </div>
+
+    <div class="progress-applied-meta">
+      <div>
+        <small>Role</small>
+        <strong>Software Testing Engineer</strong>
+      </div>
+      <div>
+        <small>CTC</small>
+        <strong>₹6 LPA</strong>
+      </div>
+      <div>
+        <small>Status</small>
+        <strong>Applied</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card progress-applied-card">
+    <div class="progress-applied-top">
+      <div>
+        <h3>TechNova</h3>
+        <p>Backend Developer</p>
+      </div>
+      <span class="progress-applied-status applied">Applied</span>
+    </div>
+
+    <div class="progress-applied-meta">
+      <div>
+        <small>Role</small>
+        <strong>Backend Developer</strong>
+      </div>
+      <div>
+        <small>CTC</small>
+        <strong>₹7.5 LPA</strong>
+      </div>
+      <div>
+        <small>Status</small>
+        <strong>Applied</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="card progress-applied-card">
+    <div class="progress-applied-top">
+      <div>
+        <h3>CloudCore</h3>
+        <p>Java Developer</p>
+      </div>
+      <span class="progress-applied-status applied">Applied</span>
+    </div>
+
+    <div class="progress-applied-meta">
+      <div>
+        <small>Role</small>
+        <strong>Java Developer</strong>
+      </div>
+      <div>
+        <small>CTC</small>
+        <strong>₹9 LPA</strong>
+      </div>
+      <div>
+        <small>Status</small>
+        <strong>Applied</strong>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+  </section>
+
+  
+    
+<style>
+.progress-applied-list{display:grid;gap:12px}
+.progress-applied-card{background:var(--white);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px 18px;box-shadow:var(--shadow-card)}
+.progress-applied-top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.progress-applied-card h3{margin:0;font-size:15px}
+.progress-applied-card p{margin:5px 0 0;color:var(--ink-soft);font-size:11.5px}
+.progress-applied-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:12px}
+.progress-applied-meta div{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--lilac-bg)}
+.progress-applied-meta small{display:block;color:var(--ink-soft);font-size:9.5px}
+.progress-applied-meta strong{display:block;margin-top:3px;font-size:11.5px}
+.progress-applied-status{padding:6px 10px;border-radius:999px;font-size:10.5px;font-weight:800}
+.progress-applied-status.applied{background:var(--violet-100);color:var(--violet-700)}
+.progress-applied-status.selected{background:var(--green-bg);color:var(--green)}
+.progress-applied-status.rejected{background:var(--rose-bg);color:var(--rose)}
+.progress-applied-empty{padding:30px;text-align:center;color:var(--ink-soft)}
+@media(max-width:650px){.progress-applied-meta{grid-template-columns:1fr}.progress-applied-top{flex-direction:column}}
+</style>

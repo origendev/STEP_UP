@@ -5,7 +5,7 @@ import { getToken } from '../core/api.js';
 const API_BASE_URL = window.STEPUP_API_BASE_URL || 'http://localhost:3000/api';
 let allJobs = [];
 let appliedJobIds = new Set();
-let state = { search:'', industry:'All', sort:'Latest' };
+let state = { search:'', industry:'All', sort:'Latest', savedOnly:false };
 const SAVED_KEY = 'stepupSavedJobs';
 
 function savedIds(){
@@ -22,6 +22,28 @@ function showApplyToast(message, ok=true){
   document.body.appendChild(t);
   requestAnimationFrame(()=>t.classList.add('show'));
   setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),220); },2600);
+}
+function confirmUnapply(companyName){
+  return new Promise(resolve=>{
+    document.querySelector('.jobs-confirm-overlay')?.remove();
+    const o=document.createElement('div');
+    o.className='jobs-confirm-overlay';
+    o.innerHTML=`<div class="jobs-confirm-card" role="dialog" aria-modal="true" aria-labelledby="jcTitle">
+      <h3 id="jcTitle">Withdraw application?</h3>
+      <p>Are you sure you want to unapply from <strong>${esc(companyName)}</strong>? Your application will be withdrawn.</p>
+      <div class="jobs-confirm-actions">
+        <button type="button" class="jc-cancel">Keep Applied</button>
+        <button type="button" class="jc-confirm">Yes, Unapply</button>
+      </div></div>`;
+    const done=v=>{ document.removeEventListener('keydown',onKey); o.remove(); resolve(v); };
+    const onKey=e=>{ if(e.key==='Escape') done(false); };
+    o.addEventListener('click',e=>{ if(e.target===o) done(false); });
+    o.querySelector('.jc-cancel').addEventListener('click',()=>done(false));
+    o.querySelector('.jc-confirm').addEventListener('click',()=>done(true));
+    document.addEventListener('keydown',onKey);
+    document.body.appendChild(o);
+    o.querySelector('.jc-cancel').focus();
+  });
 }
 function initials(name){
   return String(name||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase() || 'S';
@@ -89,8 +111,8 @@ function filtered(){
   const q=state.search.toLowerCase();
   let list=allJobs.filter(j=>{
 const text=[j.companyName,j.jobTitle,j.description,j.industry,j.location,j.workMode].join(' ').toLowerCase();
-    const matchesSaved = state.industry==='Saved' ? savedIds().has(String(j.id)) : true;
-    const matchesIndustry = state.industry==='All' || state.industry==='Saved' || j.industry===state.industry;
+    const matchesSaved = state.savedOnly ? savedIds().has(String(j.id)) : true;
+    const matchesIndustry = state.industry==='All' || j.industry===state.industry;
     return (!q || text.includes(q)) && matchesIndustry && matchesSaved;
   });
   if(state.sort==='A-Z') list.sort((a,b)=>a.companyName.localeCompare(b.companyName));
@@ -145,9 +167,13 @@ function render(){
     const jobId=String(btn.dataset.apply);
     const token=getToken();
     if(!token){ window.location.href='student-login.html'; return; }
+    const isApplied=appliedJobIds.has(jobId);
+    if(isApplied){
+      const job=allJobs.find(x=>String(x.id)===jobId);
+      if(!(await confirmUnapply(job?.companyName||'this company'))) return;
+    }
     btn.disabled=true;
     try{
-      const isApplied=appliedJobIds.has(jobId);
       const res=await fetch(`${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/apply`,{
         method:isApplied?'DELETE':'POST',
         headers:{Accept:'application/json',Authorization:`Bearer ${token}`}
@@ -173,6 +199,14 @@ function render(){
 function bindEvents(){
   const search=$('#jobSearch');
   search.addEventListener('input',e=>{state.search=e.target.value.trim();render();});
+  const savedBtn=$('#savedToggle');
+  savedBtn.addEventListener('click',()=>{
+    state.savedOnly=!state.savedOnly;
+    savedBtn.classList.toggle('active',state.savedOnly);
+    savedBtn.setAttribute('aria-pressed',String(state.savedOnly));
+    savedBtn.textContent=(state.savedOnly?'★':'☆')+' Saved';
+    render();
+  });
   $$('#industryChips .chip').forEach(chip=>chip.addEventListener('click',()=>{
     $$('#industryChips .chip').forEach(c=>c.classList.remove('active'));
     chip.classList.add('active'); state.industry=chip.dataset.industry; render();
@@ -187,7 +221,7 @@ function bindEvents(){
 document.addEventListener('click',e=>$$('.dropdown[open]').forEach(d=>{if(!d.contains(e.target))d.removeAttribute('open');}));
 
 export function mount(){
-  state={search:'',industry:'All',sort:'Latest'};
+  state={search:'',industry:'All',sort:'Latest',savedOnly:false};
   bindEvents();
   $('#jobsGrid').innerHTML='<div class="jobs-empty">Loading companies…</div>';
   Promise.all([loadApplications(), loadJobs()]);

@@ -1,0 +1,355 @@
+/* ============================================================
+   home.css — Home / Dashboard
+============================================================ */
+
+
+/* ============================================================
+   HERO
+============================================================ */
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+
+  padding: 44px 4px 34px;
+}
+
+.hero-content {
+  min-width: 0;
+}
+
+.hero h1 {
+  font-size: 38px;
+  line-height: 1.1;
+
+  margin: 0 0 12px;
+
+  letter-spacing: -0.02em;
+}
+
+.hero p {
+  max-width: 520px;
+
+  color: var(--ink-soft);
+
+  font-size: 15.5px;
+  line-height: 1.6;
+
+  margin: 0;
+}
+
+
+/* ============================================================
+   HERO VISUAL
+============================================================ */
+
+.hero-visual {
+  width: 170px;
+  height: 170px;
+
+  border-radius: 28px;
+
+  flex-shrink: 0;
+
+  background:
+    linear-gradient(
+      150deg,
+      var(--violet-500),
+      var(--violet-700)
+    );
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+/* ============================================================
+   PLACEMENT PROGRESS CARD
+============================================================ */
+
+.placement-card {
+  min-height: 280px;
+}
+
+
+/* ============================================================
+   PLACEMENT PROGRESS CONTAINER
+============================================================ */
+
+.placement-progress {
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  padding-top: 10px;
+
+  width: 100%;
+}
+
+
+/* ============================================================
+   RING
+============================================================ */
+
+.placement-ring {
+
+  width: 104px;
+  height: 104px;
+
+  display: block;
+
+  overflow: visible;
+}
+
+
+/* ============================================================
+   RING BACKGROUND
+============================================================ */
+
+.placement-ring-track {
+
+  fill: none;
+
+  stroke: var(--violet-100);
+
+  stroke-width: 10;
+}
+
+
+/* ============================================================
+   RING PROGRESS
+============================================================ */
+
+.placement-ring-fill {
+
+  fill: none;
+
+  stroke: url(#placementRingGradient);
+
+  stroke: var(--violet-500);
+
+  stroke-width: 10;
+
+  stroke-linecap: round;
+
+  /*
+     pathLength="100" in HTML means:
+
+     0   = empty
+     25  = 25%
+     50  = 50%
+     75  = 75%
+     100 = full
+  */
+
+  stroke-dasharray: 100 100;
+
+  /*
+     JavaScript changes this value.
+
+     42%:
+     100 - 42 = 58
+
+     70%:
+     100 - 70 = 30
+  */
+
+  stroke-dashoffset: 58;
+
+  transform: rotate(-90deg);
+
+  transform-origin: 50% 50%;
+
+  transition:
+    stroke-dashoffset 0.5s ease;
+}
+
+
+/* ============================================================
+   PERCENTAGE TEXT
+============================================================ */
+
+.placement-ring text {
+
+  font-family: Sora, sans-serif;
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+  fill: var(--ink);
+
+  dominant-baseline: middle;
+}
+
+
+/* ============================================================
+   COMPLETED TEXT
+============================================================ */
+
+.placement-completed {
+
+  margin-top: 8px;
+
+  color: var(--ink-soft);
+
+  font-size: 13px;
+
+  line-height: 1.4;
+
+  text-align: center;
+}
+
+
+/* ============================================================
+   SKILLS SNAPSHOT
+============================================================ */
+
+.snapshot-row {
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: stretch;
+
+  gap: 6px;
+
+  padding: 0 0 12px;
+
+  border: none;
+}
+
+.snapshot-row:last-child {
+
+  padding-bottom: 0;
+}
+
+
+/* ============================================================
+   MILESTONES
+============================================================ */
+
+.milestone-title {
+
+  font-weight: 600;
+
+  font-size: 13.5px;
+}
+
+.milestone-meta {
+
+  font-size: 12px;
+
+  color: var(--ink-soft);
+}
+
+
+/* ============================================================
+   MOBILE
+============================================================ */
+
+@media (max-width: 680px) {
+
+  .hero {
+
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .hero-visual {
+
+    width: 100%;
+
+    height: 110px;
+  }
+
+  .placement-card {
+
+    min-height: 250px;
+  }
+
+}
+
+/* ============================================================
+   HOME — richer layout
+============================================================ */
+.hero-date{ margin-top:10px!important; font-size:13px!important; font-weight:600; color:var(--violet-600)!important; }
+.home-live-status{display:flex;align-items:center;gap:8px;margin-top:7px!important;color:var(--ink-soft)!important;font-size:11px!important}
+.home-live-status button{padding:0;border:0;background:none;color:var(--violet-700);font-family:inherit;font-size:11px;font-weight:700;text-decoration:underline;cursor:pointer}
+.home-skill-row{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px;padding:0 0 11px}
+.home-skill-level{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--violet-100);color:var(--violet-700);font-size:10px;font-weight:700}
+.hero-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+.hero-actions .btn-solid,.hero-actions .btn-outline{ padding:11px 20px; border-radius:12px; font-size:14px; cursor:pointer; }
+.hero-actions .btn-outline{ border:1px solid var(--violet-300); }
+
+.home-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:0 0 20px; }
+.home-stat{ position:relative; display:flex; flex-direction:column; gap:2px; padding:18px 20px; overflow:hidden;
+  background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); box-shadow:var(--shadow-card); }
+.home-stat::before{ content:""; position:absolute; inset:0 auto 0 0; width:4px; background:var(--violet-500); }
+.home-stat.stat-amber::before{ background:var(--amber); }
+.home-stat.stat-green::before{ background:var(--green); }
+.home-stat.stat-rose::before{ background:var(--rose); }
+.home-stat strong{ font:800 28px Sora,sans-serif; color:var(--ink); font-variant-numeric:tabular-nums; }
+.home-stat span{ font-size:13px; color:var(--ink-soft); }
+
+.home-row{ margin-top:20px; }
+.home-row .snapshot-row{ padding-bottom:14px; }
+.home-empty{ margin:0; padding:10px 0; color:var(--ink-soft); font-size:13px; }
+
+.opening-logo{ width:38px; height:38px; flex-shrink:0; display:grid; place-items:center; border-radius:10px;
+  background:var(--violet-100); color:var(--violet-700); font:800 16px Sora,sans-serif; }
+.opening-copy{ flex:1; min-width:0; }
+
+.quick-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.quick-tile{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:14px; text-align:left;
+  background:var(--violet-100); border:1px solid var(--line); border-radius:var(--radius-md); color:var(--ink);
+  transition:transform .15s ease, border-color .15s ease; }
+.quick-tile:hover{ transform:translateY(-2px); border-color:var(--violet-300); }
+.quick-tile b{ font-size:14px; }
+.quick-tile small{ font-size:12px; color:var(--ink-soft); }
+.quick-ic{ font-size:20px; margin-bottom:4px; }
+
+@media (max-width:980px){ .home-stats{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:680px){
+  .hero h1{ font-size:30px; }
+  .home-stats{ gap:12px; }
+  .home-stat{ padding:14px 16px; }
+  .home-stat strong{ font-size:24px; }
+  .quick-grid{ grid-template-columns:1fr 1fr; }
+}
+
+
+/* ============================================================
+   HOME BACKGROUND IMAGE (home page only)
+   The glass graduation tile sits behind the hero on the right.
+   Dark mode inverts the image so it stays dark and text stays readable.
+============================================================ */
+body[data-route="home"]::before{
+  content:""; position:absolute; top:0; left:0; right:0; height:calc(max(100vw, 1200px) * .5625 - 70px); z-index:-1; pointer-events:none;
+  background:url("../../assets/home-bg.jpg") 70% -70px / max(100%, 1200px) auto no-repeat;
+  -webkit-mask-image:linear-gradient(#000 45%, transparent 100%);
+          mask-image:linear-gradient(#000 45%, transparent 100%);
+}
+:root[data-theme="dark"] body[data-route="home"]::before{
+  filter:invert(1) hue-rotate(180deg) brightness(.72) saturate(1.25);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) body[data-route="home"]::before{
+    filter:invert(1) hue-rotate(180deg) brightness(.72) saturate(1.25);
+  }
+}
+/* the image already carries the graduation-cap tile, so drop the flat purple one */
+#view-home .hero-visual{ display:none; }
+@media (max-width:680px){
+  body[data-route="home"]::before{ height:calc(1000px * .5625 - 40px); background-size:1000px auto; background-position:62% -40px; opacity:.85; }
+}
