@@ -143,3 +143,5 @@
 .jobs-confirm-actions button{padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;border:1px solid var(--line);background:var(--white);color:var(--ink);}
 .jobs-confirm-actions .jc-confirm{background:#d1466f;border-color:#d1466f;color:#fff;}
 @media(max-width:680px){.saved-toggle{width:100%;}}
+
+.saved-toggle{display:inline-flex;align-items:center;gap:7px;}

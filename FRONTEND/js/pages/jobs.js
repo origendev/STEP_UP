@@ -45,6 +45,9 @@ function confirmUnapply(companyName){
     o.querySelector('.jc-cancel').focus();
   });
 }
+function bookmarkIcon(filled){
+  return `<svg class="bm-icon" width="16" height="16" viewBox="0 0 24 24" fill="${filled?'currentColor':'none'}" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-5-7 5V4a1 1 0 0 1 1-1z"/></svg>`;
+}
 function initials(name){
   return String(name||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase() || 'S';
 }
@@ -140,7 +143,7 @@ function cardHTML(group){
         <div class="company-logo">${esc(initials(j.companyName))}</div>
         <div><div class="company-name">${esc(j.companyName)}</div><div class="company-meta">${esc(j.industry)} • ${esc(j.location)}</div></div>
       </div>
-      <button class="save-job ${saved?'saved':''}" data-save="${esc(String(j.id))}" aria-label="${saved?'Remove saved job':'Save job'}">${saved?'★':'☆'}</button>
+      <button class="save-job ${saved?'saved':''}" data-save="${esc(String(j.id))}" aria-label="${saved?'Remove saved job':'Save job'}">${bookmarkIcon(saved)}</button>
     </div>
     <p class="company-description">${esc(desc)}</p>
     <div class="company-pills">
@@ -204,7 +207,7 @@ function bindEvents(){
     state.savedOnly=!state.savedOnly;
     savedBtn.classList.toggle('active',state.savedOnly);
     savedBtn.setAttribute('aria-pressed',String(state.savedOnly));
-    savedBtn.textContent=(state.savedOnly?'★':'☆')+' Saved';
+    savedBtn.innerHTML=bookmarkIcon(state.savedOnly)+'<span>Saved</span>';
     render();
   });
   $$('#industryChips .chip').forEach(chip=>chip.addEventListener('click',()=>{
