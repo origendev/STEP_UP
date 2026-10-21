@@ -154,7 +154,6 @@ function cardHTML(group){
     <div class="company-card-footer">
       <button class="view-details-btn" data-details="${esc(String(j.id))}">View Details ›</button>
       <button class="apply-job-btn ${appliedJobIds.has(String(j.id))?'applied':''}" data-apply="${esc(String(j.id))}">${appliedJobIds.has(String(j.id))?'Applied':'Apply'}</button>
-      <button class="company-save-btn ${saved?'saved':''}" data-save="${esc(String(j.id))}">${saved?'Saved':'Save'}</button>
     </div>
   </article>`;
 }
