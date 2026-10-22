@@ -3,15 +3,15 @@
    Renders free courses (js/data/skills.data.js) into pages/skills.html.
 
    Layout
-     General courses     one row, scrolls sideways
-     Department courses  two rows, scrolls sideways (tabs pick the department)
+     Title "General courses", then chips  All | CSE | IT | ...  then the courses (two rows, scrolls sideways)
+       All = general courses + every department's courses; a department chip = that department only
 
    A student whose study year is known only sees that year's courses.
    If the year is unknown, year chips let them pick one.
 ============================================================ */
 
 import { $, $$, esc } from '../core/dom.js';
-import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES, PROG_LANGS, PROG_COURSES } from '../data/skills.data.js?v=20261009h';
+import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES, PROG_LANGS, PROG_COURSES } from '../data/skills.data.js?v=20261022a';
 
 function read(key){ try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch{ return null; } }
 
@@ -91,7 +91,7 @@ const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" strok
 const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 const CLIP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg>';
 
-const state = { dept: 'CSE', year: 0, lang: 'Python', query: '' };
+const state = { dept: 'ALL', year: 0, lang: 'Python', query: '' };
 const PROG_LEVELS = [{ key: 'Beginner' }, { key: 'Intermediate' }, { key: 'Advanced' }];
 let locked = false;   // true when the student's year is known: they only see their own year
 
@@ -103,6 +103,75 @@ function focusCourseSearch(event){
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable) return;
   event.preventDefault();
   document.getElementById('skSearch')?.focus();
+}
+
+
+/* ---------- Course picture + provider logo ----------
+   Logo: the provider's own icon, loaded from its website (falls back to the first letter if it can't load).
+   Picture: a banner drawn for the course's topic (Python, Java, aptitude, circuits...). */
+const LOGO_DOMAIN = {
+  'Cisco':'cisco.com', 'IBM':'ibm.com', 'Google':'google.com', 'Microsoft':'microsoft.com',
+  'Harvard':'harvard.edu', 'Infosys':'infosys.com', 'Univ. of Helsinki':'helsinki.fi',
+  'Open University':'open.edu', 'MathWorks':'mathworks.com', 'ELCAI':'kelcaigroup.com',
+  'Great Learning':'mygreatlearning.com', 'C++ Institute':'cppinstitute.org',
+};
+function logoDomain(c){
+  if(LOGO_DOMAIN[c.company]) return LOGO_DOMAIN[c.company];
+  try{ return new URL(c.url).hostname.replace(/^www\./, ''); }catch{ return ''; }
+}
+const IC = {
+  code:  '<path d="m8 8-5 4 5 4M16 8l5 4-5 4M14 4l-4 16"/>',
+  ai:    '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  data:  '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+  chat:  '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>',
+  calc:  '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/>',
+  wave:  '<path d="M3 12h4l2-6 4 12 2-6h6"/>',
+  bolt:  '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  gear:  '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+  build: '<path d="M4 21V9l8-6 8 6v12M9 21v-6h6v6"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1 0 9z"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
+  book:  '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 19V5"/>',
+};
+/* first matching rule wins: [pattern, icon, big text (languages only), hue] */
+const TOPICS = [
+  [/c\+\+/,                       'code',  'C++',    205],
+  [/\bpython\b/,                  'code',  'Python', 215],
+  [/\bjava\b(?!script)/,          'code',  'Java',    18],
+  [/\bjavascript\b|\bhtml\b|\bweb\b|\breact\b/, 'globe', '', 45],
+  [/(^|\W)c programming|learn c\b|introduction to c\b|\bc language\b/, 'code', 'C', 250],
+  [/\bai\b|artificial|machine learning|generative|prompt|chatgpt|copilot/, 'ai', '', 275],
+  [/data|sql|excel|analytic|power bi|tableau/, 'data', '', 160],
+  [/cloud|aws|azure|devops/,      'cloud', '', 195],
+  [/cyber|security|ethical|network/, 'shield', '', 345],
+  [/aptitude|reasoning|quantitative|logical|puzzle|math/, 'calc', '', 30],
+  [/communicat|english|interview|resume|soft skill|workplace|presentation|email|leadership/, 'chat', '', 330],
+  [/matlab|signal|embedded|vlsi|circuit|electronic|iot|arduino|communication system/, 'wave', '', 175],
+  [/electric|power|energy|motor/, 'bolt',  '', 50],
+  [/mechanic|cad|thermo|manufactur|robot|automobile|solidworks|ansys/, 'gear', '', 20],
+  [/civil|construction|structur|survey|building|autocad|bim/, 'build', '', 95],
+  [/program|code|coding|software|algorithm|computer|cs50/, 'code', '', 230],
+];
+function topicOf(c){
+  const text = [c.lang, c.title, c.desc, c.group].filter(Boolean).join(' ').toLowerCase();
+  const t = TOPICS.find(r => r[0].test(text));
+  return t ? { icon: t[1], big: t[2], hue: t[3] } : { icon: 'book', big: '', hue: 260 };
+}
+function banner(c){
+  const t = topicOf(c);
+  const dom = logoDomain(c);
+  const initial = esc((c.company || '?').trim().charAt(0).toUpperCase());
+  const logo = dom
+    ? `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
+    : '';
+  const art = t.big
+    ? `<span class="sk-ban-big" aria-hidden="true">${esc(t.big)}</span>`
+    : `<svg class="sk-ban-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t.icon]}</svg>`;
+  return `<div class="sk-banner" style="--h:${t.hue}" role="img" aria-label="${esc(c.title)}">
+      <span class="sk-logo" title="${esc(c.company)}"><b>${initial}</b>${logo}</span>
+      ${art}
+    </div>`;
 }
 
 function card(c){
@@ -124,6 +193,7 @@ function card(c){
        </div>`;
   return `
     <article class="card sk-card">
+      ${banner(c)}
       <div class="sk-top">
         <span class="sk-co">${esc(c.company)}</span>
       </div>
@@ -189,7 +259,7 @@ function render(){
     ? (locked ? `${y.label} · ${y.level} — ${y.blurb}` : y.blurb)
     : 'Showing courses for every year. Pick a year to see what suits you now.';
 
-  const sections = [$('#skGenSec'), $('#skDeptSec'), $('#skProgTitle')?.closest('.sk-section')].filter(Boolean);
+  const sections = [$('#skDeptSec'), $('#skProgTitle')?.closest('.sk-section')].filter(Boolean);
   sections.forEach(section => { section.hidden = searching; });
   searchResults.hidden = !searching;
   $('#skSearchClear').hidden = !searching;
@@ -208,26 +278,30 @@ function render(){
     return;
   }
 
-  /* General: everything flagged `general`, grouped in a fixed order */
+  /* All = general courses first (fixed group order), then every other course.
+     A department chip = only that department's courses. */
   const order = GENERAL_GROUPS.map(g => g.key);
-  const general = COURSES
-    .filter(c => c.general && yearOk(c))
+  const showAll = state.dept === 'ALL';
+  const deptLabel = DEPARTMENTS.find(d => d.key === state.dept)?.label || state.dept;
+  const general = COURSES.filter(c => c.general && yearOk(c))
     .sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
-
-  /* Department: this department's courses, minus the ones already in the General row */
-  const dept = COURSES.filter(c =>
-    !c.general && (c.depts === 'ALL' || c.depts.includes(state.dept)) && yearOk(c));
+  const others = COURSES.filter(c => !c.general && yearOk(c) &&
+    (showAll || c.depts === 'ALL' || c.depts.includes(state.dept)));
+  const dept = showAll ? [...general, ...others] : others;
+  $('#skDeptSub').textContent = showAll
+    ? 'Showing general courses along with every department\'s courses'
+    : `Showing ${deptLabel} courses`;
 
   const programming = PROG_COURSES.filter(c => c.lang === state.lang && yearOk(c));
-  const visibleCount = new Set([...general, ...dept, ...programming].map(courseId)).size;
+  const visibleCount = new Set([...dept, ...programming].map(courseId)).size;
   $('#skCount').textContent = `${visibleCount} course${visibleCount === 1 ? '' : 's'}`;
-  fill($('#skGeneral'), general, `No general courses added yet${yearWords}.`);
-  fill($('#skDept'), dept,
-    `No ${state.dept}-specific free certificate courses added yet${yearWords}. Check the General courses above.`);
+  fill($('#skDept'), dept, showAll
+    ? `No courses added yet${yearWords}.`
+    : `No ${deptLabel} courses added yet${yearWords}. Try All to see the general courses.`);
 
   const note = $('#skNote');
-  note.hidden = !DEPT_NOTES[state.dept];
-  note.textContent = DEPT_NOTES[state.dept] || '';
+  note.hidden = showAll || !DEPT_NOTES[state.dept];
+  note.textContent = showAll ? '' : (DEPT_NOTES[state.dept] || '');
 
     /* Programming: the chosen language's courses */
   $$('#skProgTabs .sk-tab').forEach(b => {
@@ -256,7 +330,7 @@ export function mount(){
   const myYear = studentYear();
   locked = myYear !== 0;
 
-  tabs.innerHTML = DEPARTMENTS.map(d => {
+  tabs.innerHTML = [{ key: 'ALL', label: 'All' }, ...DEPARTMENTS].map(d => {
     const tag = d.key === mine ? '<span class="sk-mine">Your department</span>' : '';
     return `<button class="sk-tab" role="tab" data-tab="${esc(d.key)}">${esc(d.label)}${tag}</button>`;
   }).join('');
@@ -353,7 +427,7 @@ export function mount(){
     }
   });
 
-  state.dept = mine || 'CSE';
+  state.dept = 'ALL';   // opens on "All"; the student's own department is tagged in the chips
   state.year = myYear;
   render();
 }
