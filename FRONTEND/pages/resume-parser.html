@@ -1,53 +1,59 @@
 <div class="view resume-parser-wrap" id="resume-parser-view">
-  <section class="rp-hero">
-    <div>
-      <div class="eyebrow">AI RESUME INTELLIGENCE</div>
+  <section class="rp-hero rp-hero-premium">
+    <div class="rp-hero-copy">
+      <div class="eyebrow"><span class="rp-spark">✦</span> AI RESUME INTELLIGENCE</div>
       <h1>Resume Parser</h1>
-      <p>Upload your actual PDF resume and let StepUp analyze its ATS readiness, vocabulary, skills, projects and domain fit.</p>
+      <p>Turn your resume into a clearer picture of your skills, strengths, and next career move.</p>
     </div>
-    <div class="rp-badge">AI</div>
+    <div class="rp-hero-art" aria-hidden="true"><div class="rp-art-orbit orbit-one"></div><div class="rp-art-orbit orbit-two"></div><div class="rp-art-document"><span>PDF</span><i></i><i></i><i></i><b>✦</b></div><div class="rp-art-upload">↑</div><span class="rp-star star-one">✦</span><span class="rp-star star-two">✧</span></div>
   </section>
 
-  <section class="rp-card">
-    <div class="rp-upload-row">
-      <div class="rp-file-box">
-        <div class="rp-file-icon">PDF</div>
-        <div>
-          <strong id="rp-file-name">No resume uploaded</strong>
-          <span id="rp-file-meta">PDF only · Maximum 10 MB</span>
-        </div>
-      </div>
-      <label class="rp-btn secondary" for="rp-file">Choose Resume</label>
+  <section class="rp-upload-card">
+    <div class="rp-file-box">
+      <div class="rp-file-icon"><span>PDF</span></div>
+      <div class="rp-file-copy"><strong id="rp-file-name">No resume uploaded</strong><span id="rp-file-meta">PDF · Maximum 10 MB</span></div>
+      <span class="rp-upload-state" id="rp-upload-state"><i></i> Awaiting resume</span>
+    </div>
+    <div class="rp-upload-actions">
+      <label class="rp-btn secondary" for="rp-file"><span>↑</span> Choose Resume</label>
       <input id="rp-file" type="file" accept="application/pdf,.pdf" hidden>
-      <button class="rp-btn primary" id="rp-analyze" disabled>Analyze with AI</button>
+      <button class="rp-btn primary" id="rp-analyze" disabled>Analyze with AI <span>↗</span></button>
     </div>
     <div class="rp-status" id="rp-status" aria-live="polite"></div>
   </section>
 
   <section class="rp-results" id="rp-results" hidden>
-    <div class="rp-section-head">
-      <div>
-        <div class="eyebrow">YOUR RESULTS</div>
-        <h2>Resume Analysis</h2>
-      </div>
+    <div class="rp-section-head rp-results-heading">
+      <div><div class="eyebrow">YOUR CAREER SNAPSHOT</div><h2>Resume Intelligence</h2><p class="rp-heading-sub">A visual breakdown of your resume's current strengths and opportunities.</p></div>
       <span id="rp-analyzed-file" class="rp-small"></span>
     </div>
 
-    <div class="rp-score-grid" id="rp-score-grid"></div>
+    <div class="rp-feature-grid">
+      <article class="rp-intelligence-card">
+        <div class="rp-card-heading"><div><span class="rp-kicker">01 / READINESS</span><h3>Resume Readiness Score</h3></div><span class="rp-info-dot" title="Based on the current resume analysis">i</span></div>
+        <p class="rp-card-sub" id="rp-score-verdict">Your resume has a foundation to build on.</p>
+        <div class="rp-score-hero-row">
+          <div class="rp-score-orb" id="rp-score-orb"><div class="rp-score-orb-core"><strong id="rp-overall-score">—%</strong><span>Overall score</span><small id="rp-score-label">Resume readiness</small></div></div>
+          <div class="rp-coach-column"><div class="rp-coach-card"><div class="rp-coach-icon">✦</div><div><span class="rp-coach-label">AI CAREER COACH</span><p id="rp-coach-copy">Your personalized insights will appear here after analysis.</p></div></div><div class="rp-mini-score-grid" id="rp-score-grid"></div></div>
+        </div>
+      </article>
 
-    <div class="rp-two-col">
-      <article class="rp-panel"><h3>Summary</h3><p id="rp-summary"></p></article>
-      <article class="rp-panel"><h3>Strengths</h3><ul id="rp-strengths"></ul></article>
+      <article class="rp-intelligence-card rp-constellation-card">
+        <div class="rp-card-heading"><div><span class="rp-kicker">02 / YOUR PROFILE</span><h3>Your Career Constellation</h3></div><span class="rp-info-dot" title="Visual representation of your analysis scores">i</span></div>
+        <p class="rp-card-sub">A visual map of your resume's strongest signals.</p>
+        <div class="rp-constellation-content"><div class="rp-radar-wrap" id="rp-radar-wrap"></div><div class="rp-constellation-insights"><div class="rp-insight-box"><h4><span class="rp-insight-icon green">✦</span> Top strengths</h4><ul id="rp-top-strengths"></ul></div><div class="rp-insight-box improvement"><h4><span class="rp-insight-icon pink">↗</span> Focus areas</h4><ul id="rp-focus-areas"></ul></div></div></div>
+      </article>
     </div>
 
-    <div class="rp-two-col">
-      <article class="rp-panel"><h3>Vocabulary</h3><div id="rp-vocabulary"></div></article>
-      <article class="rp-panel"><h3>Detected Skills</h3><div class="rp-chips" id="rp-skills"></div></article>
+    <div class="rp-insights-grid">
+      <article class="rp-intelligence-card rp-skills-card"><div class="rp-card-heading"><div><span class="rp-kicker">03 / SKILL SIGNALS</span><h3>Detected Skills</h3></div><span class="rp-count-pill" id="rp-skill-count">0 skills</span></div><p class="rp-card-sub">Technologies and capabilities found in your resume.</p><div class="rp-skill-groups" id="rp-skills"></div></article>
+      <article class="rp-intelligence-card rp-projects-card"><div class="rp-card-heading"><div><span class="rp-kicker">04 / PROJECT PORTFOLIO</span><h3>Project Highlights</h3></div><span class="rp-section-glyph">♜</span></div><p class="rp-card-sub">Your projects and the domains they communicate.</p><div id="rp-projects"></div></article>
+      <article class="rp-intelligence-card rp-recommendations-card"><div class="rp-card-heading"><div><span class="rp-kicker">05 / NEXT MOVES</span><h3>AI Suggestions</h3></div><span class="rp-section-glyph">✦</span></div><p class="rp-card-sub">Small, focused improvements with the highest practical value.</p><div id="rp-recommendations"></div></article>
     </div>
 
-    <article class="rp-panel"><h3>Mistakes & Corrections</h3><div id="rp-mistakes"></div></article>
-    <article class="rp-panel"><h3>Projects</h3><div id="rp-projects"></div></article>
-    <article class="rp-panel"><h3>Domain Suggestions</h3><ul id="rp-domains"></ul></article>
-    <article class="rp-panel"><h3>Section Feedback</h3><div id="rp-sections"></div></article>
+    <section class="rp-detailed-card">
+      <div class="rp-detailed-head"><div><span class="rp-kicker">GO DEEPER</span><h3>Detailed Analysis</h3><p>Explore the evidence behind your resume insights.</p></div><span class="rp-detail-mark">⌁</span></div>
+      <div class="rp-accordion-grid" id="rp-detail-accordions"></div>
+    </section>
   </section>
 </div>

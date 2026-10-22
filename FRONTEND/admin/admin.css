@@ -40,3 +40,8 @@
 .student-flow-step.pending .student-flow-dot{background:#d69e00;box-shadow:0 0 0 4px rgba(214,158,0,.14)}
 @media(max-width:700px){.student-performance-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.student-profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.student-application-head{flex-direction:column}}
 @media(max-width:440px){.student-profile-grid{grid-template-columns:1fr}.student-profile-wide{grid-column:auto}.student-performance-stats strong{font-size:19px}}
+
+
+/* Integrated job-specific applicants and combined analytics/report view */
+.applicant-modal-intro{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px}.applicant-modal-intro p{margin:0}.applicant-modal-intro .search{max-width:340px}.applicant-modal-intro+.table-wrap{margin-top:8px}
+.analytics-report-toolbar{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:18px}.analytics-report-toolbar h2{margin:0 0 5px}.analytics-report-toolbar p{margin:0}.analytics-report-toolbar .quick{display:flex;gap:8px;flex-wrap:wrap}

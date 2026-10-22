@@ -1,0 +1,81 @@
+<div class="view cgpa-wrap" id="cgpa-view">
+  <section class="cgpa-hero">
+    <div class="cgpa-hero-copy">
+      <div class="cgpa-eyebrow"><span>✦</span> ACADEMIC TOOLKIT</div>
+      <h1>CGPA Grader</h1>
+      <p>Add your courses, enter the credits and grades you secured, and calculate your weighted CGPA in seconds.</p>
+      <div class="cgpa-hero-tags"><span>✧ Credit-weighted</span><span>✓ Easy to update</span></div>
+    </div>
+    <div class="cgpa-hero-art" aria-hidden="true"><div class="cgpa-orbit orbit-a"></div><div class="cgpa-orbit orbit-b"></div><div class="cgpa-grade-card"><small>YOUR CGPA</small><strong>—<span>/10</span></strong><div class="cgpa-grade-bars"><i></i><i></i><i></i></div></div><b class="cgpa-art-star">✦</b></div>
+  </section>
+
+  <div class="cgpa-tool-tabs" role="tablist" aria-label="Academic calculators">
+    <button type="button" class="cgpa-tool-tab active" id="cgpa-tab-calculator" role="tab" aria-selected="true" aria-controls="cgpa-calculator-view">CGPA Calculator</button>
+    <button type="button" class="cgpa-tool-tab" id="cgpa-tab-predictor" role="tab" aria-selected="false" aria-controls="cgpa-predictor-view">Grade Predictor</button>
+  </div>
+
+  <div id="cgpa-calculator-view" class="cgpa-tool-view" role="tabpanel" aria-labelledby="cgpa-tab-calculator">
+  <div class="cgpa-layout">
+    <section class="cgpa-panel cgpa-course-panel">
+      <div class="cgpa-panel-head">
+        <div><span class="cgpa-step">01 / COURSE DETAILS</span><h2>Add your courses</h2><p>Enter each subject and its credit value, then choose the grade you received.</p></div>
+        <button type="button" class="cgpa-reference-btn" id="cgpa-grade-reference" aria-haspopup="dialog">Grade reference <span>↗</span></button>
+      </div>
+      <div class="cgpa-course-labels" aria-hidden="true"><span>Course</span><span>Credits</span><span>Grade secured</span><span></span></div>
+      <div id="cgpa-course-list" class="cgpa-course-list"></div>
+      <div class="cgpa-course-actions"><button type="button" class="cgpa-add-btn" id="cgpa-add-course"><span>＋</span> Add another course</button><span id="cgpa-course-count">1 course added</span></div>
+      <div class="cgpa-calculate-row"><div><strong>Ready to calculate?</strong><span>Your CGPA is weighted by each course's credits.</span></div><button type="button" class="cgpa-calculate-btn" id="cgpa-calculate">Calculate CGPA <span>↗</span></button></div>
+      <p class="cgpa-message" id="cgpa-message" role="status" aria-live="polite"></p>
+    </section>
+
+    <aside class="cgpa-side-column">
+      <section class="cgpa-result-card" aria-live="polite">
+        <div class="cgpa-result-top"><span class="cgpa-result-icon">✦</span><span>YOUR RESULT</span></div>
+        <p class="cgpa-result-label">Calculated CGPA</p>
+        <div class="cgpa-result-number" id="cgpa-result">—<small>/ 10</small></div>
+        <div class="cgpa-result-track"><span id="cgpa-result-bar"></span></div>
+        <p class="cgpa-result-caption" id="cgpa-result-caption">Your result will appear here after calculation.</p>
+        <div class="cgpa-result-stats"><div><span>Total credits</span><strong id="cgpa-total-credits">—</strong></div><div><span>Courses counted</span><strong id="cgpa-total-courses">—</strong></div></div>
+      </section>
+    </aside>
+  </div>
+
+  </div>
+
+  <div id="cgpa-predictor-view" class="cgpa-tool-view cgpa-predictor-view" role="tabpanel" aria-labelledby="cgpa-tab-predictor" hidden>
+    <section class="cgpa-panel cgpa-predictor-panel">
+      <div class="cgpa-panel-head">
+        <div><span class="cgpa-step">01 / GRADE PREDICTION</span><h2>Predict your grade</h2><p>Enter your internal marks out of 60 and choose the grade you want to achieve.</p></div>
+      </div>
+      <div class="cgpa-predictor-grid">
+        <label class="cgpa-predictor-field"><span>Internal marks <b>(out of 60)</b></span><input id="cgpa-internal-marks" type="number" min="0" max="60" step="0.5" placeholder="Enter your internal marks" inputmode="decimal"><small>Your external exam is out of 75 and is converted to 40 marks.</small></label>
+        <div class="cgpa-target-field"><div class="cgpa-target-heading"><label for="cgpa-target-grade">Target grade</label><strong id="cgpa-target-grade-label">F</strong></div><input id="cgpa-target-grade" type="range" min="0" max="7" step="1" value="0"><div class="cgpa-grade-scale" aria-hidden="true"><span>F</span><span>P</span><span>C</span><span>B</span><span>B+</span><span>A</span><span>A+</span><span>O</span></div></div>
+      </div>
+      <button type="button" class="cgpa-calculate-btn cgpa-predict-btn" id="cgpa-predict-grade">Predict required exam marks <span>↗</span></button>
+      <p class="cgpa-message" id="cgpa-predict-message" role="status" aria-live="polite"></p>
+      <div class="cgpa-prediction-result" id="cgpa-prediction-result" aria-live="polite">
+        <div class="cgpa-result-top"><span class="cgpa-result-icon">✦</span><span>YOUR GRADE PLAN</span></div>
+        <div class="cgpa-prediction-number" id="cgpa-required-exam">—<small>/ 75 external marks</small></div>
+        <p id="cgpa-prediction-caption">Enter your internal marks and predict to see the exam score you need.</p>
+        <div class="cgpa-prediction-stats"><div><span>Target overall marks</span><strong id="cgpa-target-total">—</strong></div><div><span>Exam contribution needed</span><strong id="cgpa-exam-contribution">—</strong></div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="cgpa-modal-backdrop" id="cgpa-reference-modal" hidden>
+    <section class="cgpa-modal" role="dialog" aria-modal="true" aria-labelledby="cgpa-reference-title">
+      <div class="cgpa-modal-head"><div><span class="cgpa-step">GRADE POINT GUIDE</span><h2 id="cgpa-reference-title">Grade reference</h2><p>Use this reference to choose the grade secured in each course.</p></div><button type="button" class="cgpa-modal-close" id="cgpa-close-reference" aria-label="Close grade reference">×</button></div>
+      <div class="cgpa-grade-table-wrap"><table class="cgpa-grade-table"><thead><tr><th>Letter grade</th><th>Grade points</th><th>Normalised marks</th></tr></thead><tbody>
+        <tr><td><b>O</b> <span>Outstanding</span></td><td>10</td><td>95–100</td></tr>
+        <tr><td><b>A+</b> <span>Excellent</span></td><td>9</td><td>90–94</td></tr>
+        <tr><td><b>A</b> <span>Very Good</span></td><td>8</td><td>85–89</td></tr>
+        <tr><td><b>B+</b> <span>Good</span></td><td>7</td><td>75–84</td></tr>
+        <tr><td><b>B</b> <span>Above Average</span></td><td>6</td><td>65–74</td></tr>
+        <tr><td><b>C</b> <span>Average</span></td><td>5</td><td>55–64</td></tr>
+        <tr><td><b>P</b> <span>Pass</span></td><td>4</td><td>50–54</td></tr>
+        <tr><td><b>F</b> <span>Fail</span></td><td>0</td><td>Below 50</td></tr>
+      </tbody></table></div>
+      <p class="cgpa-reference-note">This is the grade-point reference currently used by this calculator. Confirm the applicable scheme for your regulation and programme.</p>
+    </section>
+  </div>
+</div>

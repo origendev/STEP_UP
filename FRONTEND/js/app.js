@@ -22,7 +22,8 @@ import { mount as mountNewsDetail } from './pages/news-detail.js';
 import { mount as mountRound1 } from './pages/round1.js';
 import { mount as mountRound2 } from './pages/round2.js';
 import { mount as mountSettings } from './pages/settings.js?v=20261005e';
-import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261008a';
+import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261022ring';
+import { mount as mountCgpaGrader } from './pages/cgpa-grader.js?v=20261022a';
 import { mount as mountWorkspace } from './pages/workspace.js?v=20261011a';
 import * as prefs from './core/prefs.js';
 import * as notifications from './core/notifications.js';
@@ -40,6 +41,7 @@ router.register('round2', mountRound2);
 router.register('profile',      mountProfile);   // reached via the avatar, not the nav bar
 router.register('settings',     mountSettings);
 router.register('resume-parser', mountResumeParser);
+router.register('cgpa-grader', mountCgpaGrader);
 router.register('workspace', mountWorkspace);
 function getStudentYear(){
   try{
@@ -86,6 +88,7 @@ avatar.addEventListener('click', (e) => {
     <div class="um-id"><div class="um-name">${esc(u.name)}</div><div class="um-reg">Reg No: ${esc(u.reg)}</div></div>
     <button data-act="profile">Profile</button>
     <button data-act="resume-parser">Resume Parser</button>
+    <button data-act="cgpa-grader">CGPA Calculator / Grader</button>
     <button data-act="workspace">Workspace</button>
     <button data-act="settings">Settings</button>
     <button data-act="logout" class="danger">Logout</button>`;
@@ -95,6 +98,7 @@ menu.addEventListener('click', (e) => {
   const act = e.target.dataset.act;
   if(act === 'profile')  openProfile();
   if(act === 'resume-parser'){ menu.classList.remove('open'); router.navigate('resume-parser'); }
+  if(act === 'cgpa-grader'){ menu.classList.remove('open'); router.navigate('cgpa-grader'); }
   if(act === 'workspace'){ menu.classList.remove('open'); router.navigate('workspace'); }
   if(act === 'settings'){ menu.classList.remove('open'); router.navigate('settings'); }
   if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
