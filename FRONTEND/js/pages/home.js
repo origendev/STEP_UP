@@ -7,6 +7,13 @@ import { api } from '../core/api.js';
 import { initChatbot } from './chatbot.js';
 import { getUser, greeting, USER_EVENT } from '../core/user.js';
 
+const HOME_ICONS = {
+  jobs: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></svg>',
+  demands: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18M6 16v-5M12 16V5M18 16V8"/></svg>',
+  skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/></svg>',
+  profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'
+};
+
 let requestVersion = 0;
 let refreshTimer;
 
@@ -203,14 +210,14 @@ function paintFunnel(applications){
 
 function paintQuick(){
   const links = [
-    ['jobs','💼','Find jobs','Browse current openings'],
-    ['demands','📊','Market demand','See hiring trends'],
-    ['skills','⭐','Build skills','Close your gaps'],
-    ['profile','👤','Update profile','Keep details fresh']
+    ['jobs','Find jobs','Browse current openings'],
+    ['demands','Market demand','See hiring trends'],
+    ['skills','Build skills','Close your gaps'],
+    ['profile','Update profile','Keep details fresh']
   ];
-  $('#quickGrid').innerHTML = links.map(([to,icon,title,sub]) => `
+  $('#quickGrid').innerHTML = links.map(([to,title,sub]) => `
     <button class="quick-tile" type="button" data-goto="${to}">
-      <span class="quick-ic">${icon}</span><b>${title}</b><small>${sub}</small>
+      <span class="quick-ic">${HOME_ICONS[to]}</span><b>${title}</b><small>${sub}</small>
     </button>`).join('');
 }
 

@@ -109,7 +109,7 @@ function applicationCard(app) {
   const selected=ACTIVE_STATUSES.includes(String(status).toLowerCase());
   const roundCount=parseRounds(app.interview_rounds).length;
   const hasRecruitmentRounds=roundCount>0;
-  const expanded=hasRecruitmentRounds;
+  const expanded=false;
   const history=Array.isArray(app.status_history)?app.status_history:[];
   const historyMarkup=history.length?`<details class="pr-status-history"><summary>Application decision history (${history.length})</summary><ul>${history.map(item=>`<li><b>${esc(item.status)}</b> · ${esc(new Date(item.created_at).toLocaleString())}</li>`).join('')}</ul></details>`:'';
   const detailsId=`application-progress-${String(app.id).replace(/[^a-zA-Z0-9_-]/g,'')}`;

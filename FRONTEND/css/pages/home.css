@@ -317,7 +317,9 @@
 .quick-tile:hover{ transform:translateY(-2px); border-color:var(--violet-300); }
 .quick-tile b{ font-size:14px; }
 .quick-tile small{ font-size:12px; color:var(--ink-soft); }
-.quick-ic{ font-size:20px; margin-bottom:4px; }
+.quick-ic{ display:grid; place-items:center; width:34px; height:34px; margin-bottom:4px; border-radius:10px; background:rgba(255,255,255,.72); color:var(--violet-700); }
+.quick-ic svg{ width:19px; height:19px; }
+.hero-ghost{ display:inline-flex; align-items:center; gap:7px; }
 
 @media (max-width:980px){ .home-stats{ grid-template-columns:repeat(2,1fr); } }
 @media (max-width:680px){
