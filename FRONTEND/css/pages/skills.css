@@ -203,13 +203,39 @@
 /* ---------- Course picture + provider logo ---------- */
 .sk-card{ overflow:hidden; }
 .sk-banner{
-  position:relative; height:46px; margin:0 0 4px; overflow:hidden;
-  display:flex; align-items:center;
+  position:relative; height:112px; margin:-20px -20px 4px; overflow:hidden;
+  display:flex; align-items:center; padding:0 20px;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(255,255,255,.28), transparent 45%),
+    linear-gradient(135deg, hsl(var(--h, 260) 62% 46%), hsl(calc(var(--h, 260) + 38) 66% 36%));
+}
+.sk-banner::before{
+  content:""; position:absolute; inset:0; opacity:.16;
+  background-image:radial-gradient(circle, #fff 1.2px, transparent 1.5px); background-size:16px 16px;
 }
 .sk-logo{
-  position:relative; width:46px; height:46px; border-radius:12px;
+  position:absolute; left:16px; top:14px; width:46px; height:46px; border-radius:12px;
   background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.22);
   display:grid; place-items:center; overflow:hidden;
 }
 .sk-logo b{ grid-area:1/1; font-size:20px; color:#4b3aa8; }
 .sk-logo img{ grid-area:1/1; width:30px; height:30px; object-fit:contain; position:relative; }
+.sk-topic-badge{
+  position:absolute; right:16px; bottom:14px; z-index:1;
+  display:flex; align-items:center; gap:10px;
+  min-height:42px; padding:7px 14px 7px 12px;
+  border:1px solid rgba(255,255,255,.46); border-radius:13px;
+  background:rgba(255,255,255,.18); color:#fff;
+  box-shadow:0 5px 16px rgba(20,14,55,.15);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+}
+.sk-topic-badge::before{
+  content:""; width:8px; height:8px; flex:0 0 8px; border-radius:50%;
+  background:#fff; box-shadow:0 0 0 4px rgba(255,255,255,.2);
+}
+.sk-topic-kicker{ display:block; font-size:8px; line-height:1.2; font-weight:700; letter-spacing:.13em; opacity:.8; }
+.sk-topic-label{ display:block; margin-top:2px; font-size:15px; line-height:1.2; font-weight:800; }
+@media(max-width:380px){
+  .sk-topic-badge{ right:12px; bottom:12px; gap:8px; padding:6px 10px; }
+  .sk-topic-label{ font-size:13px; }
+}
