@@ -134,7 +134,6 @@ const IC = {
   shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
   book:  '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 19V5"/>',
 };
-/* first matching rule wins: [pattern, icon, big text (languages only), hue] */
 const TOPICS = [
   [/c\+\+/,                       'code',  'C++',    205],
   [/\bpython\b/,                  'code',  'Python', 215],
@@ -156,7 +155,15 @@ const TOPICS = [
 function topicOf(c){
   const text = [c.lang, c.title, c.desc, c.group].filter(Boolean).join(' ').toLowerCase();
   const t = TOPICS.find(r => r[0].test(text));
-  return t ? { icon: t[1], big: t[2], hue: t[3] } : { icon: 'book', big: '', hue: 260 };
+  const labels = {
+    code: 'Programming', globe: 'Web', ai: 'AI', data: 'Data',
+    cloud: 'Cloud', shield: 'Cybersecurity', calc: 'Aptitude',
+    chat: 'Communication', wave: 'Electronics', bolt: 'Electrical',
+    gear: 'Mechanical', build: 'Civil', book: 'Courses',
+  };
+  return t
+    ? { label: t[2] || labels[t[1]], hue: t[3] }
+    : { label: 'Courses', hue: 260 };
 }
 function banner(c){
   const t = topicOf(c);
@@ -165,12 +172,12 @@ function banner(c){
   const logo = dom
     ? `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
     : '';
-  const art = t.big
-    ? `<span class="sk-ban-big" aria-hidden="true">${esc(t.big)}</span>`
-    : `<svg class="sk-ban-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t.icon]}</svg>`;
-  return `<div class="sk-banner" style="--h:${t.hue}" role="img" aria-label="${esc(c.title)}">
+  return `<div class="sk-banner" style="--h:${t.hue}" role="img" aria-label="${esc(c.company)} ${esc(t.label)} course">
       <span class="sk-logo" title="${esc(c.company)}"><b>${initial}</b>${logo}</span>
-      ${art}
+      <span class="sk-topic-badge">
+        <span class="sk-topic-kicker">LEARNING TRACK</span>
+        <span class="sk-topic-label">${esc(t.label)}</span>
+      </span>
     </div>`;
 }
 
