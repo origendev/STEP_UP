@@ -119,58 +119,14 @@ function logoDomain(c){
   if(LOGO_DOMAIN[c.company]) return LOGO_DOMAIN[c.company];
   try{ return new URL(c.url).hostname.replace(/^www\./, ''); }catch{ return ''; }
 }
-const IC = {
-  code:  '<path d="m8 8-5 4 5 4M16 8l5 4-5 4M14 4l-4 16"/>',
-  ai:    '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
-  data:  '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
-  chat:  '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>',
-  calc:  '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/>',
-  wave:  '<path d="M3 12h4l2-6 4 12 2-6h6"/>',
-  bolt:  '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
-  gear:  '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
-  build: '<path d="M4 21V9l8-6 8 6v12M9 21v-6h6v6"/>',
-  cloud: '<path d="M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1 0 9z"/>',
-  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
-  shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/>',
-  book:  '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 19V5"/>',
-};
-/* first matching rule wins: [pattern, icon, big text (languages only), hue] */
-const TOPICS = [
-  [/c\+\+/,                       'code',  'C++',    205],
-  [/\bpython\b/,                  'code',  'Python', 215],
-  [/\bjava\b(?!script)/,          'code',  'Java',    18],
-  [/\bjavascript\b|\bhtml\b|\bweb\b|\breact\b/, 'globe', '', 45],
-  [/(^|\W)c programming|learn c\b|introduction to c\b|\bc language\b/, 'code', 'C', 250],
-  [/\bai\b|artificial|machine learning|generative|prompt|chatgpt|copilot/, 'ai', '', 275],
-  [/data|sql|excel|analytic|power bi|tableau/, 'data', '', 160],
-  [/cloud|aws|azure|devops/,      'cloud', '', 195],
-  [/cyber|security|ethical|network/, 'shield', '', 345],
-  [/aptitude|reasoning|quantitative|logical|puzzle|math/, 'calc', '', 30],
-  [/communicat|english|interview|resume|soft skill|workplace|presentation|email|leadership/, 'chat', '', 330],
-  [/matlab|signal|embedded|vlsi|circuit|electronic|iot|arduino|communication system/, 'wave', '', 175],
-  [/electric|power|energy|motor/, 'bolt',  '', 50],
-  [/mechanic|cad|thermo|manufactur|robot|automobile|solidworks|ansys/, 'gear', '', 20],
-  [/civil|construction|structur|survey|building|autocad|bim/, 'build', '', 95],
-  [/program|code|coding|software|algorithm|computer|cs50/, 'code', '', 230],
-];
-function topicOf(c){
-  const text = [c.lang, c.title, c.desc, c.group].filter(Boolean).join(' ').toLowerCase();
-  const t = TOPICS.find(r => r[0].test(text));
-  return t ? { icon: t[1], big: t[2], hue: t[3] } : { icon: 'book', big: '', hue: 260 };
-}
 function banner(c){
-  const t = topicOf(c);
   const dom = logoDomain(c);
   const initial = esc((c.company || '?').trim().charAt(0).toUpperCase());
   const logo = dom
     ? `<img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(dom)}&sz=128" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`
     : '';
-  const art = t.big
-    ? `<span class="sk-ban-big" aria-hidden="true">${esc(t.big)}</span>`
-    : `<svg class="sk-ban-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t.icon]}</svg>`;
-  return `<div class="sk-banner" style="--h:${t.hue}" role="img" aria-label="${esc(c.title)}">
+  return `<div class="sk-banner" role="img" aria-label="${esc(c.title)}">
       <span class="sk-logo" title="${esc(c.company)}"><b>${initial}</b>${logo}</span>
-      ${art}
     </div>`;
 }
 
