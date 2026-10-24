@@ -81,12 +81,6 @@ function paintStats(applications, profile){
     <div class="home-stat stat-${stat.color}"><strong>${esc(stat.number)}</strong><span>${esc(stat.label)}</span></div>
   `).join('');
 
-  const offerRate = applications?.length
-    ? Math.round(applications.filter(isOffer).length / applications.length * 100) : 0;
-  const ring = $('#placementRingFill');
-  const ringValue = $('#placementRingValue');
-  if(ring) ring.style.strokeDashoffset = String(100 - offerRate);
-  if(ringValue) ringValue.textContent = applications ? `${offerRate}%` : '—';
 }
 
 function skillRows(profile){

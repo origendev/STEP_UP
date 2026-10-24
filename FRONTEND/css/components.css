@@ -119,3 +119,29 @@
 }
 .empty-state h3{ margin:0; font-size:17px; }
 .empty-state p{ margin:0; max-width:360px; color:var(--ink-soft); font-size:13.5px; line-height:1.6; }
+
+/* Job details uses a full-width reading flow so company information follows the role. */
+.details-page .details-card .details-grid{
+  grid-template-columns:minmax(0,1fr);
+  gap:22px;
+}
+.details-page .details-card .details-main{ min-width:0; }
+.details-page .details-card .details-main>p{ max-width:82ch; }
+.details-page .details-card .facts{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.details-page .details-card .details-side{
+  min-width:0;
+  padding:22px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--lilac-bg);
+}
+.details-page .details-card .details-side h2{ margin-bottom:8px; }
+.details-page .details-card .details-side p{ max-width:82ch; margin:0; }
+@media(max-width:760px){
+  .details-page .details-card .facts{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .details-page .details-card .details-side{ padding:18px; }
+}
+@media(max-width:480px){
+  .details-page .details-card .facts{ grid-template-columns:minmax(0,1fr); }
+  .details-page .details-card .details-side{ padding:16px; }
+}
