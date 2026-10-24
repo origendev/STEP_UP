@@ -53,7 +53,104 @@ document.querySelectorAll('#jobForm input[required],#jobForm textarea[required],
 async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.getItem('stepupCompanyToken')||token),...(opts.headers||{})}});if(r.status===401){localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('../portal-access.html');throw Error('Session expired.');}if(r.status===204)return null;const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d.data}
 function msg(t,type='error'){const m=$('message');m.textContent=t;m.className='message '+type;m.setAttribute('role',type==='error'?'alert':'status');if($('jobListingsView').classList.contains('active')){let status=$('listingMessage');if(!status){status=document.createElement('div');status.id='listingMessage';document.querySelector('.listings-panel').insertBefore(status,$('jobList'));}status.textContent=t;status.className='message '+type;status.setAttribute('role',type==='error'?'alert':'status');}}
 function renderRoundTypes(){const host=$('roundTypeList'),choices=$('roundChoices');$('roundCount').textContent=String(plannedRounds.length);$('roundCountUnit').textContent=plannedRounds.length===1?'round':'rounds';host.replaceChildren();choices.replaceChildren();choices.className='round-picker-fields';if(!plannedRounds.length){const empty=document.createElement('li');empty.className='round-list-empty';empty.textContent='No stages added yet. Add only the rounds your hiring process needs.';host.append(empty);}plannedRounds.forEach((round,index)=>{const item=document.createElement('li');item.className='round-selected-item';const position=document.createElement('span');position.className='round-position';position.textContent=String(index+1);position.setAttribute('aria-label',`Step ${index+1}`);const name=document.createElement('span');name.className='round-name';name.append(document.createTextNode(round.name));const detail=document.createElement('small');detail.textContent=round.type;name.append(detail);const remove=document.createElement('button');remove.type='button';remove.className='remove-round-button';remove.textContent='Remove';remove.setAttribute('aria-label',`Remove ${round.name}`);remove.addEventListener('click',()=>{plannedRounds.splice(index,1);renderRoundTypes();const nextRemove=host.querySelectorAll('.remove-round-button')[Math.min(index,plannedRounds.length-1)];(nextRemove||$('addRoundButton')).focus();});item.append(position,name,remove);host.append(item);});const categoryLabel=document.createElement('label');categoryLabel.className='round-picker-field';categoryLabel.textContent='Round category';const category=document.createElement('select');category.setAttribute('aria-label','Round category');roundTypes.forEach(type=>{const option=document.createElement('option');option.value=type;option.textContent=type;category.append(option);});category.value=selectedRoundType;category.addEventListener('change',()=>{selectedRoundType=category.value;});categoryLabel.append(category);const nameLabel=document.createElement('label');nameLabel.className='round-picker-field';nameLabel.textContent='Round name';const customName=document.createElement('input');customName.type='text';customName.maxLength=80;customName.placeholder='e.g. Technical Round 1';customName.setAttribute('aria-label','Custom round name');nameLabel.append(customName);const add=document.createElement('button');add.type='button';add.className='add-round-button';add.textContent=plannedRounds.length>=maxRecruitmentRounds?'Maximum rounds added':'Add this round';add.disabled=plannedRounds.length>=maxRecruitmentRounds;add.addEventListener('click',()=>{if(plannedRounds.length>=maxRecruitmentRounds)return;selectedRoundType=category.value;plannedRounds.push({type:category.value,name:customName.value.trim()||category.value});renderRoundTypes();setRoundPickerOpen(true);const nextName=choices.querySelector('input');if(nextName)nextName.focus();});customName.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();add.click();}});choices.append(categoryLabel,nameLabel,add);const help=document.createElement('small');help.className='round-picker-help';help.textContent=plannedRounds.length>=maxRecruitmentRounds?'The current job limit is 10 rounds.':'Name each stage as you like. You can repeat categories and add up to 10 rounds.';choices.append(help);$('addRoundButton').disabled=plannedRounds.length>=maxRecruitmentRounds;$('addRoundButton').textContent=plannedRounds.length>=maxRecruitmentRounds?'Maximum rounds added':plannedRounds.length?'＋ Add another round':'＋ Add a round';}
-function setRoundPickerOpen(open){$('roundPicker').hidden=!open;$('addRoundButton').setAttribute('aria-expanded',String(open));if(open){const firstChoice=$('roundChoices').querySelector('select');(firstChoice||$('closeRoundPicker')).focus();}else if(!$('addRoundButton').disabled)$('addRoundButton').focus();else $('roundTypeList').querySelector('.remove-round-button')?.focus();}
+function renderCustomRoundTypes(){
+  const host=$('roundTypeList'),choices=$('roundChoices'),fieldset=$('roundPlan');
+  if(!$('roundPlanTitle')){
+    const title=document.createElement('div');
+    title.id='roundPlanTitle';
+    title.className='field full round-plan-title';
+    title.innerHTML='Recruitment process <span class="optional-label">Optional</span>';
+    title.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px;color:var(--ink);font-size:13px;font-weight:800';
+    fieldset.parentNode.insertBefore(title,fieldset);
+    fieldset.setAttribute('aria-labelledby',title.id);
+    fieldset.querySelector('legend')?.remove();
+    fieldset.style.cssText='min-width:0;margin:0;padding:16px;border:1px solid #d9cffd;border-radius:12px;background:#f6f3ff';
+  }
+  $('roundCount').textContent=String(plannedRounds.length);
+  $('roundCountUnit').textContent=plannedRounds.length===1?'round':'rounds';
+  host.replaceChildren();
+  choices.replaceChildren();
+  choices.className='round-picker-fields';
+  if(!plannedRounds.length){
+    const empty=document.createElement('li');
+    empty.className='round-list-empty';
+    empty.textContent='No stages added yet. Add only the stages this role needs.';
+    host.append(empty);
+  }
+  plannedRounds.forEach((round,index)=>{
+    const item=document.createElement('li');
+    item.className='round-selected-item';
+    const position=document.createElement('span');
+    position.className='round-position';
+    position.textContent=String(index+1);
+    position.setAttribute('aria-label',`Step ${index+1}`);
+    const name=document.createElement('span');
+    name.className='round-name';
+    name.append(document.createTextNode(round.name));
+    const detail=document.createElement('small');
+    detail.textContent='Format and schedule set later in Applicants & rounds';
+    name.append(detail);
+    const remove=document.createElement('button');
+    remove.type='button';
+    remove.className='remove-round-button';
+    remove.textContent='Remove';
+    remove.setAttribute('aria-label',`Remove ${round.name}`);
+    remove.addEventListener('click',()=>{
+      plannedRounds.splice(index,1);
+      renderRoundTypes();
+      const nextRemove=host.querySelectorAll('.remove-round-button')[Math.min(index,plannedRounds.length-1)];
+      (nextRemove||$('addRoundButton')).focus();
+    });
+    item.append(position,name,remove);
+    host.append(item);
+  });
+  const categoryLabel=document.createElement('label');
+  categoryLabel.className='round-picker-field';
+  categoryLabel.textContent='Round category';
+  const category=document.createElement('input');
+  category.type='text';
+  category.setAttribute('list','roundCategorySuggestions');
+  category.maxLength=80;
+  category.placeholder='e.g. Technical Round 1';
+  category.setAttribute('aria-label','Round category');
+  const suggestions=document.createElement('datalist');
+  suggestions.id='roundCategorySuggestions';
+  roundTypes.forEach(value=>{
+    const option=document.createElement('option');
+    option.value=value;
+    suggestions.append(option);
+  });
+  categoryLabel.append(category,suggestions);
+  const add=document.createElement('button');
+  add.type='button';
+  add.className='add-round-button';
+  add.textContent=plannedRounds.length>=maxRecruitmentRounds?'Maximum rounds added':'Add this round';
+  add.disabled=plannedRounds.length>=maxRecruitmentRounds;
+  add.addEventListener('click',()=>{
+    const name=category.value.trim();
+    if(plannedRounds.length>=maxRecruitmentRounds)return;
+    if(!name){msg('Enter a category or stage name before adding the round.');category.focus();return;}
+    plannedRounds.push({name,type:'Online test'});
+    renderRoundTypes();
+    setRoundPickerOpen(true);
+    choices.querySelector('input')?.focus();
+  });
+  category.addEventListener('keydown',event=>{
+    if(event.key==='Enter'){event.preventDefault();add.click();}
+  });
+  choices.append(categoryLabel,add);
+  const help=document.createElement('small');
+  help.className='round-picker-help';
+  help.textContent=plannedRounds.length>=maxRecruitmentRounds
+    ?'The current job limit is 10 rounds.'
+    :'Use a suggestion or enter your own stage name. Choose its format, schedule and instructions later in Applicants & rounds.';
+  choices.append(help);
+  $('addRoundButton').disabled=plannedRounds.length>=maxRecruitmentRounds;
+  $('addRoundButton').textContent=plannedRounds.length>=maxRecruitmentRounds
+    ?'Maximum rounds added':plannedRounds.length?'＋ Add another round':'＋ Add a round';
+}
+renderRoundTypes=renderCustomRoundTypes;
+function setRoundPickerOpen(open){$('roundPicker').hidden=!open;$('addRoundButton').setAttribute('aria-expanded',String(open));if(open){const category=$('roundChoices').querySelector('input');(category||$('closeRoundPicker')).focus();}else if(!$('addRoundButton').disabled)$('addRoundButton').focus();else $('roundTypeList').querySelector('.remove-round-button')?.focus();}
 function roundsFromJob(value){try{const rounds=typeof value==='string'?JSON.parse(value):value;if(Array.isArray(rounds))return rounds;if(Array.isArray(rounds?.rounds))return rounds.rounds;}catch{}if(typeof value==='string'&&value.trim()&&value.trim()!=='Not specified')return value.split(/\r?\n/).map(name=>({name:name.replace(/^\s*\d+[.)]\s*/,'').trim(),type:'Online test'})).filter(round=>round.name);return []}
 function clearForm(){editingId=null;$('jobForm').reset();$('vacancies').value='1';$('backlogsAllowed').checked=false;document.querySelectorAll('input[name="eligibleDepartment"]').forEach(c=>c.checked=false);plannedRounds=[];selectedRoundType=roundTypes[0];$('roundCount').textContent='0';renderRoundTypes();$('roundPlan').disabled=false;$('formTitle').textContent='Add a new job';$('submitBtn').textContent='Submit for Approval';$('cancelEdit').classList.add('hidden');$('roundPicker').hidden=true;$('addRoundButton').setAttribute('aria-expanded','false');updateCompensationRequirements();}
 function fill(j){showWorkspaceView('add');editingId=j.id;$('formTitle').textContent='Edit job listing';$('submitBtn').textContent='Resubmit for Approval';$('cancelEdit').classList.remove('hidden');$('roundPlan').disabled=true;$('title').value=j.title||'';$('jobType').value=j.job_type||'Full-time';$('workMode').value=j.work_mode||'Hybrid';$('salary').value=j.salary||'';$('stipend').value=j.stipend||'';$('minCgpa').value=j.min_cgpa??'';$('vacancies').value=String(j.vacancies||1);$('backlogsAllowed').checked=j.backlogs_allowed===true;$('applyBefore').value=(j.apply_before||'').slice(0,10);$('visitDate').value=(j.visit_date||'').slice(0,10);$('batch').value=Array.isArray(j.eligible_batches)&&j.eligible_batches.length?j.eligible_batches.join(', '):j.batch||'';$('location').value=j.location||'';document.querySelectorAll('input[name="eligibleDepartment"]').forEach(c=>{c.checked=Array.isArray(j.eligible_departments)&&j.eligible_departments.includes(c.value)});$('description').value=j.description||'';updateCompensationRequirements();const existingRounds=roundsFromJob(j.interview_rounds);plannedRounds=existingRounds.map(round=>({name:round.name||round.type||'Round',type:round.type||'Online test'}));renderRoundTypes();$('roundTypeList').insertAdjacentHTML('beforeend','<small class="round-plan-help">Round plans are set when creating a job. To configure round details, open Applicants &amp; rounds.</small>');window.scrollTo({top:0,behavior:'smooth'});}
