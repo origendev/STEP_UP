@@ -26,7 +26,7 @@ body{background:#f7f8fc;color:var(--ink)}
 .dept-checks input[type=checkbox],.round-type-choice input[type=checkbox],.field.check-field input[type=checkbox]{box-sizing:border-box;width:16px!important;height:16px!important;min-height:0!important;margin:0!important;padding:0!important;flex:0 0 16px;accent-color:var(--violet-600)}
 .dept-checks label,.round-type-choice,.field.check-field{cursor:pointer}
 .field.check-field>span{display:flex;align-items:center;gap:8px}
-.field.check-field{grid-column:1/-1}
+.field.check-field{grid-column:auto;align-self:end}
 .field.check-field>span{box-sizing:border-box;width:100%;min-height:44px;padding:10px 12px;border:1px solid #e7e5ef;border-radius:10px;background:#fbfaff;color:#34304a}
 .field.check-field>span:hover{border-color:#cfc0ff;background:#f5f1ff}
 @media(max-width:600px){.dept-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -40,8 +40,8 @@ const token=localStorage.getItem('stepupCompanyToken');if(!token)location.replac
 const roundTypes=['Online test','Coding test','Technical interview','HR interview','Group discussion','Assignment'];let plannedRoundTypes=[];
 let isSubmitting=false;
 const vacanciesField=document.createElement('label');vacanciesField.className='field';vacanciesField.innerHTML='Number of vacancies<input id="vacancies" type="number" min="1" step="1" value="1" required>'; $('applyBefore').closest('label').before(vacanciesField);
-const backlogsField=document.createElement('label');backlogsField.className='field check-field';backlogsField.innerHTML='<span><input id="backlogsAllowed" type="checkbox"> Allow applicants with current arrears</span>';vacanciesField.after(backlogsField);
-const minCgpaField=document.createElement('label');minCgpaField.className='field';minCgpaField.innerHTML='Minimum CGPA<input id="minCgpa" type="number" min="0" max="10" step="0.01" placeholder="e.g. 7.0">';$('description').closest('label').before(minCgpaField);
+const backlogsField=document.createElement('label');backlogsField.className='field check-field';backlogsField.innerHTML='<span><input id="backlogsAllowed" type="checkbox"> Allow applicants with current arrears</span>';
+const minCgpaField=document.createElement('label');minCgpaField.className='field';minCgpaField.innerHTML='Minimum CGPA<input id="minCgpa" type="number" min="0" max="10" step="0.01" placeholder="e.g. 7.0">';vacanciesField.after(minCgpaField);$('description').closest('label').before(backlogsField);
 const partTimeOption=document.createElement('option');partTimeOption.value='Part-time';partTimeOption.textContent='Part-time';$('jobType').append(partTimeOption);
  $('salary').closest('label').firstChild.textContent='Salary / package';$('stipend').closest('label').firstChild.textContent='Monthly stipend (internships)';$('batch').closest('label').firstChild.textContent='Graduation batch(es)';
 const departmentChecks=document.querySelector('.dept-checks');departmentChecks.setAttribute('role','group');departmentChecks.setAttribute('aria-label','Eligible departments');departmentChecks.setAttribute('aria-required','true');
