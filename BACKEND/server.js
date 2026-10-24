@@ -44,6 +44,23 @@ const pool = new Pool({
 });
 
 const app = express();
+for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+  const original = app[method].bind(app);
+  app[method] = (path, ...handlers) => {
+    if (handlers.length === 0) return original(path); // app.get('setting') reads a setting
+    return original(path, ...handlers.map(handler =>
+      typeof handler !== 'function' ? handler : (req, res, next) => {
+        try {
+          const result = handler(req, res, next);
+          if (result && typeof result.catch === 'function') result.catch(next);
+        } catch (error) {
+          next(error);
+        }
+      }
+    ));
+  };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const frontendDir = path.join(__dirname, '../FRONTEND');
@@ -1581,10 +1598,10 @@ app.get('/api/labor-market', async (req, res) => {
 });
 
 app.get(
-  '/api/demand-news/article/:id',
+  '/api/demand-news/article/:articleId',
   async (req, res) => {
     const article = newsArticleCache.get(
-      req.params.id
+      req.params.articleId
     );
 
     if (!article) {
@@ -4669,6 +4686,15 @@ app.get('/api/admin/ai-interviews/:id', requireAdmin, async (req, res) => {
 
 app.get('/', (_req, res) => {
   res.sendFile(path.join(frontendDir, 'index.html'));
+});
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'The request body is not valid JSON.' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'The request is too large.' });
+  if (err.code === '22P02') return res.status(400).json({ error: 'One of the values sent is not valid.' }); // Postgres: bad number/ID
+  console.error('Unhandled route error:', req.method, req.originalUrl, err);
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
 });
 
 /* =========================================================
