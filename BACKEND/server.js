@@ -9,7 +9,7 @@ import pg from 'pg';
 import { XMLParser } from 'fast-xml-parser';
 import { extract } from '@extractus/article-extractor';
 import { GoogleDecoder } from 'google-news-url-decoder';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomInt } from 'node:crypto';
 import { getLaborMarket } from './labor-market.js';
 
 const { Pool } = pg;
@@ -25,6 +25,7 @@ const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-f
 const DEMAND_AI_PROVIDER = (process.env.DEMAND_AI_PROVIDER || 'gemini').toLowerCase();
 const MAX_NEWS_PER_SECTION = 10;
 const RECENT_NEWS_DAYS = 7;
+const MAX_OTP_ATTEMPTS = 5;
 const ROLE_OUTLOOK_CACHE_MS = 60 * 60 * 1000;
 const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
@@ -289,14 +290,14 @@ function randomPassword(length = 12) {
   let out = '';
 
   for (let i = 0; i < length; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
+    out += chars[randomInt(chars.length)];
   }
 
   return out;
 }
 
 function randomOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(0, 1000000)).padStart(6, '0');
 }
 
 async function sendResetEmail({ to, name, otp }) {
@@ -649,6 +650,9 @@ async function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_student_reset_otps
       ON password_reset_otps(student_id, used);
+
+    ALTER TABLE password_reset_otps
+      ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
 
     ALTER TABLE jobs
       ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
@@ -3162,6 +3166,24 @@ app.post(
 
       const student = r.rows[0];
 
+      const recent = await pool.query(
+        `SELECT COUNT(*)::int AS last_hour,
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '60 seconds')::int AS last_minute
+         FROM password_reset_otps
+         WHERE student_id=$1 AND created_at > NOW() - INTERVAL '1 hour'`,
+        [student.id]
+      );
+
+      if (recent.rows[0].last_minute > 0 || recent.rows[0].last_hour >= 5) {
+        // Same reply as success, so this does not reveal anything.
+        return res.json({
+          data: {
+            message:
+              'If the registration number belongs to a StepUp student account, an OTP has been sent to the registered email.'
+          }
+        });
+      }
+
       const otp = randomOtp();
       const hash = await bcrypt.hash(otp, 10);
 
@@ -3216,10 +3238,9 @@ app.post(
     const otp = clean(req.body.otp);
     const newPassword = req.body.newPassword;
 
-    if (!regNo || !otp || !newPassword) {
+    if (!regNo || typeof otp !== 'string' || !/^\d{6}$/.test(otp) || typeof newPassword !== 'string') {
       return res.status(400).json({
-        error:
-          'Registration number, OTP and new password are required.'
+        error: 'Registration number, a 6-digit OTP and new password are required.'
       });
     }
 
@@ -3245,25 +3266,22 @@ app.post(
       }
 
       const r = await pool.query(
-        `SELECT id,otp_hash
-         FROM password_reset_otps
-         WHERE student_id=$1
-           AND used=FALSE
-           AND expires_at>NOW()
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [s.rows[0].id]
+        `UPDATE password_reset_otps
+         SET attempts = attempts + 1
+         WHERE id = (
+           SELECT id FROM password_reset_otps
+           WHERE student_id=$1 AND used=FALSE AND expires_at>NOW()
+           ORDER BY created_at DESC
+           LIMIT 1
+         )
+         AND attempts < $2
+         RETURNING id, otp_hash`,
+        [s.rows[0].id, MAX_OTP_ATTEMPTS]
       );
 
-      if (
-        !r.rows[0] ||
-        !(await bcrypt.compare(
-          otp,
-          r.rows[0].otp_hash
-        ))
-      ) {
+      if (!r.rows[0] || !(await bcrypt.compare(otp, r.rows[0].otp_hash))) {
         return res.status(400).json({
-          error: 'Invalid or expired OTP.'
+          error: 'Invalid or expired OTP. After 5 wrong attempts, request a new code.'
         });
       }
 
