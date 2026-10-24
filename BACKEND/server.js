@@ -11,6 +11,7 @@ import { extract } from '@extractus/article-extractor';
 import { GoogleDecoder } from 'google-news-url-decoder';
 import { randomUUID, randomInt } from 'node:crypto';
 import { getLaborMarket } from './labor-market.js';
+import { rateLimit } from 'express-rate-limit';
 
 const { Pool } = pg;
 const PORT = Number(process.env.PORT || 3000);
@@ -73,6 +74,56 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '15mb' }));
+
+/* ---------------------------------------------------------
+   Login rate limiting: only failed attempts are counted
+--------------------------------------------------------- */
+const AUTH_ROUTES = [
+  '/api/student/login',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/admin/login',
+  '/api/student/forgot-password/request',
+  '/api/student/forgot-password/reset',
+  '/api/student/change-password'
+];
+
+function rateLimitReply(message) {
+  return (req, res, _next, options) => {
+    console.warn('Rate limit hit:', req.ip, req.originalUrl, options.keyGenerator(req, res));
+    res.status(options.statusCode).json({ error: message });
+  };
+}
+
+// 1) Per IP address: 30 failed attempts in 15 minutes, across all login routes.
+const authIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitReply('Too many failed attempts from this network. Please wait 15 minutes and try again.')
+});
+
+// 2) Per account: 5 failed attempts in 15 minutes on one registration number, email or admin ID.
+const authAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: req => {
+    const account = req.body?.regNo ?? req.body?.email ?? req.body?.adminId ?? '';
+    return `${req.baseUrl}|${String(account).trim().toLowerCase()}`;
+  },
+  handler: rateLimitReply('Too many failed attempts for this account. Please wait 15 minutes and try again.')
+});
+
+app.use(AUTH_ROUTES, authIpLimiter, authAccountLimiter);
+
+// Set TRUST_PROXY=1 in .env when the app runs behind one proxy (Render, Railway, Heroku, Nginx).
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY));
+
 app.use(express.static(frontendDir));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
