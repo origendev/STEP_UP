@@ -1980,15 +1980,15 @@ app.patch(
       const r = await client.query(
         `UPDATE jobs
          SET title=$1,job_type=$2,salary=$3,stipend=$4,apply_before=$5,visit_date=$6,visit_tag=$7,
-             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,category=$13,
-             required_skills=$14,eligible_batches=$15,vacancies=$16,min_cgpa=$17,backlogs_allowed=$18,
+             status=$8,status_class=$9,batch=$10,location=$11,work_mode=$12,category=$13,description=$14,
+             required_skills=$15,eligible_batches=$16,vacancies=$17,min_cgpa=$18,backlogs_allowed=$19,
              approval_status='Pending',approval_note=NULL,reviewed_at=NULL,reviewed_by=NULL,updated_at=NOW()
-         WHERE id=$19 AND company_id=$20
+         WHERE id=$20 AND company_id=$21
          RETURNING *`,
         [
           clean(b.title),clean(b.jobType),clean(b.salary)||null,clean(b.stipend)||null,b.applyBefore,clean(b.visitDate)||null,
           clean(b.visitTag)||null,clean(b.status)||'Eligible',clean(b.statusClass)||'status-amber',clean(b.batch)||null,
-          clean(b.location)||null,clean(b.workMode)||null,clean(b.category)||'eligible',
+          clean(b.location)||null,clean(b.workMode)||null,clean(b.category)||'eligible',clean(b.description)||'',
           normalizeStringList(b.requiredSkills),normalizeStringList(b.eligibleBatches),Number(b.vacancies ?? 1),
           b.minCgpa===''||b.minCgpa==null?null:Number(b.minCgpa),b.backlogsAllowed,
           req.params.id,req.company.companyId
@@ -2027,6 +2027,22 @@ app.patch(
     }
   }
 );
+
+app.delete('/api/company/jobs/:id', requireCompany, async (req, res) => {
+  const jobId = Number(req.params.id);
+  if (!Number.isSafeInteger(jobId) || jobId < 1) return res.status(400).json({ error: 'Invalid job ID.' });
+  try {
+    const r = await pool.query(
+      'DELETE FROM jobs WHERE id=$1 AND company_id=$2 RETURNING id,title',
+      [jobId, req.company.companyId]
+    );
+    if (!r.rows[0]) return res.status(404).json({ error: 'Job not found for this company.' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    console.error('Could not delete company job:', e);
+    res.status(500).json({ error: 'Could not delete the job.' });
+  }
+});
 
 /* Configure recruitment rounds only after at least one applicant is shortlisted. */
 app.patch('/api/company/jobs/:id/rounds', requireCompany, async (req, res) => {

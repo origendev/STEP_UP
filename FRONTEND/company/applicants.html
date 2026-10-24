@@ -181,8 +181,8 @@ function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function initials(n){return String(n||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'S';}
 function msg(text,type='error'){const m=$('message');m.textContent=text;m.className='message '+type;}
 async function api(path,opts={}){
-  const r=await fetch(API+path,{...opts,headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,...(opts.headers||{})}});
-  if(r.status===401){localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('company-login.html');throw Error('Session expired.');}
+  const r=await fetch(API+path,{...opts,headers:{'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.getItem('stepupCompanyToken')||token),...(opts.headers||{})}});
+  if(r.status===401){localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('../portal-access.html');throw Error('Session expired.');}
   const d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||'Request failed');
   return d.data;
@@ -461,7 +461,8 @@ async function load(){
     await loadAssessmentReviews();
   }catch(e){msg(e.message);$('applicantList').innerHTML='<div class="empty">Applicants could not be loaded.</div>'; const host=$('assessmentReviews'); if(host)host.innerHTML=`<div class="empty">Could not load applicants: ${esc(e.message)}</div>`;}
 }
-$('logout').onclick=()=>{localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('company-login.html');};
+ $('logout').onclick=()=>{localStorage.removeItem('stepupCompanyToken');localStorage.removeItem('stepupCompany');location.replace('../portal-access.html');};
+window.addEventListener('pageshow',event=>{if(event.persisted){if(!localStorage.getItem('stepupCompanyToken'))location.replace('../portal-access.html');else load();}});
 load();
 </script>
 </body>
