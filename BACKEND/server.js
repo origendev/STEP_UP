@@ -202,10 +202,27 @@ function requireStudent(req, res, next) {
 
 function issueAdminToken() {
   return jwt.sign(
-    { role: 'admin', adminId: ADMIN_ID },
+    { role: 'admin', adminId: ADMIN_ID, adminRole: 'Super Admin' },
     JWT_SECRET,
     { expiresIn: '8h' }
   );
+}
+
+const ADMIN_ROLES = ['Super Admin', 'Placement Officer', 'Recruiter Manager', 'Viewer'];
+
+const ADMIN_WRITE_PERMISSIONS = {
+  'Super Admin':       ['*'],
+  'Placement Officer': ['students', 'companies', 'jobs', 'applications', 'drives', 'announcements', 'interviews', 'notifications'],
+  'Recruiter Manager': ['companies', 'jobs', 'applications', 'drives', 'interviews', 'notifications'],
+  'Viewer':            ['notifications']
+};
+
+const SUPER_ADMIN_ONLY = ['admin-users'];
+
+function adminSection(req) {
+  const fullPath = req.baseUrl + req.path;
+  const match = /^\/api\/admin\/([a-z-]+)/.exec(fullPath);
+  return match ? match[1] : null;
 }
 
 function requireAdmin(req, res, next) {
@@ -216,13 +233,21 @@ function requireAdmin(req, res, next) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
       if (payload.role === 'admin' && payload.adminId) {
-        req.admin = payload;
-        const role = payload.adminRole || 'Super Admin';
-        if (role !== 'Super Admin' && req.method !== 'GET') {
-          const path = req.path;
-          const allowed = role === 'Viewer' ? false : role === 'Recruiter Manager' ? /companies|jobs|applications|drives|interviews/.test(path) : true;
-          if (!allowed) return res.status(403).json({ error: 'Your admin role does not have permission for this action.' });
+        const role = payload.adminRole;
+        if (!ADMIN_ROLES.includes(role)) {
+          return res.status(403).json({ error: 'Unknown admin role.' });
         }
+        const section = adminSection(req);
+        if (role !== 'Super Admin' && SUPER_ADMIN_ONLY.includes(section)) {
+          return res.status(403).json({ error: 'Only a Super Admin can manage admin accounts.' });
+        }
+        if (req.method !== 'GET') {
+          const allowed = ADMIN_WRITE_PERMISSIONS[role] || [];
+          if (!allowed.includes('*') && !allowed.includes(section)) {
+            return res.status(403).json({ error: 'Your admin role does not have permission for this action.' });
+          }
+        }
+        req.admin = payload;
         return next();
       }
     } catch {
@@ -231,7 +256,7 @@ function requireAdmin(req, res, next) {
   }
 
   if (ADMIN_KEY && req.get('x-admin-key') === ADMIN_KEY) {
-    req.admin = { role: 'admin', adminId: ADMIN_ID };
+    req.admin = { role: 'admin', adminId: ADMIN_ID, adminRole: 'Super Admin' };
     return next();
   }
 
