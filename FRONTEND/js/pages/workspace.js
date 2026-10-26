@@ -63,7 +63,7 @@ async function convertDocument(inputSelector, to, successMessage) {
     return;
   }
 
-  const button = $(to === 'pdf' ? '#ws-word-pdf' : '#ws-pdf-word');
+  const button = $('#ws-word-pdf');
   await convertOfficeFile(file, to, button, successMessage);
 }
 
@@ -166,13 +166,6 @@ export function mount(){
       '#ws-word-pdf-file',
       'pdf',
       'Word document converted to PDF. Review the PDF before sharing it.'
-    );
-  });
-  $('#ws-pdf-word').addEventListener('click', () => {
-    convertDocument(
-      '#ws-pdf-word-file',
-      'docx',
-      'PDF converted to Word. Review the document layout carefully.'
     );
   });
   $('#ws-quality').addEventListener('input',e=>$('#ws-quality-value').textContent=`${e.target.value}%`);
