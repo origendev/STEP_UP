@@ -228,100 +228,152 @@ function requireStudent(req, res, next) {
 }
 
 app.post('/api/student/workspace/convert', requireStudent, async (req, res) => {
-    const { filename, data, to } = req.body || {};
-    const sourceExtension = to === 'pdf' ? '.docx' : to === 'docx' ? '.pdf' : '';
-    const targetExtension = to === 'pdf' ? '.pdf' : to === 'docx' ? '.docx' : '';
-    if (!sourceExtension) return res.status(400).json({ error: 'Choose PDF or Word as the output format.' });
-    if (typeof filename !== 'string' || path.extname(filename).toLowerCase() !== sourceExtension) {
-      return res.status(400).json({ error: `Select a ${sourceExtension.slice(1).toUpperCase()} file.` });
-    }
-    const match = typeof data === 'string' && data.match(/^data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})$/);
-    if (!match) return res.status(400).json({ error: 'The selected file could not be read. Please choose it again.' });
-    const inputMimeType = match[1].toLowerCase();
-    const allowedMimeTypes = sourceExtension === '.docx'
-      ? ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']
-      : ['application/pdf', 'application/x-pdf', 'application/octet-stream'];
-    if (!allowedMimeTypes.includes(inputMimeType)) {
-      return res.status(400).json({ error: `The selected file is not a valid ${sourceExtension.slice(1).toUpperCase()} document.` });
-    }
-    const input = Buffer.from(match[2], 'base64');
-    if (!input.length || input.length > MAX_DOCUMENT_CONVERSION_BYTES) {
-      return res.status(413).json({ error: 'Choose a document smaller than 10 MB.' });
-    }
-    if ((sourceExtension === '.pdf' && input.subarray(0, 5).toString() !== '%PDF-')
-      || (sourceExtension === '.docx' && !(input[0] === 0x50 && input[1] === 0x4b))) {
-      return res.status(400).json({ error: 'The selected file contents do not match its file type.' });
-    }
-    const conversionKey = String(req.student.studentId);
-    if (activeDocumentConversions.has(conversionKey)) {
-      return res.status(429).json({ error: 'A document conversion is already running for your account. Please wait.' });
-    }
+  const { filename, data, to } = req.body || {};
+  const sourceExtension = to === 'pdf' ? '.docx' : to === 'docx' ? '.pdf' : '';
+  const targetExtension = to === 'pdf' ? '.pdf' : to === 'docx' ? '.docx' : '';
 
-    activeDocumentConversions.add(conversionKey);
-    let workDir;
-    let officeAvailable = false;
+  if (!sourceExtension) {
+    return res.status(400).json({ error: 'Choose PDF or Word as the output format.' });
+  }
+  if (typeof filename !== 'string' || path.extname(filename).toLowerCase() !== sourceExtension) {
+    return res.status(400).json({ error: `Select a ${sourceExtension.slice(1).toUpperCase()} file.` });
+  }
+
+  const match = typeof data === 'string'
+    && data.match(/^data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})$/);
+  if (!match) {
+    return res.status(400).json({ error: 'The selected file could not be read. Please choose it again.' });
+  }
+
+  const inputMimeType = match[1].toLowerCase();
+  const allowedMimeTypes = sourceExtension === '.docx'
+    ? ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream']
+    : ['application/pdf', 'application/x-pdf', 'application/octet-stream'];
+  if (!allowedMimeTypes.includes(inputMimeType)) {
+    return res.status(400).json({ error: `The selected file is not a valid ${sourceExtension.slice(1).toUpperCase()} document.` });
+  }
+
+  const input = Buffer.from(match[2], 'base64');
+  if (!input.length || input.length > MAX_DOCUMENT_CONVERSION_BYTES) {
+    return res.status(413).json({ error: 'Choose a document smaller than 10 MB.' });
+  }
+  if ((sourceExtension === '.pdf' && input.subarray(0, 5).toString() !== '%PDF-')
+    || (sourceExtension === '.docx' && !(input[0] === 0x50 && input[1] === 0x4b))) {
+    return res.status(400).json({ error: 'The selected file contents do not match its file type.' });
+  }
+
+  const conversionKey = String(req.student.studentId);
+  if (activeDocumentConversions.has(conversionKey)) {
+    return res.status(429).json({ error: 'A document conversion is already running for your account. Please wait.' });
+  }
+
+  activeDocumentConversions.add(conversionKey);
+  let workDir;
+  try {
+    workDir = await mkdtemp(path.join(tmpdir(), 'stepup-document-'));
+    const inputDir = path.join(workDir, 'input');
+    const outputDir = path.join(workDir, 'output');
+    const profileDir = path.join(workDir, 'profile');
+    await Promise.all([mkdir(inputDir), mkdir(outputDir), mkdir(profileDir)]);
+
+    const inputPath = path.join(inputDir, `source${sourceExtension}`);
+    const outputPath = path.join(outputDir, `source${targetExtension}`);
+    await writeFile(inputPath, input, { flag: 'wx' });
+
+    const officePath = process.env.LIBREOFFICE_PATH || process.env.SOFFICE_PATH || 'soffice';
+    const targetFilter = to === 'pdf' ? 'pdf:writer_pdf_Export' : 'docx:"Office Open XML Text"';
+    const args = [
+      '--headless', '--nologo', '--nodefault', '--nofirststartwizard',
+      '--nolockcheck', '--norestore',
+      `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
+      ...(to === 'docx' ? ['--infilter=writer_pdf_import'] : []),
+      '--convert-to', targetFilter, '--outdir', outputDir, inputPath
+    ];
+
+    // execFileAsync is essential here: wait for LibreOffice to finish before reading its output.
+    let conversionResult;
     try {
-      workDir = await mkdtemp(path.join(tmpdir(), 'stepup-document-'));
-      const inputDir = path.join(workDir, 'input');
-      const outputDir = path.join(workDir, 'output');
-      const profileDir = path.join(workDir, 'profile');
-      await Promise.all([mkdir(inputDir), mkdir(outputDir), mkdir(profileDir)]);
-      const inputPath = path.join(inputDir, `source${sourceExtension}`);
-      await writeFile(inputPath, input, { flag: 'wx' });
-      const targetFilter = to === 'pdf' ? 'pdf:writer_pdf_Export' : 'docx:"Office Open XML Text"';
-      const args = [
-        '--headless', '--nologo', '--nodefault', '--nofirststartwizard',
-        `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
-        ...(to === 'docx' ? ['--infilter=writer_pdf_import'] : []),
-        '--convert-to', targetFilter, '--outdir', outputDir, inputPath
-      ];
-      await execFile(process.env.LIBREOFFICE_PATH || process.env.SOFFICE_PATH || 'soffice', args, {
+      conversionResult = await execFileAsync(officePath, args, {
         timeout: 90000,
         maxBuffer: 2 * 1024 * 1024,
         windowsHide: true
       });
-      officeAvailable = true;
-      const outputPath = path.join(outputDir, `source${targetExtension}`);
-      const output = await readFile(outputPath);
-      if (!output.length || output.length > MAX_CONVERTED_DOCUMENT_BYTES) {
-        return res.status(422).json({ error: 'LibreOffice produced an empty or oversized document. Try a smaller or simpler file.' });
-      }
-      if ((to === 'pdf' && output.subarray(0, 5).toString() !== '%PDF-')
-        || (to === 'docx' && !(output[0] === 0x50 && output[1] === 0x4b))) {
-        return res.status(422).json({ error: 'LibreOffice returned an invalid output file. Try another document.' });
-      }
-      const outputName = path.basename(filename, path.extname(filename))
-        .replace(/[\\/:*?"<>|]/g, '_').replace(/^\.+|\.+$/g, '') || 'converted';
-      const outputMimeType = to === 'pdf'
-        ? 'application/pdf'
-        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      return res.json({
-        data: output.toString('base64'),
-        mimeType: outputMimeType,
-        filename: `${outputName}${targetExtension}`
-      });
     } catch (error) {
-      console.error('Workspace document conversion failed:', error);
-      if (error.code === 'ENOENT' && !officeAvailable) {
-        return res.status(503).json({ error: 'The office conversion engine is unavailable. Install LibreOffice on the backend host and set LIBREOFFICE_PATH if needed.' });
+      console.error('LibreOffice command failed:', {
+        message: error.message,
+        code: error.code,
+        killed: error.killed,
+        stdout: error.stdout,
+        stderr: error.stderr
+      });
+
+      if (error.code === 'ENOENT') {
+        return res.status(503).json({
+          error: 'The office conversion engine is unavailable. Install LibreOffice and set LIBREOFFICE_PATH if needed.'
+        });
       }
       if (error.killed || error.code === 'ETIMEDOUT') {
         return res.status(504).json({ error: 'Document conversion timed out. Try a smaller or simpler file.' });
       }
-      return res.status(422).json({ error: to === 'docx'
-        ? 'LibreOffice could not convert this PDF to Word. This PDF may be scanned or use a layout the office engine cannot import.'
-        : 'LibreOffice could not convert this Word document. Check that it opens correctly and try again.' });
-    } finally {
-      activeDocumentConversions.delete(conversionKey);
-      if (workDir) {
-        try {
-          await rm(workDir, { recursive: true, force: true });
-        } catch (error) {
-          console.error('Could not clean up temporary document conversion files:', error);
-        }
+      return res.status(422).json({
+        error: to === 'docx'
+          ? 'LibreOffice could not import this PDF. Scanned PDFs and complex layouts may not convert correctly.'
+          : 'LibreOffice could not convert this Word document. Check that it opens correctly and try again.'
+      });
+    }
+
+    let output;
+    try {
+      output = await readFile(outputPath);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      console.error('LibreOffice finished without creating the expected output file:', {
+        officePath,
+        inputPath,
+        outputDir,
+        expectedOutput: outputPath,
+        stdout: conversionResult?.stdout || '',
+        stderr: conversionResult?.stderr || ''
+      });
+      return res.status(422).json({
+        error: 'The office engine finished but did not create the converted file. Check the source document and server conversion logs.'
+      });
+    }
+
+    if (!output.length || output.length > MAX_CONVERTED_DOCUMENT_BYTES) {
+      return res.status(422).json({ error: 'LibreOffice produced an empty or oversized document. Try a smaller or simpler file.' });
+    }
+    if ((to === 'pdf' && output.subarray(0, 5).toString() !== '%PDF-')
+      || (to === 'docx' && !(output[0] === 0x50 && output[1] === 0x4b))) {
+      console.error('LibreOffice returned an invalid output file:', {
+        expectedOutput: outputPath,
+        stdout: conversionResult?.stdout || '',
+        stderr: conversionResult?.stderr || ''
+      });
+      return res.status(422).json({ error: 'LibreOffice returned an invalid output file. Try another document.' });
+    }
+
+    const outputName = path.basename(filename, path.extname(filename))
+      .replace(/[\\/:*?"<>|]/g, '_').replace(/^\.+|\.+$/g, '') || 'converted';
+    return res.json({
+      data: output.toString('base64'),
+      mimeType: DOCUMENT_MIME_TYPES[to],
+      filename: `${outputName}${targetExtension}`
+    });
+  } catch (error) {
+    console.error('Workspace document conversion failed:', error);
+    return res.status(500).json({ error: 'Document conversion failed unexpectedly. Please try again.' });
+  } finally {
+    activeDocumentConversions.delete(conversionKey);
+    if (workDir) {
+      try {
+        await rm(workDir, { recursive: true, force: true });
+      } catch (error) {
+        console.error('Could not clean up temporary document conversion files:', error);
       }
     }
-  });
+  }
+});
 
 function issueAdminToken() {
   return jwt.sign(
@@ -3548,96 +3600,6 @@ app.delete('/api/jobs/:id/apply', requireStudent, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Could not withdraw your application.' });
-  }
-});
-
-app.post('/api/student/workspace/convert', requireStudent, async (req, res) => {
-  const { filename, data, to } = req.body || {};
-  const sourceExtension = to === 'pdf' ? 'docx' : to === 'docx' ? 'pdf' : null;
-  if (!sourceExtension || typeof filename !== 'string' || path.extname(filename).toLowerCase() !== `.${sourceExtension}`) {
-    return res.status(400).json({ error: 'Choose a supported Word .docx or PDF file.' });
-  }
-  if (typeof data !== 'string') {
-    return res.status(400).json({ error: 'The selected file could not be read.' });
-  }
-
-  const match = data.match(/^data:[^,]*;base64,([A-Za-z0-9+/]*={0,2})$/);
-  if (!match) return res.status(400).json({ error: 'The selected file could not be read.' });
-  const fileData = Buffer.from(match[1], 'base64');
-  if (!fileData.length || fileData.length > 10 * 1024 * 1024 || fileData.toString('base64') !== match[1]) {
-    return res.status(400).json({ error: 'Files must be valid and smaller than 10 MB.' });
-  }
-  if (sourceExtension === 'pdf' && fileData.subarray(0, 5).toString() !== '%PDF-') {
-    return res.status(400).json({ error: 'The selected file is not a valid PDF.' });
-  }
-  if (sourceExtension === 'docx' && fileData.subarray(0, 4).toString() !== 'PK\u0003\u0004') {
-    return res.status(400).json({ error: 'The selected file is not a valid Word document.' });
-  }
-
-  let tempDir;
-  try {
-    tempDir = await mkdtemp(path.join(os.tmpdir(), 'stepup-convert-'));
-    const profileDir = path.join(tempDir, 'profile');
-    await mkdir(profileDir);
-    const inputPath = path.join(tempDir, `input.${sourceExtension}`);
-    const outputExtension = to;
-    const outputPath = path.join(tempDir, `input.${outputExtension}`);
-    await writeFile(inputPath, fileData, { flag: 'wx' });
-
-    try {
-      await execFileAsync(process.env.LIBREOFFICE_PATH || 'soffice', [
-        '--headless',
-        '--nologo',
-        '--nodefault',
-        '--nolockcheck',
-        '--norestore',
-        `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
-        '--convert-to',
-        outputExtension,
-        '--outdir',
-        tempDir,
-        inputPath
-      ], { timeout: 60_000, maxBuffer: 1024 * 1024 });
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        return res.status(503).json({ error: 'The document conversion engine is not installed on the server. Install LibreOffice or configure LIBREOFFICE_PATH.' });
-      }
-      console.error('LibreOffice document conversion failed:', error);
-      return res.status(422).json({ error: 'LibreOffice could not convert this file. Check that it opens correctly, then try again.' });
-    }
-
-    let outputData;
-    try {
-      outputData = await readFile(outputPath);
-    } catch (error) {
-      if (error.code === 'ENOENT') {
-        return res.status(422).json({ error: 'LibreOffice did not produce a converted file. Check that the source file is valid.' });
-      }
-      throw error;
-    }
-    const validOutput = outputExtension === 'pdf'
-      ? outputData.subarray(0, 5).toString() === '%PDF-'
-      : outputData.subarray(0, 4).toString() === 'PK\u0003\u0004';
-    if (!validOutput) {
-      return res.status(422).json({ error: 'LibreOffice produced an invalid converted file. Please try again with another source file.' });
-    }
-    const outputName = `${path.basename(filename, path.extname(filename))}.${outputExtension}`;
-    res.json({
-      data: outputData.toString('base64'),
-      filename: outputName,
-      mimeType: DOCUMENT_MIME_TYPES[outputExtension]
-    });
-  } catch (error) {
-    console.error('Could not complete document conversion:', error);
-    res.status(500).json({ error: 'Document conversion failed. Please try again.' });
-  } finally {
-    if (tempDir) {
-      try {
-        await rm(tempDir, { recursive: true, force: true });
-      } catch (error) {
-        console.error('Could not remove temporary document conversion files:', error);
-      }
-    }
   }
 });
 
