@@ -10,11 +10,11 @@
   </div>
   <div class="ws-alert" id="ws-alert" role="status" aria-live="polite" hidden></div>
   <section class="ws-panel active" data-ws-panel="convert">
-    <div class="ws-section-head"><div><h2>File conversion</h2><p>Choose a tool, add your file, then convert.</p></div><span class="ws-pill">Files stay in your browser</span></div>
+    <div class="ws-section-head"><div><h2>File conversion</h2><p>Choose a tool, add your file, then convert.</p></div><span class="ws-pill">Office conversion uses the backend temporarily</span></div>
     <div class="ws-tool-grid">
       <article class="ws-tool-card"><div class="ws-tool-icon">PDF</div><h3>Images to PDF</h3><p>Combine JPG, JPEG or PNG images into one PDF.</p><label class="ws-file-button">Choose images<input id="ws-images-pdf" type="file" accept="image/png,image/jpeg,.jpg,.jpeg,.png" multiple></label><button class="ws-primary" id="ws-make-pdf">Create PDF</button></article>
-      <article class="ws-tool-card"><div class="ws-tool-icon">DOC</div><h3>Word to PDF</h3><p>Best-effort conversion. For layout-preserving conversion, install LibreOffice on the backend host.</p><label class="ws-file-button">Choose Word file<input id="ws-word-pdf-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label><button class="ws-primary" id="ws-word-pdf">Convert to PDF</button></article>
-      <article class="ws-tool-card"><div class="ws-tool-icon">DOCX</div><h3>PDF to Word</h3><p>Create an editable Word document from PDF text. Complex layouts and images may differ.</p><label class="ws-file-button">Choose PDF<input id="ws-pdf-word-file" type="file" accept="application/pdf,.pdf"></label><button class="ws-primary" id="ws-pdf-word">Convert to Word</button></article>
+      <article class="ws-tool-card"><div class="ws-tool-icon">DOC</div><h3>Word to PDF</h3><p>Converts DOCX with LibreOffice on the backend to better preserve fonts, tables and page layout.</p><label class="ws-file-button">Choose Word file<input id="ws-word-pdf-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label><button class="ws-primary" id="ws-word-pdf">Convert to PDF</button></article>
+      <article class="ws-tool-card"><div class="ws-tool-icon">DOCX</div><h3>PDF to Word</h3><p>Creates an editable Word reconstruction with LibreOffice. PDF uses fixed page positions, so complex layouts may still need adjustment.</p><label class="ws-file-button">Choose PDF<input id="ws-pdf-word-file" type="file" accept="application/pdf,.pdf"></label><button class="ws-primary" id="ws-pdf-word">Convert to Word</button></article>
     </div>
   </section>
   <section class="ws-panel" data-ws-panel="images" hidden>

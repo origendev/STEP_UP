@@ -16,9 +16,12 @@ Express + PostgreSQL API for the StepUp Company Portal and public Jobs page.
 
 1. Create a PostgreSQL database.
 2. Copy `.env.example` to `.env` and set `DATABASE_URL` and a strong `JWT_SECRET`.
-3. `npm install`
-4. `npm start`
-5. Serve the `FRONTEND` folder with Live Server or `python -m http.server 5500`.
+3. Install LibreOffice on the backend host for Workspace Word/PDF conversions. If `soffice` is not on `PATH`, set `LIBREOFFICE_PATH` in `BACKEND/.env` to its executable (for example, `C:\Program Files\LibreOffice\program\soffice.exe` on Windows).
+4. `npm install`
+5. `npm start`
+6. Serve the `FRONTEND` folder with Live Server or `python -m http.server 5500`.
+
+Workspace conversions run on the backend host; uploaded documents are processed in temporary directories and removed after conversion. Files are limited to 10 MB. DOCX-to-PDF usually preserves document layout better than browser-side text extraction. PDF-to-DOCX reconstructs editable content from fixed page coordinates and may still need manual layout adjustments.
 
 ## AI demand outlook
 
