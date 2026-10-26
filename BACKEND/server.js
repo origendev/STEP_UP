@@ -19,8 +19,9 @@ import pg from 'pg';
 import { XMLParser } from 'fast-xml-parser';
 import { extract } from '@extractus/article-extractor';
 import { GoogleDecoder } from 'google-news-url-decoder';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomInt } from 'node:crypto';
 import { getLaborMarket } from './labor-market.js';
+import { rateLimit } from 'express-rate-limit';
 
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
@@ -36,6 +37,7 @@ const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-f
 const DEMAND_AI_PROVIDER = (process.env.DEMAND_AI_PROVIDER || 'gemini').toLowerCase();
 const MAX_NEWS_PER_SECTION = 10;
 const RECENT_NEWS_DAYS = 7;
+const MAX_OTP_ATTEMPTS = 5;
 const ROLE_OUTLOOK_CACHE_MS = 60 * 60 * 1000;
 const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_DOCUMENT_CONVERSION_BYTES = 10 * 1024 * 1024;
@@ -59,6 +61,23 @@ const pool = new Pool({
 });
 
 const app = express();
+for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+  const original = app[method].bind(app);
+  app[method] = (path, ...handlers) => {
+    if (handlers.length === 0) return original(path); // app.get('setting') reads a setting
+    return original(path, ...handlers.map(handler =>
+      typeof handler !== 'function' ? handler : (req, res, next) => {
+        try {
+          const result = handler(req, res, next);
+          if (result && typeof result.catch === 'function') result.catch(next);
+        } catch (error) {
+          next(error);
+        }
+      }
+    ));
+  };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const frontendDir = path.join(__dirname, '../FRONTEND');
@@ -70,6 +89,56 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '15mb' }));
+
+/* ---------------------------------------------------------
+   Login rate limiting: only failed attempts are counted
+--------------------------------------------------------- */
+const AUTH_ROUTES = [
+  '/api/student/login',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/admin/login',
+  '/api/student/forgot-password/request',
+  '/api/student/forgot-password/reset',
+  '/api/student/change-password'
+];
+
+function rateLimitReply(message) {
+  return (req, res, _next, options) => {
+    console.warn('Rate limit hit:', req.ip, req.originalUrl, options.keyGenerator(req, res));
+    res.status(options.statusCode).json({ error: message });
+  };
+}
+
+// 1) Per IP address: 30 failed attempts in 15 minutes, across all login routes.
+const authIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  handler: rateLimitReply('Too many failed attempts from this network. Please wait 15 minutes and try again.')
+});
+
+// 2) Per account: 5 failed attempts in 15 minutes on one registration number, email or admin ID.
+const authAccountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: req => {
+    const account = req.body?.regNo ?? req.body?.email ?? req.body?.adminId ?? '';
+    return `${req.baseUrl}|${String(account).trim().toLowerCase()}`;
+  },
+  handler: rateLimitReply('Too many failed attempts for this account. Please wait 15 minutes and try again.')
+});
+
+app.use(AUTH_ROUTES, authIpLimiter, authAccountLimiter);
+
+// Set TRUST_PROXY=1 in .env when the app runs behind one proxy (Render, Railway, Heroku, Nginx).
+if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY));
+
 app.use(express.static(frontendDir));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
@@ -317,10 +386,27 @@ app.post('/api/student/workspace/convert', requireStudent, async (req, res) => {
 
 function issueAdminToken() {
   return jwt.sign(
-    { role: 'admin', adminId: ADMIN_ID },
+    { role: 'admin', adminId: ADMIN_ID, adminRole: 'Super Admin' },
     JWT_SECRET,
     { expiresIn: '8h' }
   );
+}
+
+const ADMIN_ROLES = ['Super Admin', 'Placement Officer', 'Recruiter Manager', 'Viewer'];
+
+const ADMIN_WRITE_PERMISSIONS = {
+  'Super Admin':       ['*'],
+  'Placement Officer': ['students', 'companies', 'jobs', 'applications', 'drives', 'announcements', 'interviews', 'notifications'],
+  'Recruiter Manager': ['companies', 'jobs', 'applications', 'drives', 'interviews', 'notifications'],
+  'Viewer':            ['notifications']
+};
+
+const SUPER_ADMIN_ONLY = ['admin-users'];
+
+function adminSection(req) {
+  const fullPath = req.baseUrl + req.path;
+  const match = /^\/api\/admin\/([a-z-]+)/.exec(fullPath);
+  return match ? match[1] : null;
 }
 
 function requireAdmin(req, res, next) {
@@ -331,13 +417,21 @@ function requireAdmin(req, res, next) {
     try {
       const payload = jwt.verify(token, JWT_SECRET);
       if (payload.role === 'admin' && payload.adminId) {
-        req.admin = payload;
-        const role = payload.adminRole || 'Super Admin';
-        if (role !== 'Super Admin' && req.method !== 'GET') {
-          const path = req.path;
-          const allowed = role === 'Viewer' ? false : role === 'Recruiter Manager' ? /companies|jobs|applications|drives|interviews/.test(path) : true;
-          if (!allowed) return res.status(403).json({ error: 'Your admin role does not have permission for this action.' });
+        const role = payload.adminRole;
+        if (!ADMIN_ROLES.includes(role)) {
+          return res.status(403).json({ error: 'Unknown admin role.' });
         }
+        const section = adminSection(req);
+        if (role !== 'Super Admin' && SUPER_ADMIN_ONLY.includes(section)) {
+          return res.status(403).json({ error: 'Only a Super Admin can manage admin accounts.' });
+        }
+        if (req.method !== 'GET') {
+          const allowed = ADMIN_WRITE_PERMISSIONS[role] || [];
+          if (!allowed.includes('*') && !allowed.includes(section)) {
+            return res.status(403).json({ error: 'Your admin role does not have permission for this action.' });
+          }
+        }
+        req.admin = payload;
         return next();
       }
     } catch {
@@ -346,7 +440,7 @@ function requireAdmin(req, res, next) {
   }
 
   if (ADMIN_KEY && req.get('x-admin-key') === ADMIN_KEY) {
-    req.admin = { role: 'admin', adminId: ADMIN_ID };
+    req.admin = { role: 'admin', adminId: ADMIN_ID, adminRole: 'Super Admin' };
     return next();
   }
 
@@ -362,14 +456,14 @@ function randomPassword(length = 12) {
   let out = '';
 
   for (let i = 0; i < length; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
+    out += chars[randomInt(chars.length)];
   }
 
   return out;
 }
 
 function randomOtp() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(randomInt(0, 1000000)).padStart(6, '0');
 }
 
 async function sendResetEmail({ to, name, otp }) {
@@ -722,6 +816,9 @@ async function ensureSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_student_reset_otps
       ON password_reset_otps(student_id, used);
+
+    ALTER TABLE password_reset_otps
+      ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0;
 
     ALTER TABLE jobs
       ADD COLUMN IF NOT EXISTS interview_rounds TEXT NOT NULL DEFAULT 'Not specified';
@@ -1671,10 +1768,10 @@ app.get('/api/labor-market', async (req, res) => {
 });
 
 app.get(
-  '/api/demand-news/article/:id',
+  '/api/demand-news/article/:articleId',
   async (req, res) => {
     const article = newsArticleCache.get(
-      req.params.id
+      req.params.articleId
     );
 
     if (!article) {
@@ -3251,6 +3348,24 @@ app.post(
 
       const student = r.rows[0];
 
+      const recent = await pool.query(
+        `SELECT COUNT(*)::int AS last_hour,
+                COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '60 seconds')::int AS last_minute
+         FROM password_reset_otps
+         WHERE student_id=$1 AND created_at > NOW() - INTERVAL '1 hour'`,
+        [student.id]
+      );
+
+      if (recent.rows[0].last_minute > 0 || recent.rows[0].last_hour >= 5) {
+        // Same reply as success, so this does not reveal anything.
+        return res.json({
+          data: {
+            message:
+              'If the registration number belongs to a StepUp student account, an OTP has been sent to the registered email.'
+          }
+        });
+      }
+
       const otp = randomOtp();
       const hash = await bcrypt.hash(otp, 10);
 
@@ -3305,10 +3420,9 @@ app.post(
     const otp = clean(req.body.otp);
     const newPassword = req.body.newPassword;
 
-    if (!regNo || !otp || !newPassword) {
+    if (!regNo || typeof otp !== 'string' || !/^\d{6}$/.test(otp) || typeof newPassword !== 'string') {
       return res.status(400).json({
-        error:
-          'Registration number, OTP and new password are required.'
+        error: 'Registration number, a 6-digit OTP and new password are required.'
       });
     }
 
@@ -3334,25 +3448,22 @@ app.post(
       }
 
       const r = await pool.query(
-        `SELECT id,otp_hash
-         FROM password_reset_otps
-         WHERE student_id=$1
-           AND used=FALSE
-           AND expires_at>NOW()
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        [s.rows[0].id]
+        `UPDATE password_reset_otps
+         SET attempts = attempts + 1
+         WHERE id = (
+           SELECT id FROM password_reset_otps
+           WHERE student_id=$1 AND used=FALSE AND expires_at>NOW()
+           ORDER BY created_at DESC
+           LIMIT 1
+         )
+         AND attempts < $2
+         RETURNING id, otp_hash`,
+        [s.rows[0].id, MAX_OTP_ATTEMPTS]
       );
 
-      if (
-        !r.rows[0] ||
-        !(await bcrypt.compare(
-          otp,
-          r.rows[0].otp_hash
-        ))
-      ) {
+      if (!r.rows[0] || !(await bcrypt.compare(otp, r.rows[0].otp_hash))) {
         return res.status(400).json({
-          error: 'Invalid or expired OTP.'
+          error: 'Invalid or expired OTP. After 5 wrong attempts, request a new code.'
         });
       }
 
@@ -4865,6 +4976,15 @@ app.get('/api/admin/ai-interviews/:id', requireAdmin, async (req, res) => {
 
 app.get('/', (_req, res) => {
   res.sendFile(path.join(frontendDir, 'index.html'));
+});
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'The request body is not valid JSON.' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'The request is too large.' });
+  if (err.code === '22P02') return res.status(400).json({ error: 'One of the values sent is not valid.' }); // Postgres: bad number/ID
+  console.error('Unhandled route error:', req.method, req.originalUrl, err);
+  res.status(500).json({ error: 'Something went wrong. Please try again.' });
 });
 
 /* =========================================================
