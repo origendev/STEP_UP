@@ -50,22 +50,42 @@ async function serverConvert(file,to){
   const raw=atob(r.data), bytes=new Uint8Array(raw.length); for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
   return {blob:new Blob([bytes],{type:r.mimeType}),filename:r.filename};
 }
-async function convertDocument(inputSelector,to,successMessage){
-  const file=$(inputSelector).files[0];
-  if(!file){alertUser(to==='pdf'?'Choose a Word .docx file first.':'Choose a PDF file first.',true);return;}
-async function convertOfficeFile(file,to,button,successMessage){
-  button.disabled=true;
-  const original=button.textContent;
-  button.textContent='Converting…';
-  try{
-    const converted=await serverConvert(file,to);
-    downloadBlob(converted.blob,converted.filename);
+async function convertDocument(inputSelector, to, successMessage) {
+  const file = $(inputSelector)?.files?.[0];
+
+  if (!file) {
+    alertUser(
+      to === 'pdf'
+        ? 'Choose a Word .docx file first.'
+        : 'Choose a PDF file first.',
+      true
+    );
+    return;
+  }
+
+  const button = $(to === 'pdf' ? '#ws-word-pdf' : '#ws-pdf-word');
+  await convertOfficeFile(file, to, button, successMessage);
+}
+
+async function convertOfficeFile(file, to, button, successMessage) {
+  if (!button) {
+    alertUser('Conversion button not found.', true);
+    return;
+  }
+
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = 'Converting…';
+
+  try {
+    const converted = await serverConvert(file, to);
+    downloadBlob(converted.blob, converted.filename);
     alertUser(successMessage);
-  }catch(error){
-    alertUser(error.message||'Document conversion failed.',true);
-  }finally{
-    button.disabled=false;
-    button.textContent=original;
+  } catch (error) {
+    alertUser(error.message || 'Document conversion failed.', true);
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
   }
 }
 function renderNotes(){const list=$('#ws-note-list');if(!list)return;list.innerHTML='';notes.sort((a,b)=>b.updated-a.updated).forEach(n=>{const b=document.createElement('button');b.className='ws-note-item'+(n.id===selectedId?' active':'');const strong=document.createElement('strong');strong.textContent=n.title||'Untitled note';const small=document.createElement('small');small.textContent=new Date(n.updated||Date.now()).toLocaleString();b.append(strong,small);b.addEventListener('click',()=>{readNoteEditor();selectedId=n.id;renderNotes();});list.appendChild(b);});if(!notes.length){list.innerHTML='<p class="ws-small">No notes yet. Create your first note.</p>';}
@@ -141,10 +161,20 @@ export function mount(){
   clearAlert();
   $$('[data-ws-tab]').forEach(btn=>btn.addEventListener('click',()=>{$$('[data-ws-tab]').forEach(b=>b.classList.toggle('active',b===btn));$$('[data-ws-panel]').forEach(p=>{const active=p.dataset.wsPanel===btn.dataset.wsTab;p.hidden=!active;p.classList.toggle('active',active);});clearAlert();}));
   $('#ws-make-pdf').addEventListener('click',async()=>{try{const files=[...$('#ws-images-pdf').files];await imageFilesToPdf(files,'stepup-images.pdf');alertUser(`Created a PDF from ${files.length} image(s).`);}catch(e){alertUser(e.message||'PDF creation failed.',true);}});
-  $('#ws-word-pdf').addEventListener('click',()=>convertDocument('#ws-word-pdf-file','pdf','Converted with LibreOffice. Review the PDF before sharing it.'));
-  $('#ws-pdf-word').addEventListener('click',()=>convertDocument('#ws-pdf-word-file','docx','Converted with LibreOffice. PDF-to-Word conversion can alter complex layouts; review the document carefully.'));
-  $('#ws-word-pdf').addEventListener('click',async()=>{const f=$('#ws-word-pdf-file').files[0];if(!f){alertUser('Choose a Word .docx file first.',true);return;}await convertOfficeFile(f,'pdf',$('#ws-word-pdf'),'Converted with LibreOffice. Review the result in your PDF viewer.');});
-  $('#ws-pdf-word').addEventListener('click',async()=>{const f=$('#ws-pdf-word-file').files[0];if(!f){alertUser('Choose a PDF file first.',true);return;}await convertOfficeFile(f,'docx',$('#ws-pdf-word'),'Converted with LibreOffice. PDF-to-Word is an editable reconstruction, so review the page layout and spacing.');});
+  $('#ws-word-pdf').addEventListener('click', () => {
+    convertDocument(
+      '#ws-word-pdf-file',
+      'pdf',
+      'Word document converted to PDF. Review the PDF before sharing it.'
+    );
+  });
+  $('#ws-pdf-word').addEventListener('click', () => {
+    convertDocument(
+      '#ws-pdf-word-file',
+      'docx',
+      'PDF converted to Word. Review the document layout carefully.'
+    );
+  });
   $('#ws-quality').addEventListener('input',e=>$('#ws-quality-value').textContent=`${e.target.value}%`);
   $('#ws-compress').addEventListener('click',async()=>{const f=$('#ws-compress-file').files[0];if(!f){alertUser('Choose an image first.',true);return;}try{const img=await loadImage(await readDataUrl(f));const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;canvas.getContext('2d').drawImage(img,0,0);const target=Number($('#ws-target-kb').value);let q=Number($('#ws-quality').value)/100;let blob=await canvasBlob(canvas,'image/jpeg',q);if(target>0){for(let i=0;i<10&&blob.size>target*1024&&q>0.12;i++){q=Math.max(.12,q*.78);blob=await canvasBlob(canvas,'image/jpeg',q);}if(blob.size>target*1024){let factor=Math.min(.9,Math.sqrt((target*1024)/blob.size)*.9);for(let i=0;i<5&&blob.size>target*1024;i++){canvas.width=Math.max(1,Math.floor(img.naturalWidth*factor));canvas.height=Math.max(1,Math.floor(img.naturalHeight*factor));canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);blob=await canvasBlob(canvas,'image/jpeg',q);factor*=.85;}}}downloadBlob(blob,`${baseName(f.name)}-compressed.jpg`);const msg=`Actual output: ${bytesLabel(blob.size)}${target>0?` (target ${target} KB${blob.size>target*1024?' not reached':' reached'})`:''}. Dimensions: ${canvas.width} × ${canvas.height}.`;$('#ws-compress-result').textContent=msg;alertUser(msg,target>0&&blob.size>target*1024);}catch(e){alertUser(e.message||'Image compression failed.',true);}});
   $('#ws-format-convert').addEventListener('click',async()=>{const f=$('#ws-format-file').files[0];if(!f){alertUser('Choose an image first.',true);return;}try{const img=await loadImage(await readDataUrl(f));const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const ctx=canvas.getContext('2d');if($('#ws-format').value==='image/jpeg'){ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);}ctx.drawImage(img,0,0);const type=$('#ws-format').value,blob=await canvasBlob(canvas,type,.92);downloadBlob(blob,`${baseName(f.name)}.${type==='image/png'?'png':'jpg'}`);alertUser(`Converted image. Actual output size: ${bytesLabel(blob.size)}.`);}catch(e){alertUser(e.message||'Image conversion failed.',true);}});
