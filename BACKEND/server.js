@@ -1,23 +1,39 @@
+```javascript
 import 'dotenv/config';
+
 import express from 'express';
 import cors from 'cors';
+
 import { execFile } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { promisify } from 'node:util';
+
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile
+} from 'node:fs/promises';
+
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { execFile as execFileCallback } from 'node:child_process';
-import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
+
 import { XMLParser } from 'fast-xml-parser';
 import { extract } from '@extractus/article-extractor';
 import { GoogleDecoder } from 'google-news-url-decoder';
-import { randomUUID } from 'node:crypto';
+
 import { getLaborMarket } from './labor-market.js';
+
+const { Pool } = pg;
+const execFileAsync = promisify(execFile);
+const tmpdir = os.tmpdir;
+```
 
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
