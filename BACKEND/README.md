@@ -16,12 +16,18 @@ Express + PostgreSQL API for the StepUp Company Portal and public Jobs page.
 
 1. Create a PostgreSQL database.
 2. Copy `.env.example` to `.env` and set `DATABASE_URL` and a strong `JWT_SECRET`.
-3. Install LibreOffice on the backend host for Workspace Word/PDF conversions. If `soffice` is not on `PATH`, set `LIBREOFFICE_PATH` in `BACKEND/.env` to its executable (for example, `C:\Program Files\LibreOffice\program\soffice.exe` on Windows).
+3. Install LibreOffice Writer and its PDF import filter on the backend host for Workspace Word/PDF conversions. Install compatible fonts where possible; the deployment image includes Carlito (Calibri-compatible), Caladea (Cambria-compatible), Liberation, and DejaVu fonts. If `soffice` is not on `PATH`, set `LIBREOFFICE_PATH` in `BACKEND/.env` to its executable (for example, `C:\Program Files\LibreOffice\program\soffice.exe` on Windows).
 4. `npm install`
 5. `npm start`
 6. Serve the `FRONTEND` folder with Live Server or `python -m http.server 5500`.
 
-Workspace conversions run on the backend host; uploaded documents are processed in temporary directories and removed after conversion. Files are limited to 10 MB. DOCX-to-PDF usually preserves document layout better than browser-side text extraction. PDF-to-DOCX reconstructs editable content from fixed page coordinates and may still need manual layout adjustments.
+Workspace conversions run on the backend host; uploaded documents are processed in temporary directories and removed after conversion. Files are limited to 10 MB. DOCX-to-PDF uses LibreOffice's document renderer and preserves embedded images and document structure far better than text extraction. Page breaks or appearance can still differ from Microsoft Word when a document uses unavailable fonts or Word-specific features. PDF-to-DOCX imports the PDF into an editable document; because PDFs store fixed page positions rather than Word's original structure, exact visual and editing fidelity cannot be guaranteed, especially for scans and complex layouts.
+
+## Render deployment with document conversion
+
+The repository-root `Dockerfile` installs LibreOffice Writer, its PDF import filter, and fonts used by document conversion. To deploy it on Render, configure the backend web service to use the **Docker** runtime, keep the repository root as the build context, and use `Dockerfile` as the Dockerfile path. Keep the existing backend environment variables, including `DATABASE_URL` and `JWT_SECRET`; `LIBREOFFICE_PATH` is already set in the image.
+
+An existing Render native-runtime service will not start using this Dockerfile just because it was added. If Render does not let you change that service to Docker, create a Docker web service for this repository, copy the existing environment variables, and update the frontend API URL if the replacement service gets a different URL. Verify the deployment logs show the image building and then test both conversion directions.
 
 ## AI demand outlook
 
