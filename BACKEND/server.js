@@ -1,8 +1,12 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { execFile } from 'node:child_process';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pg from 'pg';
@@ -13,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { getLaborMarket } from './labor-market.js';
 
 const { Pool } = pg;
+const execFileAsync = promisify(execFile);
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
@@ -59,6 +64,10 @@ app.use(express.static(frontendDir));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
 const ELIGIBLE_DEPARTMENTS = ['CSE','IT','EEE','ECE','Mechanical','Civil'];
+const DOCUMENT_MIME_TYPES = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+};
 
 function normalizeEligibleDepartments(value) {
   const values = Array.isArray(value) ? value : [];
@@ -3425,6 +3434,96 @@ app.delete('/api/jobs/:id/apply', requireStudent, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Could not withdraw your application.' });
+  }
+});
+
+app.post('/api/student/workspace/convert', requireStudent, async (req, res) => {
+  const { filename, data, to } = req.body || {};
+  const sourceExtension = to === 'pdf' ? 'docx' : to === 'docx' ? 'pdf' : null;
+  if (!sourceExtension || typeof filename !== 'string' || path.extname(filename).toLowerCase() !== `.${sourceExtension}`) {
+    return res.status(400).json({ error: 'Choose a supported Word .docx or PDF file.' });
+  }
+  if (typeof data !== 'string') {
+    return res.status(400).json({ error: 'The selected file could not be read.' });
+  }
+
+  const match = data.match(/^data:[^,]*;base64,([A-Za-z0-9+/]*={0,2})$/);
+  if (!match) return res.status(400).json({ error: 'The selected file could not be read.' });
+  const fileData = Buffer.from(match[1], 'base64');
+  if (!fileData.length || fileData.length > 10 * 1024 * 1024 || fileData.toString('base64') !== match[1]) {
+    return res.status(400).json({ error: 'Files must be valid and smaller than 10 MB.' });
+  }
+  if (sourceExtension === 'pdf' && fileData.subarray(0, 5).toString() !== '%PDF-') {
+    return res.status(400).json({ error: 'The selected file is not a valid PDF.' });
+  }
+  if (sourceExtension === 'docx' && fileData.subarray(0, 4).toString() !== 'PK\u0003\u0004') {
+    return res.status(400).json({ error: 'The selected file is not a valid Word document.' });
+  }
+
+  let tempDir;
+  try {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'stepup-convert-'));
+    const profileDir = path.join(tempDir, 'profile');
+    await mkdir(profileDir);
+    const inputPath = path.join(tempDir, `input.${sourceExtension}`);
+    const outputExtension = to;
+    const outputPath = path.join(tempDir, `input.${outputExtension}`);
+    await writeFile(inputPath, fileData, { flag: 'wx' });
+
+    try {
+      await execFileAsync(process.env.LIBREOFFICE_PATH || 'soffice', [
+        '--headless',
+        '--nologo',
+        '--nodefault',
+        '--nolockcheck',
+        '--norestore',
+        `-env:UserInstallation=${pathToFileURL(profileDir).href}`,
+        '--convert-to',
+        outputExtension,
+        '--outdir',
+        tempDir,
+        inputPath
+      ], { timeout: 60_000, maxBuffer: 1024 * 1024 });
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(503).json({ error: 'The document conversion engine is not installed on the server. Install LibreOffice or configure LIBREOFFICE_PATH.' });
+      }
+      console.error('LibreOffice document conversion failed:', error);
+      return res.status(422).json({ error: 'LibreOffice could not convert this file. Check that it opens correctly, then try again.' });
+    }
+
+    let outputData;
+    try {
+      outputData = await readFile(outputPath);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return res.status(422).json({ error: 'LibreOffice did not produce a converted file. Check that the source file is valid.' });
+      }
+      throw error;
+    }
+    const validOutput = outputExtension === 'pdf'
+      ? outputData.subarray(0, 5).toString() === '%PDF-'
+      : outputData.subarray(0, 4).toString() === 'PK\u0003\u0004';
+    if (!validOutput) {
+      return res.status(422).json({ error: 'LibreOffice produced an invalid converted file. Please try again with another source file.' });
+    }
+    const outputName = `${path.basename(filename, path.extname(filename))}.${outputExtension}`;
+    res.json({
+      data: outputData.toString('base64'),
+      filename: outputName,
+      mimeType: DOCUMENT_MIME_TYPES[outputExtension]
+    });
+  } catch (error) {
+    console.error('Could not complete document conversion:', error);
+    res.status(500).json({ error: 'Document conversion failed. Please try again.' });
+  } finally {
+    if (tempDir) {
+      try {
+        await rm(tempDir, { recursive: true, force: true });
+      } catch (error) {
+        console.error('Could not remove temporary document conversion files:', error);
+      }
+    }
   }
 });
 

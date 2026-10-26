@@ -10,6 +10,7 @@ Express + PostgreSQL API for the StepUp Company Portal and public Jobs page.
 - Public Jobs page reads from PostgreSQL, so changes are shared instead of being stored in a JS data file.
 - Public job detail page (`job-details.html?id=<job-id>`).
 - Company profile information (industry/location/description) is included in public listings.
+- Workspace Word/PDF conversions use LibreOffice on the backend to retain as much layout as the source format allows.
 - Database tables are created/migrated automatically when the server starts.
 
 ## Local setup
@@ -19,6 +20,12 @@ Express + PostgreSQL API for the StepUp Company Portal and public Jobs page.
 3. `npm install`
 4. `npm start`
 5. Serve the `FRONTEND` folder with Live Server or `python -m http.server 5500`.
+
+## Workspace document conversion
+
+Install LibreOffice on the backend host and make its `soffice` executable available on `PATH`. If it is installed elsewhere or has a different executable name, set `LIBREOFFICE_PATH` in `BACKEND/.env` (for example, `C:\Program Files\LibreOffice\program\soffice.exe` on Windows). Restart the backend after installation or configuration.
+
+Conversions are limited to files smaller than 10 MB. Word-to-PDF preserves the source document's formatting through LibreOffice. PDF-to-Word is inherently approximate because a PDF does not contain Word's document structure; complex layouts and scanned pages may need manual adjustment.
 
 ## AI demand outlook
 
