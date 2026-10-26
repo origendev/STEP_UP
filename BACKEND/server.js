@@ -1,4 +1,3 @@
-```javascript
 import 'dotenv/config';
 
 import express from 'express';
@@ -33,10 +32,7 @@ import { getLaborMarket } from './labor-market.js';
 const { Pool } = pg;
 const execFileAsync = promisify(execFile);
 const tmpdir = os.tmpdir;
-```
 
-const { Pool } = pg;
-const execFileAsync = promisify(execFile);
 const PORT = Number(process.env.PORT || 3000);
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY;
@@ -53,7 +49,6 @@ const ROLE_OUTLOOK_CACHE_MS = 60 * 60 * 1000;
 const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_DOCUMENT_CONVERSION_BYTES = 10 * 1024 * 1024;
 const MAX_CONVERTED_DOCUMENT_BYTES = 20 * 1024 * 1024;
-const execFile = promisify(execFileCallback);
 const activeDocumentConversions = new Set();
 
 if (!process.env.DATABASE_URL) {
@@ -105,8 +100,8 @@ function normalizeStringList(value) {
 async function createNotification(db, notification) {
   await db.query(
     `INSERT INTO notifications
-       (recipient_role,recipient_id,type,title,message,job_id,application_id,dedupe_key)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+      (recipient_role, recipient_id, type, title, message, job_id, application_id, dedupe_key)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT(dedupe_key) DO NOTHING`,
     [
       notification.recipientRole,
