@@ -25,6 +25,7 @@ import { mount as mountSettings } from './pages/settings.js?v=20261005e';
 import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261022ring';
 import { mount as mountCgpaGrader } from './pages/cgpa-grader.js?v=20261022a';
 import { mount as mountWorkspace } from './pages/workspace.js?v=20261011a';
+import { mount as mountCodePlayground } from './pages/code-playground.js?v=20261027a';
 import * as prefs from './core/prefs.js';
 import * as notifications from './core/notifications.js';
 
@@ -43,6 +44,7 @@ router.register('settings',     mountSettings);
 router.register('resume-parser', mountResumeParser);
 router.register('cgpa-grader', mountCgpaGrader);
 router.register('workspace', mountWorkspace);
+router.register('code-playground', mountCodePlayground);
 function getStudentYear(){
   try{
     const u=JSON.parse(localStorage.getItem('stepupStudent')||'{}');
@@ -100,6 +102,7 @@ avatar.addEventListener('click', (e) => {
     <button data-act="resume-parser">Resume Parser</button>
     <button data-act="cgpa-grader">CGPA Calculator / Grader</button>
     <button data-act="workspace">Workspace</button>
+    <button data-act="code-playground">Code Playground</button>
     <button data-act="settings">Settings</button>
     <button data-act="logout" class="danger">Logout</button>`;
   menu.classList.toggle('open');
@@ -110,6 +113,7 @@ menu.addEventListener('click', (e) => {
   if(act === 'resume-parser'){ menu.classList.remove('open'); router.navigate('resume-parser'); }
   if(act === 'cgpa-grader'){ menu.classList.remove('open'); router.navigate('cgpa-grader'); }
   if(act === 'workspace'){ menu.classList.remove('open'); router.navigate('workspace'); }
+  if(act === 'code-playground'){ menu.classList.remove('open'); router.navigate('code-playground'); }
   if(act === 'settings'){ menu.classList.remove('open'); router.navigate('settings'); }
   if(act === 'logout'){ clearSession(); location.href = 'student-login.html'; }
 });
