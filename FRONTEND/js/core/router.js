@@ -66,8 +66,8 @@ if(document.fonts && document.fonts.ready) document.fonts.ready.then(() => moveB
 
 /** Swap to a route. Called by nav clicks, [data-goto] elements and the hash. */
 export async function navigate(name, { updateHash = true } = {}){
-  // Student tools that call authenticated APIs require a signed-in session.
-  if((name === 'jobs' || name === 'progress' || name === 'code-playground') && !localStorage.getItem('stepupStudentToken')){
+  // Jobs and Progress are authenticated student features.
+  if((name === 'jobs' || name === 'progress') && !localStorage.getItem('stepupStudentToken')){
     location.href = 'student-login.html';
     return;
   }

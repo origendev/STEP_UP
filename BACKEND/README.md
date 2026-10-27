@@ -36,19 +36,6 @@ Install LibreOffice on the backend host and make its `soffice` executable availa
 
 Conversions are limited to files smaller than 10 MB. Word-to-PDF preserves the source document's formatting through LibreOffice. PDF-to-Word is inherently approximate because a PDF does not contain Word's document structure; complex layouts and scanned pages may need manual adjustment.
 
-## Code Playground runner
-
-The student Code Playground is served inside STEP_UP and sends source code only to the backend API. The API proxies runs to a **privately hosted Piston execution server**; it never compiles or executes submitted code in the portal API process. No third-party execution API is used.
-
-The runner is intentionally limited to Python, C++ and Java with their standard libraries. Before enabling the Run button in production:
-
-1. Deploy Piston on a separate Linux host with Docker and cgroup v2. Piston's documented deployment requires privileged container support; do not run it inside the portal API container or on a host that cannot provide the required isolation.
-2. Install only the Python, C++ and Java runtimes using Piston's documented package workflow. Keep `PISTON_DISABLE_NETWORKING=true`; use bounded process count, output size, compile/run time and memory limits.
-3. Keep the Piston API private. Put an authenticated reverse proxy in front of it and configure that proxy to enforce a bearer token. Piston itself does not enforce `CODE_RUNNER_TOKEN`; do not expose its unauthenticated API publicly.
-4. Set `CODE_RUNNER_URL` in the portal backend to the private proxy URL and `CODE_RUNNER_TOKEN` to the proxy token. The frontend does not receive either value.
-
-The portal accepts at most 16,000 source characters and 4,000 input characters, allows one active run per student, and rate-limits each student to five runs per minute. Requests ask Piston for a 10-second compile and 3-second run limit, with 256 MiB compile and 128 MiB run memory limits. Configure Piston's maximum limits to permit those values; its output cap should be configured to 16,000 bytes or less. If the private runner is not configured, Run reports that clearly rather than executing code unsafely in the API process.
-
 ## AI demand outlook
 
 The role outlook uses the Gemini Developer API free tier by default. Create a key in [Google AI Studio](https://aistudio.google.com/apikey), then set `GEMINI_API_KEY` in `BACKEND/.env`. Keep `DEMAND_AI_PROVIDER=gemini`; the default model is `gemini-3.8-flash`. If that model is temporarily busy, the backend retries with `gemini-2.5-flash`. No billing-enabled account is required to start on the free tier. Free-tier rate limits apply, and the app keeps its cited research baseline visible when the limit is reached.

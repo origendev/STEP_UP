@@ -50,11 +50,6 @@ const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_DOCUMENT_CONVERSION_BYTES = 10 * 1024 * 1024;
 const MAX_CONVERTED_DOCUMENT_BYTES = 20 * 1024 * 1024;
 const activeDocumentConversions = new Set();
-const CODE_RUNNER_URL = (process.env.CODE_RUNNER_URL || '').replace(/\/+$/, '');
-const CODE_RUNNER_TOKEN = process.env.CODE_RUNNER_TOKEN || '';
-const activeCodeRuns = new Set();
-const codeRunTimestamps = new Map();
-let codeRuntimeCache = { expiresAt: 0, runtimes: null, request: null };
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required');
@@ -231,124 +226,6 @@ function requireStudent(req, res, next) {
     });
   }
 }
-
-async function getCodeRunnerRuntimes() {
-  if (!CODE_RUNNER_URL) throw new Error('CODE_RUNNER_NOT_CONFIGURED');
-  if (codeRuntimeCache.runtimes && codeRuntimeCache.expiresAt > Date.now()) {
-    return codeRuntimeCache.runtimes;
-  }
-  if (codeRuntimeCache.request) return codeRuntimeCache.request;
-
-  codeRuntimeCache.request = (async () => {
-    const response = await fetch(`${CODE_RUNNER_URL}/api/v2/runtimes`, {
-      headers: CODE_RUNNER_TOKEN ? { Authorization: `Bearer ${CODE_RUNNER_TOKEN}` } : {},
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!response.ok) throw new Error(`Code runner runtime lookup returned ${response.status}.`);
-    const runtimes = await response.json();
-    if (!Array.isArray(runtimes)) throw new Error('Code runner returned an invalid runtime list.');
-    codeRuntimeCache = { expiresAt: Date.now() + 10 * 60 * 1000, runtimes, request: null };
-    return runtimes;
-  })();
-
-  try {
-    return await codeRuntimeCache.request;
-  } finally {
-    codeRuntimeCache.request = null;
-  }
-}
-
-app.post('/api/student/code/run', requireStudent, async (req, res) => {
-  const { language, source, stdin = '' } = req.body || {};
-  const languageConfig = {
-    python: { runtime: 'python', filename: 'main.py' },
-    cpp: { runtime: 'c++', filename: 'main.cpp' },
-    java: { runtime: 'java', filename: 'Main.java' }
-  }[language];
-  if (!languageConfig) return res.status(400).json({ error: 'Choose Python, C++, or Java.' });
-  if (typeof source !== 'string' || !source.trim()) {
-    return res.status(400).json({ error: 'Enter some source code before running it.' });
-  }
-  if (source.length > 16000) return res.status(413).json({ error: 'Keep source code under 16,000 characters.' });
-  if (typeof stdin !== 'string' || stdin.length > 4000) {
-    return res.status(413).json({ error: 'Program input must be under 4,000 characters.' });
-  }
-  if (!CODE_RUNNER_URL) {
-    return res.status(503).json({ error: 'The private code runner is not configured for this portal yet.' });
-  }
-
-  const studentId = String(req.student.studentId);
-  if (activeCodeRuns.has(studentId)) {
-    return res.status(429).json({ error: 'One program is already running for your account. Wait for it to finish.' });
-  }
-  const now = Date.now();
-  const recentRuns = (codeRunTimestamps.get(studentId) || []).filter(time => time > now - 60_000);
-  if (recentRuns.length >= 5) {
-    codeRunTimestamps.set(studentId, recentRuns);
-    return res.status(429).json({ error: 'You have reached the limit of 5 runs per minute. Please wait a moment.' });
-  }
-
-  activeCodeRuns.add(studentId);
-  recentRuns.push(now);
-  codeRunTimestamps.set(studentId, recentRuns);
-  try {
-    const runtimes = await getCodeRunnerRuntimes();
-    const runtime = runtimes.find(item =>
-      item.language?.toLowerCase() === languageConfig.runtime
-      || item.aliases?.some(alias => alias.toLowerCase() === languageConfig.runtime)
-    );
-    if (!runtime) {
-      return res.status(503).json({ error: `The private runner does not have the ${language === 'cpp' ? 'C++' : language} runtime installed.` });
-    }
-
-    const response = await fetch(`${CODE_RUNNER_URL}/api/v2/execute`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(CODE_RUNNER_TOKEN ? { Authorization: `Bearer ${CODE_RUNNER_TOKEN}` } : {})
-      },
-      body: JSON.stringify({
-        language: runtime.language,
-        version: runtime.version,
-        files: [{ name: languageConfig.filename, content: source }],
-        stdin,
-        compile_timeout: 10000,
-        run_timeout: 3000,
-        compile_memory_limit: 256 * 1024 * 1024,
-        run_memory_limit: 128 * 1024 * 1024
-      }),
-      signal: AbortSignal.timeout(20000)
-    });
-    const result = await response.json().catch(() => null);
-    if (!response.ok || !result || typeof result !== 'object') {
-      console.error(`Private code runner execution failed with HTTP ${response.status}.`);
-      return res.status(502).json({ error: 'The isolated code runner could not complete this run. Try again shortly.' });
-    }
-
-    const compileOutput = String(result.compile?.output || '').slice(0, 16000);
-    const runOutput = String(result.run?.output || '').slice(0, 16000);
-    return res.json({
-      data: {
-        compileOutput,
-        output: runOutput,
-        exitCode: Number.isInteger(result.run?.code) ? result.run.code : null,
-        signal: typeof result.run?.signal === 'string' ? result.run.signal : null,
-        stoppedByLimit: result.run?.signal === 'SIGKILL'
-      }
-    });
-  } catch (error) {
-    console.error('Code Playground runner request failed:', error);
-    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
-      return res.status(504).json({ error: 'The code runner took too long to respond. Try again.' });
-    }
-    return res.status(502).json({ error: 'The private code runner is unavailable. Please try again later.' });
-  } finally {
-    activeCodeRuns.delete(studentId);
-    const remaining = (codeRunTimestamps.get(studentId) || []).filter(time => time > Date.now() - 60_000);
-    if (remaining.length) codeRunTimestamps.set(studentId, remaining);
-    else codeRunTimestamps.delete(studentId);
-  }
-});
 
 app.post('/api/student/workspace/convert', requireStudent, async (req, res) => {
   const { filename, data, to } = req.body || {};
