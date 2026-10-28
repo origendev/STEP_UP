@@ -12,6 +12,55 @@
 
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/student-auth.css">
+<style>
+  .signature-box {
+    background: rgba(255,255,255,0.28);
+    border: 1px solid rgba(117, 129, 162, 0.25);
+    border-radius: 16px;
+    padding: 12px;
+    margin-top: 10px;
+  }
+  .signature-box canvas {
+    width: 100%;
+    min-height: 180px;
+    display: block;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(117, 129, 162, 0.28);
+    cursor: crosshair;
+  }
+  .signature-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .upload-signature {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(116, 104, 190, 0.08);
+    color: #2a2545;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .upload-signature input {
+    display: none;
+  }
+  .signature-preview {
+    max-width: 220px;
+    max-height: 90px;
+    display: none;
+    border-radius: 10px;
+    border: 1px solid rgba(117, 129, 162, 0.25);
+    background: #fff;
+    margin-top: 10px;
+  }
+</style>
 </head>
 
 <body class="profile-setup-page">
@@ -105,13 +154,62 @@
 </label>
 </div>
 
+<div class="form-grid">
 <label>CGPA / Percentage
 <input id="cgpa" type="number" step="0.01">
 </label>
 
+<label>School / board marks (10th / 12th / equivalent)
+<input id="schoolMarks" placeholder="For example: 96.4% or 485/500">
+</label>
+</div>
+
+<div class="form-grid">
+<label>CGPA proof upload
+<input id="cgpaProof" type="file" accept="image/*,.pdf">
+</label>
+
+<label>School marks proof upload
+<input id="schoolMarksProof" type="file" accept="image/*,.pdf">
+</label>
+</div>
+
 <label>Other educational qualifications
 <textarea id="education" placeholder="Example: Higher Secondary — ABC School — 2022 — 92%"></textarea>
 </label>
+</section>
+
+<!-- VERIFICATION -->
+<section class="profile-setup-card">
+<h2>Verification details</h2>
+<p>Attach proof for identity and academic documents. Admins can review the uploaded proof before approval.</p>
+
+<div class="form-grid">
+<label>Aadhaar number
+<input id="aadhaarNumber" inputmode="numeric" placeholder="1234 5678 9012">
+</label>
+
+<label>Aadhaar proof upload
+<input id="aadhaarProof" type="file" accept="image/*,.pdf">
+</label>
+</div>
+
+<label>Signature for verification</label>
+<div class="signature-box">
+  <canvas id="signatureCanvas" width="520" height="180"></canvas>
+  <div class="signature-actions">
+    <button type="button" id="signatureClear" class="student-auth-link" style="padding:0;">Clear</button>
+    <label class="upload-signature">
+      <input id="signatureUpload" type="file" accept="image/*">
+      <span>Upload signature image</span>
+    </label>
+  </div>
+</div>
+<img id="signaturePreview" class="signature-preview" alt="Signature preview" />
+<input type="hidden" id="signatureData">
+<input type="hidden" id="cgpaProofData">
+<input type="hidden" id="schoolMarksProofData">
+<input type="hidden" id="aadhaarProofData">
 </section>
 
 <!-- SKILLS -->
@@ -224,11 +322,99 @@ const lines = value =>
     .filter(Boolean)
     .map(x => ({ details: x }));
 
+const readFileAsDataUrl = file => new Promise((resolve, reject) => {
+  if (!file) return resolve('');
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('Unable to read the uploaded file.'));
+  reader.readAsDataURL(file);
+});
+
+const signatureCanvas = $('signatureCanvas');
+const signatureContext = signatureCanvas.getContext('2d');
+let currentStudentProfile = {};
+
+function prepareSignatureCanvas() {
+  signatureContext.lineWidth = 2.2;
+  signatureContext.lineCap = 'round';
+  signatureContext.lineJoin = 'round';
+  signatureContext.strokeStyle = '#1a1838';
+
+  let drawing = false;
+  let previousX = 0;
+  let previousY = 0;
+
+  const getPointerPosition = event => {
+    const rect = signatureCanvas.getBoundingClientRect();
+    const scaleX = signatureCanvas.width / rect.width;
+    const scaleY = signatureCanvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY
+    };
+  };
+
+  const beginStroke = event => {
+    drawing = true;
+    const point = getPointerPosition(event);
+    previousX = point.x;
+    previousY = point.y;
+    signatureContext.beginPath();
+    signatureContext.moveTo(point.x, point.y);
+    signatureContext.lineTo(point.x, point.y);
+    signatureContext.stroke();
+  };
+
+  const moveStroke = event => {
+    if (!drawing) return;
+    const point = getPointerPosition(event);
+    signatureContext.beginPath();
+    signatureContext.moveTo(previousX, previousY);
+    signatureContext.lineTo(point.x, point.y);
+    signatureContext.stroke();
+    previousX = point.x;
+    previousY = point.y;
+  };
+
+  const endStroke = () => {
+    drawing = false;
+    const dataUrl = signatureCanvas.toDataURL('image/png');
+    $('signatureData').value = dataUrl;
+    $('signaturePreview').src = dataUrl;
+    $('signaturePreview').style.display = 'block';
+  };
+
+  signatureCanvas.addEventListener('pointerdown', beginStroke);
+  signatureCanvas.addEventListener('pointermove', moveStroke);
+  signatureCanvas.addEventListener('pointerup', endStroke);
+  signatureCanvas.addEventListener('pointerleave', endStroke);
+  signatureCanvas.addEventListener('pointercancel', endStroke);
+
+  $('signatureClear').addEventListener('click', () => {
+    signatureContext.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+    $('signatureData').value = '';
+    $('signaturePreview').src = '';
+    $('signaturePreview').style.display = 'none';
+  });
+
+  $('signatureUpload').addEventListener('change', async event => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const dataUrl = await readFileAsDataUrl(file);
+    $('signatureData').value = dataUrl;
+    $('signaturePreview').src = dataUrl;
+    $('signaturePreview').style.display = 'block';
+  });
+}
+
+prepareSignatureCanvas();
+
 // Load existing student profile
 const load = async () => {
   try {
     const response = await api('/student/me');
     const student = response.data;
+    currentStudentProfile = student.profile_details || {};
 
     const fields = [
       'name',
@@ -247,7 +433,9 @@ const load = async () => {
       'summary',
       'linkedin',
       'github',
-      'portfolio'
+      'portfolio',
+      'schoolMarks',
+      'aadhaarNumber'
     ];
 
     fields.forEach(key => {
@@ -261,6 +449,9 @@ const load = async () => {
         element.value = student[key];
       }
     });
+
+    $('schoolMarks').value = currentStudentProfile.schoolMarks || $('schoolMarks').value || '';
+    $('aadhaarNumber').value = currentStudentProfile.aadhaarNumber || $('aadhaarNumber').value || '';
 
     $('skills').value =
       (student.skills || []).join(', ');
@@ -288,6 +479,16 @@ const load = async () => {
         .map(item => item.details || '')
         .join('\n');
 
+    $('cgpaProofData').value = currentStudentProfile.cgpaProof || '';
+    $('schoolMarksProofData').value = currentStudentProfile.schoolMarksProof || '';
+    $('aadhaarProofData').value = currentStudentProfile.aadhaarProof || '';
+    $('signatureData').value = currentStudentProfile.signature || '';
+
+    if (currentStudentProfile.signature) {
+      $('signaturePreview').src = currentStudentProfile.signature;
+      $('signaturePreview').style.display = 'block';
+    }
+
   } catch (error) {
     clearSession();
     location.href = 'student-login.html';
@@ -304,7 +505,12 @@ form.addEventListener('submit', async event => {
   save.disabled = true;
   save.textContent = 'Saving...';
 
-  // Read values directly from the form fields
+  const proofData = await Promise.all([
+    readFileAsDataUrl($('cgpaProof').files && $('cgpaProof').files[0]),
+    readFileAsDataUrl($('schoolMarksProof').files && $('schoolMarksProof').files[0]),
+    readFileAsDataUrl($('aadhaarProof').files && $('aadhaarProof').files[0])
+  ]);
+
   const data = {
     name: $('name').value.trim(),
     regNo: $('regNo').value.trim(),
@@ -321,6 +527,8 @@ form.addEventListener('submit', async event => {
 
     graduationYear: $('graduationYear').value,
     cgpa: $('cgpa').value,
+    schoolMarks: $('schoolMarks').value.trim(),
+    aadhaarNumber: $('aadhaarNumber').value.trim(),
 
     skills: csv($('skills').value),
     languages: csv($('languages').value),
@@ -335,10 +543,19 @@ form.addEventListener('submit', async event => {
 
     linkedin: $('linkedin').value,
     github: $('github').value,
-    portfolio: $('portfolio').value
+    portfolio: $('portfolio').value,
+
+    profileDetails: {
+      ...currentStudentProfile,
+      schoolMarks: $('schoolMarks').value.trim(),
+      aadhaarNumber: $('aadhaarNumber').value.trim(),
+      cgpaProof: $('cgpaProofData').value || proofData[0] || currentStudentProfile.cgpaProof || '',
+      schoolMarksProof: $('schoolMarksProofData').value || proofData[1] || currentStudentProfile.schoolMarksProof || '',
+      aadhaarProof: $('aadhaarProofData').value || proofData[2] || currentStudentProfile.aadhaarProof || '',
+      signature: $('signatureData').value || currentStudentProfile.signature || ''
+    }
   };
 
-  // Validate required fields
   if (
     !data.name ||
     !data.regNo ||
