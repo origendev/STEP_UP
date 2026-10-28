@@ -13,11 +13,20 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/student-auth.css">
 <style>
+  .verification-panel {
+    grid-column: 1 / -1;
+  }
   .verification-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
     margin-top: 8px;
+  }
+  .side-by-side-grid {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
   .compact-textarea {
     min-height: 62px;
@@ -159,6 +168,14 @@
   }
   @media (max-width: 980px) {
     .verification-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .side-by-side-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  @media (max-width: 720px) {
+    .verification-grid {
       grid-template-columns: 1fr;
     }
   }
@@ -278,7 +295,7 @@
 </section>
 
 <!-- VERIFICATION -->
-<section class="profile-setup-card">
+<section class="profile-setup-card verification-panel">
 <h2>Verification details</h2>
 <p>Attach proof and signature for each academic or identity record. Admins can review the uploaded documents before approval.</p>
 
@@ -401,39 +418,41 @@
 </div>
 </section>
 
-<!-- SKILLS -->
-<section class="profile-setup-card">
-<h2>Skills & languages</h2>
-<p>Separate multiple entries with commas.</p>
+<div class="side-by-side-grid">
+  <!-- SKILLS -->
+  <section class="profile-setup-card">
+  <h2>Skills & languages</h2>
+  <p>Separate multiple entries with commas.</p>
 
-<div class="form-grid">
-<label>Technical / professional skills
-<input id="skills" placeholder="Python, SQL, JavaScript, Git">
-</label>
+  <div class="form-grid">
+  <label>Technical / professional skills
+  <input id="skills" placeholder="Python, SQL, JavaScript, Git">
+  </label>
 
-<label>Languages known
-<input id="languages" placeholder="English, Malayalam, Tamil">
-</label>
+  <label>Languages known
+  <input id="languages" placeholder="English, Malayalam, Tamil">
+  </label>
+  </div>
+
+  <label>Certifications
+  <textarea id="certifications" class="compact-textarea" placeholder="Certification — Issuer — Year"></textarea>
+  </label>
+  </section>
+
+  <!-- EXPERIENCE -->
+  <section class="profile-setup-card">
+  <h2>Experience & projects</h2>
+  <p>Internships, previous experience and academic projects.</p>
+
+  <label>Previous experience
+  <textarea id="experience" placeholder="Role — Organization — Duration — Key responsibilities"></textarea>
+  </label>
+
+  <label>Projects
+  <textarea id="projects" placeholder="Project name — technologies — short description"></textarea>
+  </label>
+  </section>
 </div>
-
-<label>Certifications
-<textarea id="certifications" class="compact-textarea" placeholder="Certification — Issuer — Year"></textarea>
-</label>
-</section>
-
-<!-- EXPERIENCE -->
-<section class="profile-setup-card">
-<h2>Experience & projects</h2>
-<p>Internships, previous experience and academic projects.</p>
-
-<label>Previous experience
-<textarea id="experience" placeholder="Role — Organization — Duration — Key responsibilities"></textarea>
-</label>
-
-<label>Projects
-<textarea id="projects" placeholder="Project name — technologies — short description"></textarea>
-</label>
-</section>
 
 <!-- ACHIEVEMENTS -->
 <section class="profile-setup-card full">
