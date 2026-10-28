@@ -13,16 +13,75 @@
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/student-auth.css">
 <style>
+  .verification-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+    margin-top: 12px;
+  }
+  .verification-card {
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(117,129,162,0.22);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 8px 20px rgba(32, 28, 52, 0.04);
+  }
+  .verification-card h3 {
+    margin: 0 0 12px;
+    font-size: 1.1rem;
+    color: #201b36;
+  }
+  .verification-stack {
+    display: grid;
+    gap: 12px;
+  }
+  .upload-inline {
+    display: grid;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #3d3759;
+    font-weight: 600;
+  }
+  .upload-inline input[type="file"] {
+    width: 100%;
+    border: 1px solid rgba(117,129,162,0.28);
+    border-radius: 12px;
+    background: rgba(255,255,255,0.4);
+    padding: 10px 12px;
+    font: inherit;
+  }
+  .signature-widget {
+    margin-top: 8px;
+    border-top: 1px solid rgba(117,129,162,0.18);
+    padding-top: 12px;
+  }
+  .signature-toggle {
+    border: 1px solid rgba(90,79,147,0.24);
+    background: rgba(116,104,190,0.08);
+    color: #2a2545;
+    font-weight: 700;
+    border-radius: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    width: 100%;
+  }
+  .signature-tools {
+    display: none;
+    margin-top: 12px;
+  }
+  .signature-tools.active {
+    display: block;
+  }
   .signature-box {
     background: rgba(255,255,255,0.28);
     border: 1px solid rgba(117, 129, 162, 0.25);
     border-radius: 16px;
-    padding: 12px;
+    padding: 10px;
     margin-top: 10px;
   }
   .signature-box canvas {
     width: 100%;
-    min-height: 180px;
+    min-height: 120px;
     display: block;
     background: #fff;
     border-radius: 12px;
@@ -33,7 +92,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     margin-top: 10px;
     flex-wrap: wrap;
   }
@@ -47,18 +106,25 @@
     color: #2a2545;
     font-weight: 600;
     cursor: pointer;
+    flex: 1;
+    justify-content: center;
   }
   .upload-signature input {
     display: none;
   }
   .signature-preview {
-    max-width: 220px;
-    max-height: 90px;
+    max-width: 180px;
+    max-height: 70px;
     display: none;
     border-radius: 10px;
     border: 1px solid rgba(117, 129, 162, 0.25);
     background: #fff;
     margin-top: 10px;
+  }
+  @media (max-width: 980px) {
+    .verification-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
 </head>
@@ -154,24 +220,53 @@
 </label>
 </div>
 
-<div class="form-grid">
-<label>CGPA / Percentage
-<input id="cgpa" type="number" step="0.01">
-</label>
+<div class="verification-grid">
+  <div class="verification-card">
+    <h3>10th marks</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">Score
+        <input id="tenthScore" placeholder="Example: 96.4% or 485/500">
+      </label>
+      <label class="upload-inline">Proof upload
+        <input id="tenthProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="tenthProofData">
+    </div>
+  </div>
 
-<label>School / board marks (10th / 12th / equivalent)
-<input id="schoolMarks" placeholder="For example: 96.4% or 485/500">
-</label>
-</div>
+  <div class="verification-card">
+    <h3>12th marks</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">Score
+        <input id="twelfthScore" placeholder="Example: 94.8% or 470/500">
+      </label>
+      <label class="upload-inline">Proof upload
+        <input id="twelfthProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="twelfthProofData">
+    </div>
+  </div>
 
-<div class="form-grid">
-<label>CGPA proof upload
-<input id="cgpaProof" type="file" accept="image/*,.pdf">
-</label>
+  <div class="verification-card">
+    <h3>Academic & identity</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">CGPA / Percentage
+        <input id="cgpa" type="number" step="0.01">
+      </label>
+      <label class="upload-inline">CGPA proof upload
+        <input id="cgpaProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="cgpaProofData">
 
-<label>School marks proof upload
-<input id="schoolMarksProof" type="file" accept="image/*,.pdf">
-</label>
+      <label class="upload-inline">Aadhaar number
+        <input id="aadhaarNumber" inputmode="numeric" placeholder="1234 5678 9012">
+      </label>
+      <label class="upload-inline">Aadhaar proof upload
+        <input id="aadhaarProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="aadhaarProofData">
+    </div>
+  </div>
 </div>
 
 <label>Other educational qualifications
@@ -182,34 +277,72 @@
 <!-- VERIFICATION -->
 <section class="profile-setup-card">
 <h2>Verification details</h2>
-<p>Attach proof for identity and academic documents. Admins can review the uploaded proof before approval.</p>
+<p>Upload or draw a signature for each verification record as needed. Admins can review the attached proof before approval.</p>
 
-<div class="form-grid">
-<label>Aadhaar number
-<input id="aadhaarNumber" inputmode="numeric" placeholder="1234 5678 9012">
-</label>
+<div class="verification-grid">
+  <div class="verification-card">
+    <h3>10th signature</h3>
+    <div class="signature-widget">
+      <button type="button" class="signature-toggle" data-target="tenthSignatureTools">Add signature</button>
+      <div class="signature-tools" id="tenthSignatureTools">
+        <div class="signature-box">
+          <canvas data-signature-target="tenth" width="520" height="120"></canvas>
+          <div class="signature-actions">
+            <button type="button" class="student-auth-link signature-clear" data-signature-target="tenth" style="padding:0;">Clear</button>
+            <label class="upload-signature">
+              <input type="file" class="signature-upload" data-signature-target="tenth" accept="image/*">
+              <span>Upload image</span>
+            </label>
+          </div>
+        </div>
+        <img class="signature-preview" data-signature-preview="tenth" alt="10th signature preview" />
+        <input type="hidden" id="tenthSignatureData">
+      </div>
+    </div>
+  </div>
 
-<label>Aadhaar proof upload
-<input id="aadhaarProof" type="file" accept="image/*,.pdf">
-</label>
-</div>
+  <div class="verification-card">
+    <h3>12th signature</h3>
+    <div class="signature-widget">
+      <button type="button" class="signature-toggle" data-target="twelfthSignatureTools">Add signature</button>
+      <div class="signature-tools" id="twelfthSignatureTools">
+        <div class="signature-box">
+          <canvas data-signature-target="twelfth" width="520" height="120"></canvas>
+          <div class="signature-actions">
+            <button type="button" class="student-auth-link signature-clear" data-signature-target="twelfth" style="padding:0;">Clear</button>
+            <label class="upload-signature">
+              <input type="file" class="signature-upload" data-signature-target="twelfth" accept="image/*">
+              <span>Upload image</span>
+            </label>
+          </div>
+        </div>
+        <img class="signature-preview" data-signature-preview="twelfth" alt="12th signature preview" />
+        <input type="hidden" id="twelfthSignatureData">
+      </div>
+    </div>
+  </div>
 
-<label>Signature for verification</label>
-<div class="signature-box">
-  <canvas id="signatureCanvas" width="520" height="180"></canvas>
-  <div class="signature-actions">
-    <button type="button" id="signatureClear" class="student-auth-link" style="padding:0;">Clear</button>
-    <label class="upload-signature">
-      <input id="signatureUpload" type="file" accept="image/*">
-      <span>Upload signature image</span>
-    </label>
+  <div class="verification-card">
+    <h3>Aadhaar signature</h3>
+    <div class="signature-widget">
+      <button type="button" class="signature-toggle" data-target="aadhaarSignatureTools">Add signature</button>
+      <div class="signature-tools" id="aadhaarSignatureTools">
+        <div class="signature-box">
+          <canvas data-signature-target="aadhaar" width="520" height="120"></canvas>
+          <div class="signature-actions">
+            <button type="button" class="student-auth-link signature-clear" data-signature-target="aadhaar" style="padding:0;">Clear</button>
+            <label class="upload-signature">
+              <input type="file" class="signature-upload" data-signature-target="aadhaar" accept="image/*">
+              <span>Upload image</span>
+            </label>
+          </div>
+        </div>
+        <img class="signature-preview" data-signature-preview="aadhaar" alt="Aadhaar signature preview" />
+        <input type="hidden" id="aadhaarSignatureData">
+      </div>
+    </div>
   </div>
 </div>
-<img id="signaturePreview" class="signature-preview" alt="Signature preview" />
-<input type="hidden" id="signatureData">
-<input type="hidden" id="cgpaProofData">
-<input type="hidden" id="schoolMarksProofData">
-<input type="hidden" id="aadhaarProofData">
 </section>
 
 <!-- SKILLS -->
@@ -330,28 +463,39 @@ const readFileAsDataUrl = file => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-const signatureCanvas = $('signatureCanvas');
-const signatureContext = signatureCanvas.getContext('2d');
 let currentStudentProfile = {};
 
-function prepareSignatureCanvas() {
-  signatureContext.lineWidth = 2.2;
-  signatureContext.lineCap = 'round';
-  signatureContext.lineJoin = 'round';
-  signatureContext.strokeStyle = '#1a1838';
+function setupSignaturePad(canvas) {
+  const context = canvas.getContext('2d');
+  context.lineWidth = 2.2;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  context.strokeStyle = '#1a1838';
 
   let drawing = false;
   let previousX = 0;
   let previousY = 0;
 
   const getPointerPosition = event => {
-    const rect = signatureCanvas.getBoundingClientRect();
-    const scaleX = signatureCanvas.width / rect.width;
-    const scaleY = signatureCanvas.height / rect.height;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     return {
       x: (event.clientX - rect.left) * scaleX,
       y: (event.clientY - rect.top) * scaleY
     };
+  };
+
+  const updatePreview = () => {
+    const target = canvas.dataset.signatureTarget;
+    const preview = document.querySelector(`[data-signature-preview="${target}"]`);
+    const hidden = document.getElementById(`${target}SignatureData`);
+    if (preview) {
+      const dataUrl = canvas.toDataURL('image/png');
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+      if (hidden) hidden.value = dataUrl;
+    }
   };
 
   const beginStroke = event => {
@@ -359,55 +503,72 @@ function prepareSignatureCanvas() {
     const point = getPointerPosition(event);
     previousX = point.x;
     previousY = point.y;
-    signatureContext.beginPath();
-    signatureContext.moveTo(point.x, point.y);
-    signatureContext.lineTo(point.x, point.y);
-    signatureContext.stroke();
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    context.lineTo(point.x, point.y);
+    context.stroke();
   };
 
   const moveStroke = event => {
     if (!drawing) return;
     const point = getPointerPosition(event);
-    signatureContext.beginPath();
-    signatureContext.moveTo(previousX, previousY);
-    signatureContext.lineTo(point.x, point.y);
-    signatureContext.stroke();
+    context.beginPath();
+    context.moveTo(previousX, previousY);
+    context.lineTo(point.x, point.y);
+    context.stroke();
     previousX = point.x;
     previousY = point.y;
   };
 
   const endStroke = () => {
     drawing = false;
-    const dataUrl = signatureCanvas.toDataURL('image/png');
-    $('signatureData').value = dataUrl;
-    $('signaturePreview').src = dataUrl;
-    $('signaturePreview').style.display = 'block';
+    updatePreview();
   };
 
-  signatureCanvas.addEventListener('pointerdown', beginStroke);
-  signatureCanvas.addEventListener('pointermove', moveStroke);
-  signatureCanvas.addEventListener('pointerup', endStroke);
-  signatureCanvas.addEventListener('pointerleave', endStroke);
-  signatureCanvas.addEventListener('pointercancel', endStroke);
+  canvas.addEventListener('pointerdown', beginStroke);
+  canvas.addEventListener('pointermove', moveStroke);
+  canvas.addEventListener('pointerup', endStroke);
+  canvas.addEventListener('pointerleave', endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
 
-  $('signatureClear').addEventListener('click', () => {
-    signatureContext.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
-    $('signatureData').value = '';
-    $('signaturePreview').src = '';
-    $('signaturePreview').style.display = 'none';
+  const clearButton = document.querySelector(`.signature-clear[data-signature-target="${canvas.dataset.signatureTarget}"]`);
+  clearButton?.addEventListener('click', () => {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    const preview = document.querySelector(`[data-signature-preview="${canvas.dataset.signatureTarget}"]`);
+    const hidden = document.getElementById(`${canvas.dataset.signatureTarget}SignatureData`);
+    if (preview) {
+      preview.src = '';
+      preview.style.display = 'none';
+    }
+    if (hidden) hidden.value = '';
   });
 
-  $('signatureUpload').addEventListener('change', async event => {
+  const uploadInput = document.querySelector(`.signature-upload[data-signature-target="${canvas.dataset.signatureTarget}"]`);
+  uploadInput?.addEventListener('change', async event => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
     const dataUrl = await readFileAsDataUrl(file);
-    $('signatureData').value = dataUrl;
-    $('signaturePreview').src = dataUrl;
-    $('signaturePreview').style.display = 'block';
+    const preview = document.querySelector(`[data-signature-preview="${canvas.dataset.signatureTarget}"]`);
+    const hidden = document.getElementById(`${canvas.dataset.signatureTarget}SignatureData`);
+    if (preview) {
+      preview.src = dataUrl;
+      preview.style.display = 'block';
+    }
+    if (hidden) hidden.value = dataUrl;
+    context.clearRect(0, 0, canvas.width, canvas.height);
   });
 }
 
-prepareSignatureCanvas();
+[...document.querySelectorAll('canvas[data-signature-target]')].forEach(setupSignaturePad);
+
+document.querySelectorAll('.signature-toggle').forEach(button => {
+  button.addEventListener('click', () => {
+    const target = document.getElementById(button.dataset.target);
+    if (!target) return;
+    target.classList.toggle('active');
+    button.textContent = target.classList.contains('active') ? 'Hide signature pad' : 'Add signature';
+  });
+});
 
 // Load existing student profile
 const load = async () => {
@@ -434,7 +595,6 @@ const load = async () => {
       'linkedin',
       'github',
       'portfolio',
-      'schoolMarks',
       'aadhaarNumber'
     ];
 
@@ -450,43 +610,60 @@ const load = async () => {
       }
     });
 
-    $('schoolMarks').value = currentStudentProfile.schoolMarks || $('schoolMarks').value || '';
-    $('aadhaarNumber').value = currentStudentProfile.aadhaarNumber || $('aadhaarNumber').value || '';
+    const tenthScoreValue = currentStudentProfile.tenthScore || student.tenthScore || '';
+    const twelfthScoreValue = currentStudentProfile.twelfthScore || student.twelfthScore || '';
+    const schoolMarksText = [currentStudentProfile.schoolMarks, tenthScoreValue, twelfthScoreValue].filter(Boolean).join(' / ');
 
-    $('skills').value =
-      (student.skills || []).join(', ');
+    $('tenthScore').value = tenthScoreValue;
+    $('twelfthScore').value = twelfthScoreValue;
+    $('aadhaarNumber').value = currentStudentProfile.aadhaarNumber || student.aadhaarNumber || $('aadhaarNumber').value || '';
 
-    $('languages').value =
-      (student.languages || []).join(', ');
+    $('skills').value = (student.skills || []).join(', ');
+    $('languages').value = (student.languages || []).join(', ');
 
-    $('education').value =
-      (student.education || [])
-        .map(item => item.details || '')
-        .join('\n');
+    $('education').value = (student.education || [])
+      .map(item => item.details || '')
+      .join('\n');
 
-    $('experience').value =
-      (student.experience || [])
-        .map(item => item.details || '')
-        .join('\n');
+    $('experience').value = (student.experience || [])
+      .map(item => item.details || '')
+      .join('\n');
 
-    $('certifications').value =
-      (student.certifications || [])
-        .map(item => item.details || '')
-        .join('\n');
+    $('certifications').value = (student.certifications || [])
+      .map(item => item.details || '')
+      .join('\n');
 
-    $('projects').value =
-      (student.projects || [])
-        .map(item => item.details || '')
-        .join('\n');
+    $('projects').value = (student.projects || [])
+      .map(item => item.details || '')
+      .join('\n');
+
+    const signatureMap = {
+      tenth: ['tenthSignature', 'signature'],
+      twelfth: ['twelfthSignature', 'signature'],
+      aadhaar: ['aadhaarSignature', 'signature']
+    };
 
     $('cgpaProofData').value = currentStudentProfile.cgpaProof || '';
-    $('schoolMarksProofData').value = currentStudentProfile.schoolMarksProof || '';
+    $('tenthProofData').value = currentStudentProfile.tenthProof || currentStudentProfile.schoolMarksProof || '';
+    $('twelfthProofData').value = currentStudentProfile.twelfthProof || '';
     $('aadhaarProofData').value = currentStudentProfile.aadhaarProof || '';
-    $('signatureData').value = currentStudentProfile.signature || '';
 
-    if (currentStudentProfile.signature) {
-      $('signaturePreview').src = currentStudentProfile.signature;
-      $('signaturePreview').style.display = 'block';
+    Object.entries(signatureMap).forEach(([key, candidates]) => {
+      const hidden = document.getElementById(`${key}SignatureData`);
+      const preview = document.querySelector(`[data-signature-preview="${key}"]`);
+      const value = candidates
+        .map(candidate => currentStudentProfile[candidate])
+        .find(candidate => Boolean(candidate)) || '';
+
+      if (hidden) hidden.value = value;
+      if (preview && value) {
+        preview.src = value;
+        preview.style.display = 'block';
+      }
+    });
+
+    if (schoolMarksText) {
+      currentStudentProfile.schoolMarks = schoolMarksText;
     }
 
   } catch (error) {
@@ -506,10 +683,16 @@ form.addEventListener('submit', async event => {
   save.textContent = 'Saving...';
 
   const proofData = await Promise.all([
-    readFileAsDataUrl($('cgpaProof').files && $('cgpaProof').files[0]),
-    readFileAsDataUrl($('schoolMarksProof').files && $('schoolMarksProof').files[0]),
-    readFileAsDataUrl($('aadhaarProof').files && $('aadhaarProof').files[0])
+    readFileAsDataUrl($('cgpaProof')?.files && $('cgpaProof').files[0]),
+    readFileAsDataUrl($('tenthProof')?.files && $('tenthProof').files[0]),
+    readFileAsDataUrl($('twelfthProof')?.files && $('twelfthProof').files[0]),
+    readFileAsDataUrl($('aadhaarProof')?.files && $('aadhaarProof').files[0])
   ]);
+
+  const schoolMarksValue = [
+    $('tenthScore').value.trim(),
+    $('twelfthScore').value.trim()
+  ].filter(Boolean).join(' / ');
 
   const data = {
     name: $('name').value.trim(),
@@ -527,7 +710,7 @@ form.addEventListener('submit', async event => {
 
     graduationYear: $('graduationYear').value,
     cgpa: $('cgpa').value,
-    schoolMarks: $('schoolMarks').value.trim(),
+    schoolMarks: schoolMarksValue,
     aadhaarNumber: $('aadhaarNumber').value.trim(),
 
     skills: csv($('skills').value),
@@ -547,12 +730,18 @@ form.addEventListener('submit', async event => {
 
     profileDetails: {
       ...currentStudentProfile,
-      schoolMarks: $('schoolMarks').value.trim(),
+      schoolMarks: schoolMarksValue,
       aadhaarNumber: $('aadhaarNumber').value.trim(),
+      tenthScore: $('tenthScore').value.trim(),
+      twelfthScore: $('twelfthScore').value.trim(),
       cgpaProof: $('cgpaProofData').value || proofData[0] || currentStudentProfile.cgpaProof || '',
-      schoolMarksProof: $('schoolMarksProofData').value || proofData[1] || currentStudentProfile.schoolMarksProof || '',
-      aadhaarProof: $('aadhaarProofData').value || proofData[2] || currentStudentProfile.aadhaarProof || '',
-      signature: $('signatureData').value || currentStudentProfile.signature || ''
+      tenthProof: $('tenthProofData').value || proofData[1] || currentStudentProfile.tenthProof || currentStudentProfile.schoolMarksProof || '',
+      twelfthProof: $('twelfthProofData').value || proofData[2] || currentStudentProfile.twelfthProof || '',
+      aadhaarProof: $('aadhaarProofData').value || proofData[3] || currentStudentProfile.aadhaarProof || '',
+      tenthSignature: $('tenthSignatureData').value || currentStudentProfile.tenthSignature || currentStudentProfile.signature || '',
+      twelfthSignature: $('twelfthSignatureData').value || currentStudentProfile.twelfthSignature || '',
+      aadhaarSignature: $('aadhaarSignatureData').value || currentStudentProfile.aadhaarSignature || '',
+      signature: $('tenthSignatureData').value || $('twelfthSignatureData').value || $('aadhaarSignatureData').value || currentStudentProfile.signature || ''
     }
   };
 
