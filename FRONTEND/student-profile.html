@@ -15,11 +15,14 @@
 <style>
   .verification-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 18px;
-    margin-top: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 14px;
   }
   .verification-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     background: rgba(255,255,255,0.18);
     border: 1px solid rgba(117,129,162,0.22);
     border-radius: 18px;
@@ -27,8 +30,8 @@
     box-shadow: 0 8px 20px rgba(32, 28, 52, 0.04);
   }
   .verification-card h3 {
-    margin: 0 0 12px;
-    font-size: 1.1rem;
+    margin: 0;
+    font-size: 1.05rem;
     color: #201b36;
   }
   .verification-stack {
@@ -38,7 +41,7 @@
   .upload-inline {
     display: grid;
     gap: 6px;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: #3d3759;
     font-weight: 600;
   }
@@ -51,33 +54,23 @@
     font: inherit;
   }
   .signature-widget {
-    margin-top: 8px;
+    margin-top: 4px;
     border-top: 1px solid rgba(117,129,162,0.18);
     padding-top: 12px;
   }
   .signature-toggle {
-    border: 1px solid rgba(90,79,147,0.24);
-    background: rgba(116,104,190,0.08);
-    color: #2a2545;
-    font-weight: 700;
-    border-radius: 10px;
-    padding: 8px 12px;
-    cursor: pointer;
-    width: 100%;
+    display: none;
   }
   .signature-tools {
-    display: none;
-    margin-top: 12px;
-  }
-  .signature-tools.active {
     display: block;
+    margin-top: 0;
   }
   .signature-box {
     background: rgba(255,255,255,0.28);
     border: 1px solid rgba(117, 129, 162, 0.25);
     border-radius: 16px;
     padding: 10px;
-    margin-top: 10px;
+    margin-top: 4px;
   }
   .signature-box canvas {
     width: 100%;
@@ -113,9 +106,9 @@
     display: none;
   }
   .signature-preview {
+    display: none;
     max-width: 180px;
     max-height: 70px;
-    display: none;
     border-radius: 10px;
     border: 1px solid rgba(117, 129, 162, 0.25);
     background: #fff;
@@ -277,68 +270,121 @@
 <!-- VERIFICATION -->
 <section class="profile-setup-card">
 <h2>Verification details</h2>
-<p>Upload or draw a signature for each verification record as needed. Admins can review the attached proof before approval.</p>
+<p>Attach proof and signature for each academic or identity record. Admins can review the uploaded documents before approval.</p>
 
 <div class="verification-grid">
   <div class="verification-card">
-    <h3>10th signature</h3>
-    <div class="signature-widget">
-      <button type="button" class="signature-toggle" data-target="tenthSignatureTools">Add signature</button>
-      <div class="signature-tools" id="tenthSignatureTools">
-        <div class="signature-box">
-          <canvas data-signature-target="tenth" width="520" height="120"></canvas>
-          <div class="signature-actions">
-            <button type="button" class="student-auth-link signature-clear" data-signature-target="tenth" style="padding:0;">Clear</button>
-            <label class="upload-signature">
-              <input type="file" class="signature-upload" data-signature-target="tenth" accept="image/*">
-              <span>Upload image</span>
-            </label>
+    <h3>10th marks</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">Score
+        <input id="tenthScore" placeholder="Example: 96.4% or 485/500">
+      </label>
+      <label class="upload-inline">Proof upload
+        <input id="tenthProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="tenthProofData">
+      <div class="signature-widget">
+        <div class="signature-tools active" id="tenthSignatureTools">
+          <div class="signature-box">
+            <canvas data-signature-target="tenth" width="520" height="120"></canvas>
+            <div class="signature-actions">
+              <button type="button" class="student-auth-link signature-clear" data-signature-target="tenth" style="padding:0;">Clear</button>
+              <label class="upload-signature">
+                <input type="file" class="signature-upload" data-signature-target="tenth" accept="image/*">
+                <span>Upload image</span>
+              </label>
+            </div>
           </div>
+          <img class="signature-preview" data-signature-preview="tenth" alt="10th signature preview" />
+          <input type="hidden" id="tenthSignatureData">
         </div>
-        <img class="signature-preview" data-signature-preview="tenth" alt="10th signature preview" />
-        <input type="hidden" id="tenthSignatureData">
       </div>
     </div>
   </div>
 
   <div class="verification-card">
-    <h3>12th signature</h3>
-    <div class="signature-widget">
-      <button type="button" class="signature-toggle" data-target="twelfthSignatureTools">Add signature</button>
-      <div class="signature-tools" id="twelfthSignatureTools">
-        <div class="signature-box">
-          <canvas data-signature-target="twelfth" width="520" height="120"></canvas>
-          <div class="signature-actions">
-            <button type="button" class="student-auth-link signature-clear" data-signature-target="twelfth" style="padding:0;">Clear</button>
-            <label class="upload-signature">
-              <input type="file" class="signature-upload" data-signature-target="twelfth" accept="image/*">
-              <span>Upload image</span>
-            </label>
+    <h3>12th marks</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">Score
+        <input id="twelfthScore" placeholder="Example: 94.8% or 470/500">
+      </label>
+      <label class="upload-inline">Proof upload
+        <input id="twelfthProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="twelfthProofData">
+      <div class="signature-widget">
+        <div class="signature-tools active" id="twelfthSignatureTools">
+          <div class="signature-box">
+            <canvas data-signature-target="twelfth" width="520" height="120"></canvas>
+            <div class="signature-actions">
+              <button type="button" class="student-auth-link signature-clear" data-signature-target="twelfth" style="padding:0;">Clear</button>
+              <label class="upload-signature">
+                <input type="file" class="signature-upload" data-signature-target="twelfth" accept="image/*">
+                <span>Upload image</span>
+              </label>
+            </div>
           </div>
+          <img class="signature-preview" data-signature-preview="twelfth" alt="12th signature preview" />
+          <input type="hidden" id="twelfthSignatureData">
         </div>
-        <img class="signature-preview" data-signature-preview="twelfth" alt="12th signature preview" />
-        <input type="hidden" id="twelfthSignatureData">
       </div>
     </div>
   </div>
 
   <div class="verification-card">
-    <h3>Aadhaar signature</h3>
-    <div class="signature-widget">
-      <button type="button" class="signature-toggle" data-target="aadhaarSignatureTools">Add signature</button>
-      <div class="signature-tools" id="aadhaarSignatureTools">
-        <div class="signature-box">
-          <canvas data-signature-target="aadhaar" width="520" height="120"></canvas>
-          <div class="signature-actions">
-            <button type="button" class="student-auth-link signature-clear" data-signature-target="aadhaar" style="padding:0;">Clear</button>
-            <label class="upload-signature">
-              <input type="file" class="signature-upload" data-signature-target="aadhaar" accept="image/*">
-              <span>Upload image</span>
-            </label>
+    <h3>CGPA</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">CGPA / Percentage
+        <input id="cgpa" type="number" step="0.01">
+      </label>
+      <label class="upload-inline">CGPA proof upload
+        <input id="cgpaProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="cgpaProofData">
+      <div class="signature-widget">
+        <div class="signature-tools active" id="cgpaSignatureTools">
+          <div class="signature-box">
+            <canvas data-signature-target="cgpa" width="520" height="120"></canvas>
+            <div class="signature-actions">
+              <button type="button" class="student-auth-link signature-clear" data-signature-target="cgpa" style="padding:0;">Clear</button>
+              <label class="upload-signature">
+                <input type="file" class="signature-upload" data-signature-target="cgpa" accept="image/*">
+                <span>Upload image</span>
+              </label>
+            </div>
           </div>
+          <img class="signature-preview" data-signature-preview="cgpa" alt="CGPA signature preview" />
+          <input type="hidden" id="cgpaSignatureData">
         </div>
-        <img class="signature-preview" data-signature-preview="aadhaar" alt="Aadhaar signature preview" />
-        <input type="hidden" id="aadhaarSignatureData">
+      </div>
+    </div>
+  </div>
+
+  <div class="verification-card">
+    <h3>Aadhaar</h3>
+    <div class="verification-stack">
+      <label class="upload-inline">Aadhaar number
+        <input id="aadhaarNumber" inputmode="numeric" placeholder="1234 5678 9012">
+      </label>
+      <label class="upload-inline">Aadhaar proof upload
+        <input id="aadhaarProof" type="file" accept="image/*,.pdf">
+      </label>
+      <input type="hidden" id="aadhaarProofData">
+      <div class="signature-widget">
+        <div class="signature-tools active" id="aadhaarSignatureTools">
+          <div class="signature-box">
+            <canvas data-signature-target="aadhaar" width="520" height="120"></canvas>
+            <div class="signature-actions">
+              <button type="button" class="student-auth-link signature-clear" data-signature-target="aadhaar" style="padding:0;">Clear</button>
+              <label class="upload-signature">
+                <input type="file" class="signature-upload" data-signature-target="aadhaar" accept="image/*">
+                <span>Upload image</span>
+              </label>
+            </div>
+          </div>
+          <img class="signature-preview" data-signature-preview="aadhaar" alt="Aadhaar signature preview" />
+          <input type="hidden" id="aadhaarSignatureData">
+        </div>
       </div>
     </div>
   </div>
@@ -640,6 +686,7 @@ const load = async () => {
     const signatureMap = {
       tenth: ['tenthSignature', 'signature'],
       twelfth: ['twelfthSignature', 'signature'],
+      cgpa: ['cgpaSignature', 'signature'],
       aadhaar: ['aadhaarSignature', 'signature']
     };
 
@@ -740,8 +787,9 @@ form.addEventListener('submit', async event => {
       aadhaarProof: $('aadhaarProofData').value || proofData[3] || currentStudentProfile.aadhaarProof || '',
       tenthSignature: $('tenthSignatureData').value || currentStudentProfile.tenthSignature || currentStudentProfile.signature || '',
       twelfthSignature: $('twelfthSignatureData').value || currentStudentProfile.twelfthSignature || '',
+      cgpaSignature: $('cgpaSignatureData').value || currentStudentProfile.cgpaSignature || '',
       aadhaarSignature: $('aadhaarSignatureData').value || currentStudentProfile.aadhaarSignature || '',
-      signature: $('tenthSignatureData').value || $('twelfthSignatureData').value || $('aadhaarSignatureData').value || currentStudentProfile.signature || ''
+      signature: $('tenthSignatureData').value || $('twelfthSignatureData').value || $('cgpaSignatureData').value || $('aadhaarSignatureData').value || currentStudentProfile.signature || ''
     }
   };
 
