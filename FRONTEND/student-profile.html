@@ -16,23 +16,23 @@
   .verification-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 18px;
     margin-top: 14px;
   }
   .verification-card {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    background: rgba(255,255,255,0.18);
-    border: 1px solid rgba(117,129,162,0.22);
-    border-radius: 18px;
-    padding: 16px;
-    box-shadow: 0 8px 20px rgba(32, 28, 52, 0.04);
+    background: linear-gradient(180deg, rgba(255,255,255,0.66), rgba(246,244,255,0.82));
+    border: 1px solid rgba(117,129,162,0.20);
+    border-radius: 22px;
+    padding: 18px 18px 16px;
+    box-shadow: 0 10px 28px rgba(40, 28, 80, 0.06);
   }
   .verification-card h3 {
     margin: 0;
-    font-size: 1.05rem;
-    color: #201b36;
+    font-size: 1.08rem;
+    color: #1d1a2f;
   }
   .verification-stack {
     display: grid;
@@ -40,22 +40,22 @@
   }
   .upload-inline {
     display: grid;
-    gap: 6px;
+    gap: 7px;
     font-size: 0.82rem;
     color: #3d3759;
-    font-weight: 600;
+    font-weight: 700;
   }
   .upload-inline input[type="file"] {
     width: 100%;
     border: 1px solid rgba(117,129,162,0.28);
     border-radius: 12px;
-    background: rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.7);
     padding: 10px 12px;
     font: inherit;
   }
   .signature-widget {
-    margin-top: 4px;
-    border-top: 1px solid rgba(117,129,162,0.18);
+    margin-top: 2px;
+    border-top: 1px solid rgba(117,129,162,0.14);
     padding-top: 12px;
   }
   .signature-toggle {
@@ -66,9 +66,9 @@
     margin-top: 0;
   }
   .signature-box {
-    background: rgba(255,255,255,0.28);
-    border: 1px solid rgba(117, 129, 162, 0.25);
-    border-radius: 16px;
+    background: rgba(255,255,255,0.64);
+    border: 1px solid rgba(117, 129, 162, 0.22);
+    border-radius: 18px;
     padding: 10px;
     margin-top: 4px;
   }
@@ -78,7 +78,7 @@
     display: block;
     background: #fff;
     border-radius: 12px;
-    border: 1px solid rgba(117, 129, 162, 0.28);
+    border: 1px solid rgba(117, 129, 162, 0.22);
     cursor: crosshair;
   }
   .signature-actions {
@@ -95,24 +95,30 @@
     gap: 8px;
     padding: 8px 12px;
     border-radius: 10px;
-    background: rgba(116, 104, 190, 0.08);
+    background: linear-gradient(135deg, rgba(117,102,202,0.12), rgba(117,102,202,0.04));
     color: #2a2545;
-    font-weight: 600;
+    font-weight: 700;
     cursor: pointer;
     flex: 1;
     justify-content: center;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .upload-signature:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(116,104,190,0.12);
   }
   .upload-signature input {
     display: none;
   }
   .signature-preview {
     display: none;
-    max-width: 180px;
-    max-height: 70px;
-    border-radius: 10px;
+    max-width: 200px;
+    max-height: 72px;
+    border-radius: 12px;
     border: 1px solid rgba(117, 129, 162, 0.25);
     background: #fff;
     margin-top: 10px;
+    box-shadow: 0 8px 18px rgba(40, 28, 80, 0.08);
   }
   @media (max-width: 980px) {
     .verification-grid {
@@ -211,55 +217,6 @@
 <label>Graduation year
 <input id="graduationYear" type="number" min="2000" max="2100">
 </label>
-</div>
-
-<div class="verification-grid">
-  <div class="verification-card">
-    <h3>10th marks</h3>
-    <div class="verification-stack">
-      <label class="upload-inline">Score
-        <input id="tenthScore" placeholder="Example: 96.4% or 485/500">
-      </label>
-      <label class="upload-inline">Proof upload
-        <input id="tenthProof" type="file" accept="image/*,.pdf">
-      </label>
-      <input type="hidden" id="tenthProofData">
-    </div>
-  </div>
-
-  <div class="verification-card">
-    <h3>12th marks</h3>
-    <div class="verification-stack">
-      <label class="upload-inline">Score
-        <input id="twelfthScore" placeholder="Example: 94.8% or 470/500">
-      </label>
-      <label class="upload-inline">Proof upload
-        <input id="twelfthProof" type="file" accept="image/*,.pdf">
-      </label>
-      <input type="hidden" id="twelfthProofData">
-    </div>
-  </div>
-
-  <div class="verification-card">
-    <h3>Academic & identity</h3>
-    <div class="verification-stack">
-      <label class="upload-inline">CGPA / Percentage
-        <input id="cgpa" type="number" step="0.01">
-      </label>
-      <label class="upload-inline">CGPA proof upload
-        <input id="cgpaProof" type="file" accept="image/*,.pdf">
-      </label>
-      <input type="hidden" id="cgpaProofData">
-
-      <label class="upload-inline">Aadhaar number
-        <input id="aadhaarNumber" inputmode="numeric" placeholder="1234 5678 9012">
-      </label>
-      <label class="upload-inline">Aadhaar proof upload
-        <input id="aadhaarProof" type="file" accept="image/*,.pdf">
-      </label>
-      <input type="hidden" id="aadhaarProofData">
-    </div>
-  </div>
 </div>
 
 <label>Other educational qualifications
