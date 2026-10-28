@@ -197,6 +197,10 @@
 </header>
 
 <div id="message" class="student-auth-message"></div>
+<div id="verificationStatusCard" class="student-auth-message" style="display:none;margin-bottom:14px;">
+  <strong id="verificationStatusLabel">Profile verification status</strong>
+  <span id="verificationStatusText" style="display:block;margin-top:6px;">Checking your profile verification status…</span>
+</div>
 
 <form id="profileForm">
 
@@ -523,6 +527,37 @@ function show(text, type = 'error') {
   msg.className = `student-auth-message show ${type}`;
 }
 
+function setVerificationStatus(state = 'pending') {
+  const card = $('verificationStatusCard');
+  const label = $('verificationStatusLabel');
+  const text = $('verificationStatusText');
+  if (!card || !label || !text) return;
+
+  const statusMap = {
+    approved: {
+      label: 'Verified',
+      text: 'Your profile has been verified by the admin team.',
+      tone: 'success'
+    },
+    rejected: {
+      label: 'Rejected',
+      text: 'Your profile verification has been rejected. Please update the required documents and re-submit.',
+      tone: 'error'
+    },
+    pending: {
+      label: 'Pending review',
+      text: 'Your profile is awaiting admin verification.',
+      tone: 'warning'
+    }
+  };
+
+  const active = statusMap[state] || statusMap.pending;
+  card.style.display = 'block';
+  label.textContent = active.label;
+  text.textContent = active.text;
+  card.className = `student-auth-message show ${active.tone}`;
+}
+
 const csv = value =>
   value.split(',').map(x => x.trim()).filter(Boolean);
 
@@ -653,6 +688,9 @@ const load = async () => {
     const response = await api('/student/me');
     const student = response.data;
     currentStudentProfile = student.profile_details || {};
+
+    const verificationState = currentStudentProfile.verificationStatus || (currentStudentProfile.verified ? 'approved' : currentStudentProfile.requested ? 'pending' : 'pending');
+    setVerificationStatus(verificationState);
 
     const fields = [
       'name',
@@ -816,6 +854,9 @@ form.addEventListener('submit', async event => {
 
     profileDetails: {
       ...currentStudentProfile,
+      verificationStatus: currentStudentProfile.verificationStatus || 'pending',
+      verified: currentStudentProfile.verified || false,
+      requested: currentStudentProfile.requested !== undefined ? currentStudentProfile.requested : true,
       schoolMarks: schoolMarksValue,
       aadhaarNumber: $('aadhaarNumber').value.trim(),
       tenthScore: $('tenthScore').value.trim(),

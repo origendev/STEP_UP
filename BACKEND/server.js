@@ -2429,6 +2429,38 @@ function parseAdminJson(value, fallback = []) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+function normalizeVerificationStatus(value, fallback = 'pending') {
+  const status = String(value || '').trim().toLowerCase();
+  if (['approved','verified'].includes(status)) return 'approved';
+  if (['rejected','declined'].includes(status)) return 'rejected';
+  if (['pending','requested','in_review','review_pending'].includes(status)) return 'pending';
+  return fallback;
+}
+
+function withVerificationState(profileDetails = {}, statusOverride = null) {
+  const profile = profileDetails && typeof profileDetails === 'object' ? { ...profileDetails } : {};
+  const status = normalizeVerificationStatus(
+    statusOverride !== null && statusOverride !== undefined ? statusOverride : profile.verificationStatus,
+    profile.verified ? 'approved' : 'pending'
+  );
+
+  profile.verificationStatus = status;
+  profile.verified = status === 'approved';
+  profile.requested = profile.requested || status === 'pending' || status === 'rejected';
+
+  if (status === 'approved' && !profile.approvedAt) {
+    profile.approvedAt = new Date().toISOString();
+  }
+  if (status === 'rejected' && !profile.rejectedAt) {
+    profile.rejectedAt = new Date().toISOString();
+  }
+  if (status === 'pending' && !profile.requestedAt && profile.requested) {
+    profile.requestedAt = new Date().toISOString();
+  }
+
+  return profile;
+}
+
 async function logAdminActivity(req, action, entityType = null, entityId = null, details = null) {
   try {
     await pool.query(
@@ -2847,6 +2879,58 @@ app.get('/api/admin/students/:id', requireAdmin, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Could not load the student.' });
+  }
+});
+
+app.patch('/api/admin/students/:id/verification', requireAdmin, async (req, res) => {
+  const studentId = Number(req.params.id);
+  if (!Number.isSafeInteger(studentId) || studentId < 1) {
+    return res.status(400).json({ error: 'Invalid student ID.' });
+  }
+
+  const status = normalizeVerificationStatus(req.body?.status || req.body?.verificationStatus, 'pending');
+  if (!['approved', 'rejected', 'pending'].includes(status)) {
+    return res.status(400).json({ error: 'Choose a valid verification status.' });
+  }
+
+  try {
+    const existing = await pool.query('SELECT profile_details FROM students WHERE id=$1', [studentId]);
+    if (!existing.rows[0]) {
+      return res.status(404).json({ error: 'Student not found.' });
+    }
+
+    const profile = withVerificationState(existing.rows[0].profile_details || {}, status);
+    profile.reviewedAt = new Date().toISOString();
+    profile.reviewedBy = req.admin?.adminId || ADMIN_ID;
+
+    const updated = await pool.query(
+      `UPDATE students
+         SET profile_details=$1::jsonb,
+             updated_at=NOW()
+       WHERE id=$2
+       RETURNING id, profile_details`,
+      [JSON.stringify(profile), studentId]
+    );
+
+    await logAdminActivity(
+      req,
+      status === 'approved' ? 'Student verification approved' : status === 'rejected' ? 'Student verification rejected' : 'Student verification requested',
+      'student',
+      studentId,
+      `Verification status updated to ${status}.`
+    );
+
+    res.json({
+      data: {
+        id: updated.rows[0].id,
+        verificationStatus: profile.verificationStatus,
+        verified: profile.verified,
+        profileDetails: profile
+      }
+    });
+  } catch (e) {
+    console.error('Could not update student verification:', e);
+    res.status(500).json({ error: 'Could not update the verification status.' });
   }
 });
 
