@@ -19,6 +19,9 @@
     gap: 18px;
     margin-top: 14px;
   }
+  .compact-textarea {
+    min-height: 72px;
+  }
   .verification-card {
     display: flex;
     flex-direction: column;
@@ -219,9 +222,25 @@
 </label>
 </div>
 
-<label>Other educational qualifications
-<textarea id="education" placeholder="Example: Higher Secondary — ABC School — 2022 — 92%"></textarea>
+<div class="form-grid">
+<label>10th school name
+<input id="tenthSchoolName" placeholder="ABC Higher Secondary School">
 </label>
+
+<label>10th completion year
+<input id="tenthCompletionYear" type="number" min="2000" max="2100" placeholder="2018">
+</label>
+</div>
+
+<div class="form-grid">
+<label>12th school name
+<input id="twelfthSchoolName" placeholder="XYZ Senior Secondary School">
+</label>
+
+<label>12th completion year
+<input id="twelfthCompletionYear" type="number" min="2000" max="2100" placeholder="2020">
+</label>
+</div>
 </section>
 
 <!-- VERIFICATION -->
@@ -353,6 +372,7 @@
 <h2>Skills & languages</h2>
 <p>Separate multiple entries with commas.</p>
 
+<div class="form-grid">
 <label>Technical / professional skills
 <input id="skills" placeholder="Python, SQL, JavaScript, Git">
 </label>
@@ -360,9 +380,10 @@
 <label>Languages known
 <input id="languages" placeholder="English, Malayalam, Tamil">
 </label>
+</div>
 
 <label>Certifications
-<textarea id="certifications" placeholder="Certification — Issuer — Year"></textarea>
+<textarea id="certifications" class="compact-textarea" placeholder="Certification — Issuer — Year"></textarea>
 </label>
 </section>
 
@@ -592,6 +613,10 @@ const load = async () => {
       'degree',
       'department',
       'graduationYear',
+      'tenthSchoolName',
+      'tenthCompletionYear',
+      'twelfthSchoolName',
+      'twelfthCompletionYear',
       'cgpa',
       'achievements',
       'summary',
@@ -624,9 +649,10 @@ const load = async () => {
     $('skills').value = (student.skills || []).join(', ');
     $('languages').value = (student.languages || []).join(', ');
 
-    $('education').value = (student.education || [])
-      .map(item => item.details || '')
-      .join('\n');
+    $('tenthSchoolName').value = currentStudentProfile.tenthSchoolName || student.tenthSchoolName || '';
+    $('tenthCompletionYear').value = currentStudentProfile.tenthCompletionYear || student.tenthCompletionYear || '';
+    $('twelfthSchoolName').value = currentStudentProfile.twelfthSchoolName || student.twelfthSchoolName || '';
+    $('twelfthCompletionYear').value = currentStudentProfile.twelfthCompletionYear || student.twelfthCompletionYear || '';
 
     $('experience').value = (student.experience || [])
       .map(item => item.details || '')
@@ -720,7 +746,10 @@ form.addEventListener('submit', async event => {
     skills: csv($('skills').value),
     languages: csv($('languages').value),
 
-    education: lines($('education').value),
+    education: [
+      $('tenthSchoolName').value.trim() ? { details: `10th school: ${$('tenthSchoolName').value.trim()}${$('tenthCompletionYear').value ? `, completion year: ${$('tenthCompletionYear').value.trim()}` : ''}` } : null,
+      $('twelfthSchoolName').value.trim() ? { details: `12th school: ${$('twelfthSchoolName').value.trim()}${$('twelfthCompletionYear').value ? `, completion year: ${$('twelfthCompletionYear').value.trim()}` : ''}` } : null
+    ].filter(Boolean),
     experience: lines($('experience').value),
     certifications: lines($('certifications').value),
     projects: lines($('projects').value),
