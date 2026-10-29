@@ -2729,13 +2729,12 @@ app.get('/api/admin/dashboard', requireAdmin, async (_req, res) => {
     const r = await pool.query(`
       SELECT
         (SELECT COUNT(*)::int FROM students) AS students,
-        (SELECT COUNT(*)::int FROM jobs) AS all_job_listings,
         (SELECT COUNT(*)::int FROM jobs) AS jobs,
         (SELECT COUNT(*)::int FROM job_applications) AS applications,
         (SELECT COUNT(*)::int FROM students WHERE profile_completed=TRUE) AS completed_profiles,
         (SELECT COUNT(*)::int FROM jobs WHERE apply_before >= CURRENT_DATE) AS active_jobs,
         (SELECT COUNT(*)::int FROM job_applications WHERE status='Selected') AS selected_applications,
-        (SELECT COUNT(*)::int FROM jobs WHERE approval_status='Approved') AS approved_job_listings
+        (SELECT COUNT(*)::int FROM companies WHERE admin_status='Active') AS active_companies
     `);
     res.json({ data: r.rows[0] });
   } catch (e) {
