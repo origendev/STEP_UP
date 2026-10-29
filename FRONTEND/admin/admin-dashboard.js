@@ -303,7 +303,7 @@ document.addEventListener('click',event=>{const button=event.target.closest('#st
 async function companies(){
   sectionHead('companies');
   const data=await api('/admin/companies');
-  setContent(`<div class="panel"><div class="toolbar"><input class="search" id="companySearch" placeholder="Search companies..."><button class="btn danger" id="resetCompanyData">Reset companies &amp; jobs</button></div><div id="companyTable"></div></div>`);
+  setContent(`<div class="panel"><div class="toolbar"><input class="search" id="companySearch" placeholder="Search companies..."></div><div id="companyTable"></div></div>`);
   function draw(){
     const q=($('#companySearch').value||'').toLowerCase();
     $('#companyTable').innerHTML=table(['Company','Industry','Location','Jobs','Applications','Status','Actions'],data.filter(c=>[c.name,c.industry,c.location].join(' ').toLowerCase().includes(q)).map(c=>{
@@ -316,21 +316,6 @@ async function companies(){
   }
   draw();
   $('#companySearch').oninput=draw;
-  $('#resetCompanyData').onclick=async event=>{
-    const confirmation=prompt('This permanently deletes every company, job role, application, and linked interview. Student accounts, student profiles, and admin accounts are preserved.\n\nType RESET to continue.');
-    if(confirmation!=='RESET')return;
-    const button=event.currentTarget;
-    button.disabled=true;
-    try{
-      const result=await api('/admin/companies',{method:'DELETE',body:JSON.stringify({confirmation})});
-      const deleted=result.deleted;
-      toast(`Reset complete: ${deleted.companies} companies, ${deleted.jobs} jobs, and ${deleted.applications} applications removed`);
-      await navigate('overview');
-    }catch(error){
-      toast(error.message);
-      button.disabled=false;
-    }
-  };
   $('#companyTable').onclick=async e=>{
     const button=e.target.closest('[data-company]');
     const remove=e.target.closest('[data-del]');
@@ -615,6 +600,6 @@ function formToObj(f){const o={};new FormData(f).forEach((v,k)=>o[k]=v);return o
 function openModal(title,html,onSubmit){$('#modalTitle').textContent=title;$('#modalForm').innerHTML=html;$('#modal').classList.remove('hidden');$('#cancelModal')?.addEventListener('click',closeModal);$('#modalForm').onsubmit=async e=>{e.preventDefault();try{await onSubmit(e.target)}catch(err){toast(err.message)}}}
 function closeModal(){$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
 function downloadCSV(name,rows){if(!rows.length)return toast('No data to export');const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))];const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""').replace(/\n/g,' ')}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button><button class="btn danger" id="resetCompanyData">Reset companies &amp; jobs</button></div></div></div>`);await loadOverview();$('#resetCompanyData').onclick=async event=>{const confirmation=prompt('This permanently deletes every company, job role, application, and linked interview. Student accounts, student profiles, and admin accounts are preserved.\\n\\nType RESET to continue.');if(confirmation!=='RESET')return;const button=event.currentTarget;button.disabled=true;try{const result=await api('/admin/companies',{method:'DELETE',body:JSON.stringify({confirmation})});const deleted=result.deleted;toast(`Reset complete: ${deleted.companies} companies, ${deleted.jobs} jobs, and ${deleted.applications} applications removed`);await navigate('overview')}catch(error){toast(error.message);button.disabled=false}}},students,jobs,applications,announcements,analyticsreports,activity,admins};
+const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,announcements,analyticsreports,activity,admins};
 async function navigate(name){$$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.section===name));try{await loaders[name]()}catch(e){setContent(`<div class="panel"><div class="danger-text">${esc(e.message)}</div></div>`);toast(e.message)}}
 $('#nav').onclick=e=>{const b=e.target.closest('.nav');if(b)navigate(b.dataset.section)};$('#content').onclick=async e=>{const go=e.target.closest('[data-go]');if(go){navigate(go.dataset.go);return;}const b=e.target.closest('[data-export]');if(!b)return;try{const d=await api('/admin/'+b.dataset.export);const arr=d.data||d;downloadCSV(b.dataset.export+'.csv',Array.isArray(arr)?arr:[]);toast('Report exported')}catch(err){toast(err.message)}};$('#logout').onclick=()=>{sessionStorage.clear();location.href='admin-login.html'};navigate('overview');
