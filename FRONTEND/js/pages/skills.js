@@ -46,7 +46,7 @@ function studentYear(){
 
 /* ---------- Certificates: students attach proof of a finished course ----------
    Signed-in submissions are stored for admin review; signed-out uploads stay local.
-   Images are compressed and PDFs are accepted only when smaller than 10 KB. */
+   Student files are limited to 1 MB each. */
 const certKey = () => 'stepupCerts:' + ((read('stepupStudent') || {}).reg_no || 'guest');
 const courseId = c => (c.company + '|' + c.title).toLowerCase();
 let certRecords = {};

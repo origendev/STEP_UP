@@ -49,7 +49,7 @@ const ROLE_OUTLOOK_CACHE_MS = 60 * 60 * 1000;
 const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_DOCUMENT_CONVERSION_BYTES = 10 * 1024 * 1024;
 const MAX_CONVERTED_DOCUMENT_BYTES = 20 * 1024 * 1024;
-const MAX_STUDENT_UPLOAD_BYTES = 10 * 1024;
+const MAX_STUDENT_UPLOAD_BYTES = 1024 * 1024;
 const activeDocumentConversions = new Set();
 
 if (!process.env.DATABASE_URL) {
@@ -78,7 +78,7 @@ app.use(cors({
     : true
 }));
 
-app.use(express.json({ limit: '15mb' }));
+app.use(express.json({ limit: '25mb' }));
 app.use(express.static(frontendDir));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
@@ -87,7 +87,7 @@ function hasOversizedStudentUpload(value) {
     const match = value.match(/^data:([^;,]+);base64,([A-Za-z0-9+/]+={0,2})$/);
     if (!match) return true;
     const bytes = Buffer.from(match[2], 'base64');
-    if (!bytes.length || bytes.length >= MAX_STUDENT_UPLOAD_BYTES) return true;
+    if (!bytes.length || bytes.length > MAX_STUDENT_UPLOAD_BYTES) return true;
     if (match[1] === 'application/pdf' && bytes.subarray(0, 5).toString() !== '%PDF-') return true;
     return false;
   }
@@ -3386,7 +3386,7 @@ app.put(
       : {};
     if (hasOversizedStudentUpload(profileDetails)) {
       return res.status(413).json({
-          error: 'Each uploaded image or PDF must be smaller than 10 KB. Compress or replace oversized files.'
+          error: 'Each uploaded image or PDF must be no larger than 1 MB.'
       });
     }
 
@@ -3505,8 +3505,8 @@ app.post('/api/student/skill-certificates', requireStudent, async (req, res) => 
     return res.status(400).json({ error: 'Provide a course, file name, and a valid image or PDF certificate.' });
   }
   const fileSize = Buffer.from(match[2], 'base64').length;
-  if (!fileSize || fileSize >= MAX_STUDENT_UPLOAD_BYTES) {
-    return res.status(413).json({ error: 'Certificate files must be smaller than 10 KB.' });
+  if (!fileSize || fileSize > MAX_STUDENT_UPLOAD_BYTES) {
+    return res.status(413).json({ error: 'Certificate files must be no larger than 1 MB.' });
   }
   if (match[1] === 'application/pdf' && Buffer.from(match[2], 'base64').subarray(0, 5).toString() !== '%PDF-') {
     return res.status(400).json({ error: 'The selected certificate is not a valid PDF.' });
@@ -3992,8 +3992,8 @@ app.post('/api/student/resume', requireStudent, async (req, res) => {
   try { fileData = Buffer.from(encoded, 'base64'); }
   catch { return res.status(400).json({ error: 'The uploaded PDF could not be read.' }); }
 
-  if (!fileData.length || fileData.length >= MAX_STUDENT_UPLOAD_BYTES) {
-    return res.status(413).json({ error: 'Resume PDFs must be smaller than 10 KB.' });
+  if (!fileData.length || fileData.length > MAX_STUDENT_UPLOAD_BYTES) {
+    return res.status(413).json({ error: 'Resume PDFs must be no larger than 1 MB.' });
   }
 
   if (fileData.subarray(0, 5).toString() !== '%PDF-') {
@@ -4162,8 +4162,8 @@ app.post('/api/student/resume', requireStudent, async (req, res) => {
   try { fileData = Buffer.from(encoded, 'base64'); }
   catch { return res.status(400).json({ error: 'The uploaded PDF could not be read.' }); }
 
-  if (!fileData.length || fileData.length >= MAX_STUDENT_UPLOAD_BYTES) {
-    return res.status(413).json({ error: 'Resume PDFs must be smaller than 10 KB.' });
+  if (!fileData.length || fileData.length > MAX_STUDENT_UPLOAD_BYTES) {
+    return res.status(413).json({ error: 'Resume PDFs must be no larger than 1 MB.' });
   }
 
   if (fileData.subarray(0, 5).toString() !== '%PDF-') {

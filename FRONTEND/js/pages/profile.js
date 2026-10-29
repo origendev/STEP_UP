@@ -224,7 +224,7 @@ function details(){
 
 function detailDocuments(){
   const status = S.verificationStatus === 'approved' ? 'Approved' : P.logged ? 'Pending admin approval' : 'Saved on this device';
-  return `<section class="pf-card pf-detail-documents"><div class="pf-sh"><h2>Marksheets and Aadhaar</h2></div><p class="pf-hint">If you did not upload these during sign-up, you can add them here. Images are compressed below 10 KB; PDFs must be smaller than 10 KB. Uploads and replacements are sent to the admin for approval.</p><div class="pf-detail-doc-grid">${DETAIL_DOCUMENTS.map(([key,label])=>`<div class="pf-detail-doc"><div><b>${label}</b><span class="pf-hint">${S.documents[key] ? status : 'Not uploaded'}</span></div><label class="pf-file-label">${S.documents[key] ? 'Replace file' : 'Upload file'}<input type="file" accept="image/*,application/pdf,.pdf" data-detail-document="${key}"></label>${S.documents[key] ? `<button type="button" class="pf-pill" data-detail-document-view="${key}">View uploaded file</button>` : ''}</div>`).join('')}</div></section>`;
+  return `<section class="pf-card pf-detail-documents"><div class="pf-sh"><h2>Marksheets and Aadhaar</h2></div><p class="pf-hint">If you did not upload these during sign-up, you can add them here. Files can be up to 1 MB; images retain full resolution when they fit. Uploads and replacements are sent to the admin for approval.</p><div class="pf-detail-doc-grid">${DETAIL_DOCUMENTS.map(([key,label])=>`<div class="pf-detail-doc"><div><b>${label}</b><span class="pf-hint">${S.documents[key] ? status : 'Not uploaded'}</span></div><label class="pf-file-label">${S.documents[key] ? 'Replace file' : 'Upload file'}<input type="file" accept="image/*,application/pdf,.pdf" data-detail-document="${key}"></label>${S.documents[key] ? `<button type="button" class="pf-pill" data-detail-document-view="${key}">View uploaded file</button>` : ''}</div>`).join('')}</div></section>`;
 }
 
 function academics(){
@@ -267,7 +267,7 @@ function lightbox(src){ overlay(`<div class="pf-lb"><img src="${src}" alt="Skill
 function skillModal(i){
   const cur = i == null ? { name:'', prof:'', proof:[] } : S.skills[i]; let prof = cur.prof; const proof = [...(cur.proof || [])];
   const o = overlay(`<form><h3>${i == null ? 'Add skill' : 'Edit skill'}</h3><label>Skill name<input name="name" placeholder="e.g. Python, React, Communication" value="${esc(cur.name)}"></label><label>Proficiency</label><div class="pf-chips">${PROF.map(p => `<button type="button" class="${p===prof?'on':''}" data-p="${p}">${p}</button>`).join('')}</div>
-    <label>Photo proof <small class="pf-hint">Certificate, badge or screenshot. Up to ${MAX_PROOF} photos, compressed below 10 KB each.</small></label><div class="pf-proofs" id="pfProofs"></div>
+    <label>Photo proof <small class="pf-hint">Certificate, badge or screenshot. Up to ${MAX_PROOF} photos, each up to 1 MB.</small></label><div class="pf-proofs" id="pfProofs"></div>
     <input type="file" id="pfProofFile" accept="image/*" multiple hidden>
     <div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button><button class="pf-pill pri">Save</button></div></form>`);
   const box = o.querySelector('#pfProofs'), file = o.querySelector('#pfProofFile');
@@ -342,7 +342,7 @@ async function resume(){
     <label class="pf-file-label">PDF resume
       <input id="resumeFile" type="file" accept="application/pdf,.pdf">
     </label>
-    <p class="pf-hint">PDF only • Must be smaller than 10 KB. The uploaded PDF remains the exact resume companies receive.</p>
+    <p class="pf-hint">PDF only • Maximum 1 MB. The uploaded PDF remains the exact resume companies receive.</p>
     <div class="pf-fa">
       <button type="button" class="pf-pill" data-x>Close</button>
       ${existing ? '<button type="button" class="pf-pill" id="resumeDownload">Download Current</button>' : ''}
