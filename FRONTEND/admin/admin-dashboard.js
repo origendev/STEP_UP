@@ -6,7 +6,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const admin=JSON.parse(sessionStorage.getItem(adminKey)||'{}'); $('#adminName').textContent=admin.name||admin.id||'Administrator'; $('#adminRole').textContent=admin.role||'Super Admin';
 function initials(name){return String(name||'SA').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'SA'}
 document.documentElement.dataset.theme='light'; try{localStorage.removeItem('stepupAdminTheme')}catch{} $('#adminAvatar').textContent=initials(admin.name||admin.id);
-const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles and resumes'],approvals:['Student Approvals','Review profile changes and skill certificates'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
+const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles, documents and approvals'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}
 async function api(path,opt={}){const r=await fetch(API_BASE+path,{...opt,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opt.headers||{})}});let j={};try{j=await r.json()}catch{}if(r.status===401){sessionStorage.clear();location.href='admin-login.html';throw Error('Session expired.')}if(!r.ok)throw Error(j.error||'Request failed');return j.data}
 function sectionHead(name){const [t,s]=titles[name]||[name,''];$('#sectionTitle').textContent=t;$('#sectionSub').textContent=s}
@@ -82,78 +82,6 @@ function profileReviewChanges(student,pending){
 function reviewRows(entries){
   return `<div class="review-diff">${entries.map(([key,value])=>`<div><span>${esc(key)}</span><b>${esc(value)}</b></div>`).join('')}</div>`;
 }
-async function approvals(){
-  sectionHead('approvals');
-  const [profiles,certificates]=await Promise.all([
-    api('/admin/profile-approvals'),
-    api('/admin/skill-certificates')
-  ]);
-  setContent(`<section class="panel review-panel"><div class="review-heading"><div><h2>Profile changes</h2><p class="muted">Student edits stay pending until approved.</p></div><button class="btn" id="refreshStudentApprovals">↻ Refresh</button></div><div id="profileApprovalList"></div></section>
-    <section class="panel review-panel"><div class="review-heading"><div><h2>Skill certificates</h2><p class="muted">Open each uploaded document before approving it.</p></div></div><div id="certificateApprovalList"></div></section>`);
-  const profileList=$('#profileApprovalList'), certificateList=$('#certificateApprovalList');
-  profileList.innerHTML=profiles.length?profiles.map(student=>{
-    const pending=student.pending_profile||{};
-    const summary=[['Name',pending.name],['Registration No.',pending.regNo],['Email',pending.email],['Department',pending.department]]
-      .filter(([,value])=>value).map(([label,value])=>`<span><b>${esc(label)}:</b> ${esc(value)}</span>`).join('');
-    const changeCount=profileReviewChanges(student,pending).length;
-    return `<article class="review-card"><div class="review-card-copy"><div><h3>${esc(student.name)} <span class="review-status pending">Pending</span></h3><p>${esc(student.reg_no)} · ${esc(student.email)}</p><div class="review-summary">${summary}</div></div><small>Submitted ${formatAdminDate(student.submitted_at)} · ${changeCount} profile values</small></div><button class="btn" data-profile-review="${student.id}">Review changes</button></article>`;
-  }).join(''):empty('No profile changes are waiting for review.');
-  certificateList.innerHTML=certificates.length?certificates.map(certificate=>{
-    const status=String(certificate.status||'pending').toLowerCase();
-    return `<article class="review-card"><div class="review-card-copy"><div><h3>${esc(certificate.course_title)} <span class="review-status ${status}">${esc(status)}</span></h3><p>${esc(certificate.student_name)} · ${esc(certificate.reg_no)} · ${esc(certificate.provider)}</p><small>${esc(certificate.file_name)} · Submitted ${formatAdminDate(certificate.submitted_at)}</small>${certificate.review_note?`<p>${esc(certificate.review_note)}</p>`:''}</div></div><div class="review-actions"><button class="btn" data-certificate-view="${certificate.id}">View certificate</button>${status==='pending'?`<button class="btn success" data-certificate-decision="approved" data-id="${certificate.id}">Approve</button><button class="btn danger" data-certificate-decision="rejected" data-id="${certificate.id}">Reject</button>`:''}</div></article>`;
-  }).join(''):empty('No certificates have been submitted.');
-  $('#refreshStudentApprovals').onclick=()=>approvals().catch(error=>toast(error.message));
-  profileList.onclick=async event=>{
-    const button=event.target.closest('[data-profile-review]');
-    if(!button)return;
-    const student=profiles.find(item=>String(item.id)===button.dataset.profileReview);
-    if(!student)return;
-    const pending=student.pending_profile||{};
-    const entries=profileReviewChanges(student,pending);
-    if(!entries.length)entries.push(['Profile','No differences found.']);
-    openModal(`Profile changes · ${student.name}`,
-      `${reviewRows(entries)}<div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button><button type="button" class="btn danger" id="rejectProfile">Reject changes</button><button type="button" class="primary" id="approveProfile">Approve profile</button></div>`,
-      async()=>{});
-    $('#approveProfile').onclick=async()=>{
-      try{
-        await api(`/admin/students/${student.id}/verification`,{method:'PATCH',body:JSON.stringify({status:'approved'})});
-        closeModal();toast('Profile changes approved');await approvals();
-      }catch(error){toast(error.message)}
-    };
-    $('#rejectProfile').onclick=async()=>{
-      try{
-        await api(`/admin/students/${student.id}/verification`,{method:'PATCH',body:JSON.stringify({status:'rejected'})});
-        closeModal();toast('Profile changes rejected');await approvals();
-      }catch(error){toast(error.message)}
-    };
-  };
-  certificateList.onclick=async event=>{
-    const view=event.target.closest('[data-certificate-view]');
-    const decision=event.target.closest('[data-certificate-decision]');
-    if(view){
-      try{
-        const certificate=await api('/admin/skill-certificates/'+view.dataset.certificateView);
-        const isPdf=certificate.mime_type==='application/pdf';
-        const preview=isPdf
-          ?`<iframe class="review-document" src="${esc(certificate.file_data)}" title="Certificate"></iframe>`
-          :`<img class="review-document-image" src="${esc(certificate.file_data)}" alt="Uploaded certificate">`;
-        openModal(certificate.file_name,`${preview}<div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button></div>`,async()=>{});
-      }catch(error){toast(error.message)}
-      return;
-    }
-    if(decision){
-      try{
-        await api('/admin/skill-certificates/'+decision.dataset.id,{
-          method:'PATCH',
-          body:JSON.stringify({status:decision.dataset.certificateDecision})
-        });
-        toast(decision.dataset.certificateDecision==='approved'?'Certificate approved':'Certificate rejected');
-        await approvals();
-      }catch(error){toast(error.message)}
-    }
-  };
-}
-
 function formatAdminDate(value){if(!value)return '—';const date=new Date(value);return Number.isNaN(date.getTime())?'—':date.toLocaleString()}
 function applicationRounds(raw){if(Array.isArray(raw))return raw.map((round,index)=>typeof round==='string'?{name:round}:({...round,name:round.name||round.title||round.roundName||`Round ${index+1}`}));const value=String(raw||'').trim();if(!value||value==='Not specified')return [];try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return applicationRounds(parsed);if(Array.isArray(parsed.rounds))return applicationRounds(parsed.rounds)}catch{}return value.split(/\r?\n/).map(line=>line.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}))}
 function flowStep(label,status,detail='',tone='neutral'){return `<div class="student-flow-step ${tone}"><span class="student-flow-dot"></span><div><b>${esc(label)}</b><span class="student-flow-status">${esc(status)}</span>${detail?`<small>${esc(detail)}</small>`:''}</div></div>`}
@@ -276,9 +204,13 @@ async function viewStudentPerformance(studentId){
       status:certificate.status,
       certificateId:certificate.id
     }));
+    const pendingChanges=student.pending_profile?profileReviewChanges(student,student.pending_profile):[];
+    const profileReviewSection=student.pending_profile
+      ?`<section class="student-applications student-profile-review"><div class="student-section-heading"><div><h3>Profile changes</h3><p>Review all submitted Details and More changes before approving or rejecting the profile below.</p></div><span class="review-status ${verificationState}">${verificationState==='rejected'?'Rejected':verificationState==='approved'?'Approved':'Pending review'}</span></div>${reviewRows(pendingChanges.length?pendingChanges:[['Profile','No differences found.']])}</section>`
+      :'';
     const appCards=applications.map(application=>`<article class="student-application"><div class="student-application-head"><div><span class="eyebrow">${esc(application.company_name||'Company')}</span><h3>${esc(application.title||'Job')}</h3><p>${esc([application.job_type,application.location,application.work_mode].filter(Boolean).join(' · ')||'')}</p></div><span class="pill">${esc(application.status)}</span></div><div class="student-flow-heading">Recruitment progress</div>${applicationFlow(application)}</article>`).join('');
     const fields=[['Registration number',student.reg_no],['Email',student.email],['Phone',student.phone],['College',student.college],['Degree',student.degree],['Department',student.department],['Current year',student.study_year?['I Year','II Year','III Year','IV Year'][Number(student.study_year)-1]:'—'],['Graduation year',student.graduation_year],['CGPA',student.cgpa],['Skills',(student.skills||[]).join(', ')]];
-    openModal(`${student.name} · Student performance`,`<div class="student-performance"><div class="student-performance-overview"><div class="student-performance-identity"><div class="avatar">${esc(initials(student.name))}</div><div><h3>${esc(student.name)}</h3><span>${esc(student.email)}</span></div></div><div class="student-performance-stats"><div><small>Applications</small><strong>${applications.length}</strong></div><div><small>Rounds passed</small><strong>${passedRounds}</strong></div><div><small>Verified assessments</small><strong>${verified.length}</strong></div><div><small>Selected / offers</small><strong>${selected}</strong></div></div></div><section class="student-profile-summary"><h3>Student profile</h3><div id="studentVerificationState" style="margin-bottom:12px"><span class="pill" style="${verificationStyle}">${verificationLabel}</span></div><div class="student-profile-grid">${fields.map(([label,value])=>`<div><small>${esc(label)}</small><span>${esc(value||'—')}</span></div>`).join('')}${student.summary?`<div class="student-profile-wide"><small>Summary</small><span>${esc(student.summary)}</span></div>`:''}</div></section>${studentMoreSection(profile)}<section class="student-applications"><div class="student-section-heading"><div><h3>Applications and recruitment flow</h3><p>Round results and assessment scores appear here only after company verification.</p></div><span class="pill">${applications.length} total</span></div>${appCards||empty('This student has not applied to any jobs yet.')}</section><div class="form-actions"><button type="button" class="btn" id="studentResumeBtn">View Resume</button>${verificationState === 'approved' ? '' : `<button type="button" class="primary" data-verification-action="approve" data-student-id="${student.id}">Approve profile</button><button type="button" class="btn danger" data-verification-action="reject" data-student-id="${student.id}">Reject</button>`}<button type="button" class="btn" id="cancelModal">Close</button></div></div>`);
+    openModal(`${student.name} · Student performance`,`<div class="student-performance"><div class="student-performance-overview"><div class="student-performance-identity"><div class="avatar">${esc(initials(student.name))}</div><div><h3>${esc(student.name)}</h3><span>${esc(student.email)}</span></div></div><div class="student-performance-stats"><div><small>Applications</small><strong>${applications.length}</strong></div><div><small>Rounds passed</small><strong>${passedRounds}</strong></div><div><small>Verified assessments</small><strong>${verified.length}</strong></div><div><small>Selected / offers</small><strong>${selected}</strong></div></div></div><section class="student-profile-summary"><h3>Student profile</h3><div id="studentVerificationState" style="margin-bottom:12px"><span class="pill" style="${verificationStyle}">${verificationLabel}</span></div><div class="student-profile-grid">${fields.map(([label,value])=>`<div><small>${esc(label)}</small><span>${esc(value||'—')}</span></div>`).join('')}${student.summary?`<div class="student-profile-wide"><small>Summary</small><span>${esc(student.summary)}</span></div>`:''}</div></section>${profileReviewSection}${studentMoreSection(profile)}<section class="student-applications"><div class="student-section-heading"><div><h3>Applications and recruitment flow</h3><p>Round results and assessment scores appear here only after company verification.</p></div><span class="pill">${applications.length} total</span></div>${appCards||empty('This student has not applied to any jobs yet.')}</section><div class="form-actions"><button type="button" class="btn" id="studentResumeBtn">View Resume</button>${verificationState === 'approved' ? '' : `<button type="button" class="primary" data-verification-action="approve" data-student-id="${student.id}">Approve profile</button><button type="button" class="btn danger" data-verification-action="reject" data-student-id="${student.id}">Reject</button>`}<button type="button" class="btn" id="cancelModal">Close</button></div></div>`);
     const documentSection=document.createElement('section');
     documentSection.className='student-applications student-documents';
     const drawDocuments=()=>{
@@ -325,31 +257,12 @@ async function viewStudentPerformance(studentId){
         button.textContent = action === 'approve' ? 'Approving...' : 'Rejecting...';
 
         try {
-          const response = await api(`/admin/students/${encodeURIComponent(student.id)}/verification`, {
+          await api(`/admin/students/${encodeURIComponent(student.id)}/verification`, {
             method: 'PATCH',
             body: JSON.stringify({ status: nextStatus })
           });
-          const nextState = getVerificationState({ profile_details: response.data?.profileDetails || student.profile_details || {} });
-          const nextLabel = nextState === 'approved' ? 'Verified' : nextState === 'rejected' ? 'Rejected' : 'Pending review';
-          const nextStyle = nextState === 'approved'
-            ? 'background:#e8fff1;color:#157347;border:1px solid rgba(21,115,71,0.18);'
-            : nextState === 'rejected'
-              ? 'background:#fff1f1;color:#b42318;border:1px solid rgba(180,35,24,0.18);'
-              : 'background:#fff8e6;color:#a16207;border:1px solid rgba(161,98,7,0.18);';
-          const stateBadge = document.getElementById('studentVerificationState');
-          if (stateBadge) stateBadge.innerHTML = `<span class="pill" style="${nextStyle}">${nextLabel}</span>`;
-          const actionBlock = button.closest('.form-actions');
-          if (actionBlock) {
-            const closeButton = actionBlock.querySelector('#cancelModal');
-            if (closeButton) closeButton.insertAdjacentHTML('beforeend', '');
-            actionBlock.innerHTML = `<button type="button" class="btn" id="studentResumeBtn">View Resume</button><button type="button" class="btn" id="cancelModal">Close</button>`;
-            actionBlock.querySelector('#studentResumeBtn').onclick = async()=>{try{const response=await fetch(`${API_BASE}/admin/student-resume/${student.id}`,{headers:{Authorization:'Bearer '+token}});if(!response.ok)throw Error('Resume not found');const blob=await response.blob();window.open(URL.createObjectURL(blob),'_blank')}catch(error){toast(error.message)}};
-            actionBlock.querySelector('#cancelModal').onclick = () => document.querySelector('.modal').remove();
-          }
           toast(`Verification ${nextStatus === 'approved' ? 'approved' : 'rejected'} for ${student.name}.`);
-          if (student.profile_details && typeof student.profile_details === 'object') {
-            student.profile_details = response.data?.profileDetails || student.profile_details;
-          }
+          await viewStudentPerformance(student.id);
         } catch (error) {
           toast(error.message || 'Could not update verification.');
           button.disabled = false;
@@ -417,6 +330,6 @@ function formToObj(f){const o={};new FormData(f).forEach((v,k)=>o[k]=v);return o
 function openModal(title,html,onSubmit){$('#modalTitle').textContent=title;$('#modalForm').innerHTML=html;$('#modal').classList.remove('hidden');$('#cancelModal')?.addEventListener('click',closeModal);$('#modalForm').onsubmit=async e=>{e.preventDefault();try{await onSubmit(e.target)}catch(err){toast(err.message)}}}
 function closeModal(){$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
 function downloadCSV(name,rows){if(!rows.length)return toast('No data to export');const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))];const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""').replace(/\n/g,' ')}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,approvals,jobs,applications,announcements,analyticsreports,activity,admins};
+const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,announcements,analyticsreports,activity,admins};
 async function navigate(name){$$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.section===name));try{await loaders[name]()}catch(e){setContent(`<div class="panel"><div class="danger-text">${esc(e.message)}</div></div>`);toast(e.message)}}
 $('#nav').onclick=e=>{const b=e.target.closest('.nav');if(b)navigate(b.dataset.section)};$('#content').onclick=async e=>{const go=e.target.closest('[data-go]');if(go){navigate(go.dataset.go);return;}const b=e.target.closest('[data-export]');if(!b)return;try{const d=await api('/admin/'+b.dataset.export);const arr=d.data||d;downloadCSV(b.dataset.export+'.csv',Array.isArray(arr)?arr:[]);toast('Report exported')}catch(err){toast(err.message)}};$('#logout').onclick=()=>{sessionStorage.clear();location.href='admin-login.html'};navigate('overview');
