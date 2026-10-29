@@ -7,6 +7,35 @@ const $=id=>document.getElementById(id);
 const SAVED='stepupSavedListings';
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function initials(n){return String(n||'S').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();}
+function parseInterviewRounds(raw){
+  if(Array.isArray(raw))return raw.map((round,index)=>typeof round==='string'?{name:round}:({...round,name:round.name||round.title||round.roundName||`Round ${index+1}`}));
+  const text=String(raw||'').trim();
+  if(!text||text==='Not specified')return [];
+  try{
+    const parsed=JSON.parse(text);
+    if(Array.isArray(parsed))return parseInterviewRounds(parsed);
+    if(Array.isArray(parsed?.rounds))return parseInterviewRounds(parsed.rounds);
+  }catch{}
+  return text.split(/\r?\n/).map(line=>line.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}));
+}
+function interviewRoundsFlow(raw){
+  const rounds=parseInterviewRounds(raw);
+  const field=(round,keys)=>{for(const key of keys){const value=round[key];if(value!==undefined&&value!==null&&String(value).trim())return String(value).trim()}return ''};
+  if(!rounds.length)return '<p class="round-flow-empty">Interview rounds have not been specified.</p>';
+  return `<div class="job-round-flow" aria-label="Interview rounds">${rounds.map((round,index)=>{
+    const duration=field(round,['durationMinutes','duration_minutes','duration']);
+    const metadata=[
+      field(round,['type','assessmentType','assessment_type']),
+      field(round,['mode']),
+      duration?`${duration} min`:'',
+      field(round,['questionCount','question_count'])?`${field(round,['questionCount','question_count'])} questions`:'',
+      field(round,['passingScore','passing_score','cutoff'])?`Pass: ${field(round,['passingScore','passing_score','cutoff'])}`:''
+    ].filter(Boolean);
+    const description=field(round,['topics','skills','description']);
+    const instructions=field(round,['instructions']);
+    return `<article class="job-round-step"><span class="job-round-number">${index+1}</span><div class="job-round-content"><small>ROUND ${index+1}</small><b>${esc(round.name||`Round ${index+1}`)}</b>${metadata.length?`<span class="job-round-meta">${metadata.map(esc).join(' · ')}</span>`:''}${description?`<span class="job-round-detail">${esc(description)}</span>`:''}${instructions?`<span class="job-round-detail">${esc(instructions)}</span>`:''}</div></article>`;
+  }).join('')}</div>`;
+}
 function saved(){try{return new Set(JSON.parse(localStorage.getItem(SAVED)||'[]').map(String))}catch{return new Set()}}
 function toggle(cid){const s=saved(),key=String(cid);s.has(key)?s.delete(key):s.add(key);localStorage.setItem(SAVED,JSON.stringify([...s]));render(current,applied)}
 let current=null, applied=false;
@@ -59,8 +88,8 @@ async function load(){
 }
 function render(j,isApplied){
   const s=saved(),isSaved=s.has(String(j.company_id));
-  const rounds=String(j.interview_rounds||'Not specified').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-  $('app').innerHTML=`<div class="details-head"><div class="details-company"><div class="details-logo">${esc(initials(j.company_name))}</div><div><h1>${esc(j.company_name)}</h1><p>${esc(j.industry||'IT')} • ${esc(j.company_location||j.location||'India')}</p></div></div><button class="save-detail ${isSaved?'saved':''}" id="save">${isSaved?'★ Saved':'☆ Save Job'}</button></div><div class="details-grid"><section class="details-main"><h2>${esc(j.title)}</h2><p>${esc(j.description)}</p><div class="facts"><div class="fact"><small>Job type</small><strong>${esc(j.job_type)}</strong></div><div class="fact"><small>Work mode</small><strong>${esc(j.work_mode||'Hybrid')}</strong></div><div class="fact"><small>Salary</small><strong>${esc(j.salary||j.stipend||'Not specified')}</strong></div><div class="fact"><small>Apply before</small><strong>${esc(String(j.apply_before||'').slice(0,10))}</strong></div><div class="fact"><small>Location</small><strong>${esc(j.location||j.company_location||'Not specified')}</strong></div><div class="fact"><small>Batch</small><strong>${esc(j.batch||'All eligible batches')}</strong></div></div><div class="interview-rounds"><h2>Interview rounds</h2><ul>${rounds.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div><div class="roles"><h2>Recruitment status</h2><div class="role"><h3>${esc(j.status||'Eligible')}</h3><p>Posted on ${esc(j.created_at?new Date(j.created_at).toLocaleDateString():'StepUp')}</p></div><button class="apply-detail ${isApplied?'applied':''}" id="applyDetail">${isApplied?'✓ Applied — click to withdraw':'Apply'}</button><div class="apply-message" id="applyMessage"></div></div></section><aside class="details-side"><h2>About the company</h2><p style="color:var(--ink-soft);font-size:13px;line-height:1.6">${esc(j.company_description||'Company information provided through the StepUp Company Portal.')}</p>${j.website?`<a class="company-link" href="${esc(j.website)}" target="_blank" rel="noopener">Visit company website →</a>`:''}</aside></div>`;
+  const rounds=interviewRoundsFlow(j.interview_rounds);
+  $('app').innerHTML=`<div class="details-head"><div class="details-company"><div class="details-logo">${esc(initials(j.company_name))}</div><div><h1>${esc(j.company_name)}</h1><p>${esc(j.industry||'IT')} • ${esc(j.company_location||j.location||'India')}</p></div></div><button class="save-detail ${isSaved?'saved':''}" id="save">${isSaved?'★ Saved':'☆ Save Job'}</button></div><div class="details-grid"><section class="details-main"><h2>${esc(j.title)}</h2><p>${esc(j.description)}</p><div class="facts"><div class="fact"><small>Job type</small><strong>${esc(j.job_type)}</strong></div><div class="fact"><small>Work mode</small><strong>${esc(j.work_mode||'Hybrid')}</strong></div><div class="fact"><small>Salary</small><strong>${esc(j.salary||j.stipend||'Not specified')}</strong></div><div class="fact"><small>Apply before</small><strong>${esc(String(j.apply_before||'').slice(0,10))}</strong></div><div class="fact"><small>Location</small><strong>${esc(j.location||j.company_location||'Not specified')}</strong></div><div class="fact"><small>Batch</small><strong>${esc(j.batch||'All eligible batches')}</strong></div></div><div class="interview-rounds"><h2>Interview rounds</h2>${rounds}</div><div class="roles"><h2>Recruitment status</h2><div class="role"><h3>${esc(j.status||'Eligible')}</h3><p>Posted on ${esc(j.created_at?new Date(j.created_at).toLocaleDateString():'StepUp')}</p></div><button class="apply-detail ${isApplied?'applied':''}" id="applyDetail">${isApplied?'✓ Applied — click to withdraw':'Apply'}</button><div class="apply-message" id="applyMessage"></div></div></section><aside class="details-side"><h2>About the company</h2><p style="color:var(--ink-soft);font-size:13px;line-height:1.6">${esc(j.company_description||'Company information provided through the StepUp Company Portal.')}</p>${j.website?`<a class="company-link" href="${esc(j.website)}" target="_blank" rel="noopener">Visit company website →</a>`:''}</aside></div>`;
   $('save').onclick=()=>toggle(j.company_id);
   $('applyDetail').onclick=apply;
 }
