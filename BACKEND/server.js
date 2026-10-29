@@ -49,6 +49,7 @@ const ROLE_OUTLOOK_CACHE_MS = 60 * 60 * 1000;
 const ROLE_OUTLOOK_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const MAX_DOCUMENT_CONVERSION_BYTES = 10 * 1024 * 1024;
 const MAX_CONVERTED_DOCUMENT_BYTES = 20 * 1024 * 1024;
+const MAX_STUDENT_UPLOAD_BYTES = 10 * 1024;
 const activeDocumentConversions = new Set();
 
 if (!process.env.DATABASE_URL) {
@@ -81,6 +82,19 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.static(frontendDir));
 
 const clean = v => typeof v === 'string' ? v.trim() : v;
+function hasOversizedStudentUpload(value) {
+  if (typeof value === 'string' && value.startsWith('data:')) {
+    const match = value.match(/^data:([^;,]+);base64,([A-Za-z0-9+/]+={0,2})$/);
+    if (!match) return true;
+    const bytes = Buffer.from(match[2], 'base64');
+    if (!bytes.length || bytes.length >= MAX_STUDENT_UPLOAD_BYTES) return true;
+    if (match[1] === 'application/pdf' && bytes.subarray(0, 5).toString() !== '%PDF-') return true;
+    return false;
+  }
+  if (Array.isArray(value)) return value.some(hasOversizedStudentUpload);
+  if (value && typeof value === 'object') return Object.values(value).some(hasOversizedStudentUpload);
+  return false;
+}
 const ELIGIBLE_DEPARTMENTS = ['CSE','IT','EEE','ECE','Mechanical','Civil'];
 const DOCUMENT_MIME_TYPES = {
   pdf: 'application/pdf',
@@ -789,6 +803,25 @@ async function ensureSchema() {
 
     ALTER TABLE students
       ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+    CREATE TABLE IF NOT EXISTS student_skill_certificates (
+      id BIGSERIAL PRIMARY KEY,
+      student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      course_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      course_title TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_data TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+      submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      reviewed_at TIMESTAMPTZ,
+      reviewed_by TEXT,
+      review_note TEXT,
+      UNIQUE(student_id, course_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_student_skill_certificates_review
+      ON student_skill_certificates(status, submitted_at DESC);
 
     CREATE TABLE IF NOT EXISTS job_applications (
       id BIGSERIAL PRIMARY KEY,
@@ -2413,7 +2446,9 @@ const adminStudentSelect = `
     id,name,reg_no,email,must_change_password,profile_completed,
     phone,dob,gender,address,college,degree,department,graduation_year,study_year,cgpa,
     education,skills,languages,experience,achievements,certifications,projects,
-    summary,linkedin,github,portfolio,profile_details,created_at,updated_at
+    summary,linkedin,github,portfolio,profile_details,
+    profile_details->'pendingChanges'->'profile' AS pending_profile,
+    created_at,updated_at
   FROM students
 `;
 
@@ -2446,7 +2481,7 @@ function withVerificationState(profileDetails = {}, statusOverride = null) {
 
   profile.verificationStatus = status;
   profile.verified = status === 'approved';
-  profile.requested = profile.requested || status === 'pending' || status === 'rejected';
+  profile.requested = status !== 'approved';
 
   if (status === 'approved' && !profile.approvedAt) {
     profile.approvedAt = new Date().toISOString();
@@ -2893,24 +2928,80 @@ app.patch('/api/admin/students/:id/verification', requireAdmin, async (req, res)
     return res.status(400).json({ error: 'Choose a valid verification status.' });
   }
 
+  let client;
   try {
-    const existing = await pool.query('SELECT profile_details FROM students WHERE id=$1', [studentId]);
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const existing = await client.query(
+      'SELECT profile_details FROM students WHERE id=$1 FOR UPDATE',
+      [studentId]
+    );
     if (!existing.rows[0]) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Student not found.' });
     }
 
-    const profile = withVerificationState(existing.rows[0].profile_details || {}, status);
+    const currentProfile = existing.rows[0].profile_details || {};
+    const pending = currentProfile.pendingChanges?.profile;
+    const profile = withVerificationState(
+      status === 'approved' && pending?.profileDetails
+        ? pending.profileDetails
+        : currentProfile,
+      status
+    );
+    if (status === 'approved') delete profile.pendingChanges;
     profile.reviewedAt = new Date().toISOString();
     profile.reviewedBy = req.admin?.adminId || ADMIN_ID;
 
-    const updated = await pool.query(
-      `UPDATE students
-         SET profile_details=$1::jsonb,
-             updated_at=NOW()
-       WHERE id=$2
-       RETURNING id, profile_details`,
-      [JSON.stringify(profile), studentId]
-    );
+    let updated;
+    if (status === 'approved' && pending) {
+      updated = await client.query(
+        `UPDATE students SET
+           name=$1,reg_no=$2,email=$3,phone=$4,dob=$5,gender=$6,address=$7,
+           college=$8,degree=$9,department=$10,graduation_year=$11,cgpa=$12,
+           education=$13::jsonb,skills=$14::text[],languages=$15::text[],
+           experience=$16::jsonb,achievements=$17,certifications=$18::jsonb,
+           projects=$19::jsonb,summary=$20,linkedin=$21,github=$22,portfolio=$23,
+           profile_details=$24::jsonb,profile_completed=TRUE,updated_at=NOW()
+         WHERE id=$25
+         RETURNING id,profile_details`,
+        [
+          clean(pending.name),
+          clean(pending.regNo),
+          clean(pending.email).toLowerCase(),
+          clean(pending.phone) || null,
+          clean(pending.dob) || null,
+          clean(pending.gender) || null,
+          clean(pending.address) || null,
+          clean(pending.college) || null,
+          clean(pending.degree),
+          clean(pending.department),
+          pending.graduationYear ? Number(pending.graduationYear) : null,
+          pending.cgpa ? Number(pending.cgpa) : null,
+          JSON.stringify(Array.isArray(pending.education) ? pending.education : []),
+          Array.isArray(pending.skills) ? pending.skills.map(clean).filter(Boolean) : [],
+          Array.isArray(pending.languages) ? pending.languages.map(clean).filter(Boolean) : [],
+          JSON.stringify(Array.isArray(pending.experience) ? pending.experience : []),
+          clean(pending.achievements) || null,
+          JSON.stringify(Array.isArray(pending.certifications) ? pending.certifications : []),
+          JSON.stringify(Array.isArray(pending.projects) ? pending.projects : []),
+          clean(pending.summary) || null,
+          clean(pending.linkedin) || null,
+          clean(pending.github) || null,
+          clean(pending.portfolio) || null,
+          JSON.stringify(profile),
+          studentId
+        ]
+      );
+    } else {
+      updated = await client.query(
+        `UPDATE students SET profile_details=$1::jsonb,updated_at=NOW()
+         WHERE id=$2 RETURNING id,profile_details`,
+        [JSON.stringify(profile), studentId]
+      );
+    }
+
+    await client.query('COMMIT');
 
     await logAdminActivity(
       req,
@@ -2929,8 +3020,117 @@ app.patch('/api/admin/students/:id/verification', requireAdmin, async (req, res)
       }
     });
   } catch (e) {
+    await client?.query('ROLLBACK').catch(() => {});
+    if (e.code === '23505') {
+      return res.status(409).json({
+        error: 'The submitted registration number or email is already in use. Resolve the conflict before approving.'
+      });
+    }
     console.error('Could not update student verification:', e);
     res.status(500).json({ error: 'Could not update the verification status.' });
+  } finally {
+    client?.release();
+  }
+});
+
+app.get('/api/admin/profile-approvals', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id,name,reg_no,email,phone,dob,gender,address,college,degree,department,
+              graduation_year,cgpa,education,skills,languages,experience,achievements,
+              certifications,projects,summary,linkedin,github,portfolio,profile_details,
+              profile_details->'pendingChanges'->'profile' AS pending_profile,
+              profile_details->'pendingChanges'->>'submittedAt' AS submitted_at
+       FROM students
+       WHERE profile_details->>'verificationStatus'='pending'
+         AND profile_details ? 'pendingChanges'
+       ORDER BY profile_details->'pendingChanges'->>'submittedAt'`
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    console.error('Could not load profile approvals:', e);
+    res.status(500).json({ error: 'Could not load profile approval requests.' });
+  }
+});
+
+app.get('/api/admin/skill-certificates', requireAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT c.id,c.student_id,c.course_id,c.provider,c.course_title,c.file_name,
+              c.mime_type,c.status,c.submitted_at,c.reviewed_at,c.reviewed_by,c.review_note,
+              s.name AS student_name,s.reg_no
+       FROM student_skill_certificates c
+       JOIN students s ON s.id=c.student_id
+       ORDER BY CASE c.status WHEN 'pending' THEN 0 ELSE 1 END,c.submitted_at DESC
+       LIMIT 500`
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    console.error('Could not load skill certificates:', e);
+    res.status(500).json({ error: 'Could not load skill certificate submissions.' });
+  }
+});
+
+app.get('/api/admin/skill-certificates/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT file_name,mime_type,file_data FROM student_skill_certificates WHERE id=$1',
+      [req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Certificate not found.' });
+    res.json({ data: result.rows[0] });
+  } catch (e) {
+    console.error('Could not load skill certificate:', e);
+    res.status(500).json({ error: 'Could not load the skill certificate.' });
+  }
+});
+
+app.get('/api/admin/students/:id/skill-certificates', requireAdmin, async (req, res) => {
+  const studentId = Number(req.params.id);
+  if (!Number.isSafeInteger(studentId) || studentId < 1) {
+    return res.status(400).json({ error: 'Invalid student ID.' });
+  }
+  try {
+    const result = await pool.query(
+      `SELECT id,course_id,provider,course_title,file_name,mime_type,file_data,
+              status,submitted_at,reviewed_at,reviewed_by,review_note
+       FROM student_skill_certificates
+       WHERE student_id=$1
+       ORDER BY submitted_at DESC`,
+      [studentId]
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    console.error('Could not load student skill certificates:', e);
+    res.status(500).json({ error: 'Could not load the student certificates.' });
+  }
+});
+
+app.patch('/api/admin/skill-certificates/:id', requireAdmin, async (req, res) => {
+  const status = String(req.body?.status || '').toLowerCase();
+  if (!['approved', 'rejected'].includes(status)) {
+    return res.status(400).json({ error: 'Choose approved or rejected.' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE student_skill_certificates
+       SET status=$1,reviewed_at=NOW(),reviewed_by=$2,review_note=$3
+       WHERE id=$4
+       RETURNING id,student_id,status,reviewed_at,reviewed_by,review_note`,
+      [status, req.admin?.adminId || ADMIN_ID, clean(req.body?.note) || null, req.params.id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Certificate not found.' });
+    await logAdminActivity(
+      req,
+      `Skill certificate ${status}`,
+      'student_skill_certificate',
+      result.rows[0].id,
+      `Certificate ${status} for student ${result.rows[0].student_id}.`
+    );
+    res.json({ data: result.rows[0] });
+  } catch (e) {
+    console.error('Could not review skill certificate:', e);
+    res.status(500).json({ error: 'Could not review the skill certificate.' });
   }
 });
 
@@ -3132,7 +3332,9 @@ app.get(
           education,skills,languages,experience,
           achievements,certifications,projects,
           summary,linkedin,github,portfolio,
-          profile_details,created_at,updated_at
+          profile_details,
+          profile_details->'pendingChanges'->'profile' AS pending_profile,
+          created_at,updated_at
          FROM students
          WHERE id=$1`,
         [req.student.studentId]
@@ -3179,94 +3381,66 @@ app.put(
           'Name, registration number, email, degree and department are required.'
       });
     }
+    const profileDetails = b.profileDetails && typeof b.profileDetails === 'object'
+      ? b.profileDetails
+      : {};
+    if (hasOversizedStudentUpload(profileDetails)) {
+      return res.status(413).json({
+          error: 'Each uploaded image or PDF must be smaller than 10 KB. Compress or replace oversized files.'
+      });
+    }
 
     try {
-      const r = await pool.query(
-        `UPDATE students SET
-          name=$1,
-          reg_no=$2,
-          email=$3,
-          phone=$4,
-          dob=$5,
-          gender=$6,
-          address=$7,
-          college=$8,
-          degree=$9,
-          department=$10,
-          graduation_year=$11,
-          cgpa=$12,
-          education=$13::jsonb,
-          skills=$14::text[],
-          languages=$15::text[],
-          experience=$16::jsonb,
-          achievements=$17,
-          certifications=$18::jsonb,
-          projects=$19::jsonb,
-          summary=$20,
-          linkedin=$21,
-          github=$22,
-          portfolio=$23,
-          profile_details=$24::jsonb,
-          profile_completed=TRUE,
-          updated_at=NOW()
-         WHERE id=$25
-         RETURNING id,name,reg_no,email,must_change_password,profile_completed`,
-        [
-          clean(b.name),
-          clean(b.regNo),
-          clean(b.email).toLowerCase(),
-          clean(b.phone) || null,
-          clean(b.dob) || null,
-          clean(b.gender) || null,
-          clean(b.address) || null,
-          clean(b.college) || null,
-          clean(b.degree),
-          clean(b.department),
-          b.graduationYear
-            ? Number(b.graduationYear)
-            : null,
-          b.cgpa
-            ? Number(b.cgpa)
-            : null,
-          JSON.stringify(
-            Array.isArray(b.education)
-              ? b.education
-              : []
-          ),
-          Array.isArray(b.skills)
-            ? b.skills.map(clean).filter(Boolean)
-            : [],
-          Array.isArray(b.languages)
-            ? b.languages.map(clean).filter(Boolean)
-            : [],
-          JSON.stringify(
-            Array.isArray(b.experience)
-              ? b.experience
-              : []
-          ),
-          clean(b.achievements) || null,
-          JSON.stringify(
-            Array.isArray(b.certifications)
-              ? b.certifications
-              : []
-          ),
-          JSON.stringify(
-            Array.isArray(b.projects)
-              ? b.projects
-              : []
-          ),
-          clean(b.summary) || null,
-          clean(b.linkedin) || null,
-          clean(b.github) || null,
-          clean(b.portfolio) || null,
-          JSON.stringify(b.profileDetails && typeof b.profileDetails === 'object' ? b.profileDetails : {}),
-          req.student.studentId
-        ]
+      const submittedProfile = {
+        name: clean(b.name),
+        regNo: clean(b.regNo),
+        email: clean(b.email).toLowerCase(),
+        phone: clean(b.phone) || null,
+        dob: clean(b.dob) || null,
+        gender: clean(b.gender) || null,
+        address: clean(b.address) || null,
+        college: clean(b.college) || null,
+        degree: clean(b.degree),
+        department: clean(b.department),
+        graduationYear: b.graduationYear ? Number(b.graduationYear) : null,
+        cgpa: b.cgpa ? Number(b.cgpa) : null,
+        education: Array.isArray(b.education) ? b.education : [],
+        skills: Array.isArray(b.skills) ? b.skills.map(clean).filter(Boolean) : [],
+        languages: Array.isArray(b.languages) ? b.languages.map(clean).filter(Boolean) : [],
+        experience: Array.isArray(b.experience) ? b.experience : [],
+        achievements: clean(b.achievements) || null,
+        certifications: Array.isArray(b.certifications) ? b.certifications : [],
+        projects: Array.isArray(b.projects) ? b.projects : [],
+        summary: clean(b.summary) || null,
+        linkedin: clean(b.linkedin) || null,
+        github: clean(b.github) || null,
+        portfolio: clean(b.portfolio) || null,
+        profileDetails
+      };
+      const pendingChanges = {
+        profile: submittedProfile,
+        submittedAt: new Date().toISOString()
+      };
+      const result = await pool.query(
+        `UPDATE students
+         SET profile_details =
+               (COALESCE(profile_details,'{}'::jsonb)
+                - 'reviewedAt' - 'reviewedBy' - 'rejectedAt' - 'approvedAt')
+               || jsonb_build_object(
+                    'pendingChanges',$1::jsonb,
+                    'verificationStatus','pending',
+                    'verified',FALSE,
+                    'requested',TRUE,
+                    'requestedAt',NOW()
+                  ),
+             profile_completed=TRUE,
+             updated_at=NOW()
+         WHERE id=$2
+         RETURNING id,name,reg_no,email,must_change_password,profile_completed,profile_details`,
+        [JSON.stringify(pendingChanges), req.student.studentId]
       );
-
-      res.json({
-        data: r.rows[0]
-      });
+      if (!result.rows[0]) return res.status(404).json({ error: 'Student account not found.' });
+      res.json({ data: result.rows[0] });
     } catch (e) {
       if (e.code === '23505') {
         return res.status(409).json({
@@ -3283,6 +3457,109 @@ app.put(
     }
   }
 );
+
+app.get('/api/student/skill-certificates', requireStudent, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id,course_id,provider,course_title,file_name,mime_type,status,
+              submitted_at,reviewed_at,review_note
+       FROM student_skill_certificates
+       WHERE student_id=$1
+       ORDER BY submitted_at DESC`,
+      [req.student.studentId]
+    );
+    res.json({ data: result.rows });
+  } catch (e) {
+    console.error('Could not load student skill certificates:', e);
+    res.status(500).json({ error: 'Could not load your certificates.' });
+  }
+});
+
+app.get('/api/student/skill-certificates/:id', requireStudent, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id,file_name,mime_type,file_data,status
+       FROM student_skill_certificates
+       WHERE id=$1 AND student_id=$2`,
+      [req.params.id, req.student.studentId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Certificate not found.' });
+    res.json({ data: result.rows[0] });
+  } catch (e) {
+    console.error('Could not load student certificate:', e);
+    res.status(500).json({ error: 'Could not load the certificate.' });
+  }
+});
+
+app.post('/api/student/skill-certificates', requireStudent, async (req, res) => {
+  const courseId = clean(req.body?.courseId);
+  const provider = clean(req.body?.provider);
+  const courseTitle = clean(req.body?.courseTitle);
+  const fileName = clean(req.body?.fileName);
+  const fileData = req.body?.fileData;
+  const match = typeof fileData === 'string'
+    ? fileData.match(/^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/)
+    : null;
+  if (!courseId || courseId.length > 500 || !provider || provider.length > 200 ||
+      !courseTitle || courseTitle.length > 300 || !fileName || fileName.length > 255 || !match) {
+    return res.status(400).json({ error: 'Provide a course, file name, and a valid image or PDF certificate.' });
+  }
+  const fileSize = Buffer.from(match[2], 'base64').length;
+  if (!fileSize || fileSize >= MAX_STUDENT_UPLOAD_BYTES) {
+    return res.status(413).json({ error: 'Certificate files must be smaller than 10 KB.' });
+  }
+  if (match[1] === 'application/pdf' && Buffer.from(match[2], 'base64').subarray(0, 5).toString() !== '%PDF-') {
+    return res.status(400).json({ error: 'The selected certificate is not a valid PDF.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO student_skill_certificates
+         (student_id,course_id,provider,course_title,file_name,mime_type,file_data,status,
+          submitted_at,reviewed_at,reviewed_by,review_note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'pending',NOW(),NULL,NULL,NULL)
+       ON CONFLICT (student_id,course_id) DO UPDATE SET
+         provider=EXCLUDED.provider,course_title=EXCLUDED.course_title,
+         file_name=EXCLUDED.file_name,mime_type=EXCLUDED.mime_type,
+         file_data=EXCLUDED.file_data,status='pending',submitted_at=NOW(),
+         reviewed_at=NULL,reviewed_by=NULL,review_note=NULL
+       RETURNING id,course_id,provider,course_title,file_name,mime_type,status,submitted_at`,
+      [
+        req.student.studentId,
+        courseId,
+        provider,
+        courseTitle,
+        fileName,
+        match[1],
+        fileData
+      ]
+    );
+    res.status(201).json({ data: result.rows[0] });
+  } catch (e) {
+    console.error('Could not save student skill certificate:', e);
+    res.status(500).json({ error: 'Could not submit the certificate for review.' });
+  }
+});
+
+app.delete('/api/student/skill-certificates/:id', requireStudent, async (req, res) => {
+  const certificateId = Number(req.params.id);
+  if (!Number.isSafeInteger(certificateId) || certificateId < 1) {
+    return res.status(400).json({ error: 'Invalid certificate ID.' });
+  }
+  try {
+    const result = await pool.query(
+      `DELETE FROM student_skill_certificates
+       WHERE student_id=$1 AND id=$2
+       RETURNING id`,
+      [req.student.studentId, certificateId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Certificate not found.' });
+    res.json({ data: result.rows[0] });
+  } catch (e) {
+    console.error('Could not remove student skill certificate:', e);
+    res.status(500).json({ error: 'Could not remove the certificate.' });
+  }
+});
 
 /* =========================================================
    STUDENT CHANGE PASSWORD
@@ -3715,8 +3992,8 @@ app.post('/api/student/resume', requireStudent, async (req, res) => {
   try { fileData = Buffer.from(encoded, 'base64'); }
   catch { return res.status(400).json({ error: 'The uploaded PDF could not be read.' }); }
 
-  if (!fileData.length || fileData.length > 10 * 1024 * 1024) {
-    return res.status(400).json({ error: 'Resume PDF must be smaller than 10 MB.' });
+  if (!fileData.length || fileData.length >= MAX_STUDENT_UPLOAD_BYTES) {
+    return res.status(413).json({ error: 'Resume PDFs must be smaller than 10 KB.' });
   }
 
   if (fileData.subarray(0, 5).toString() !== '%PDF-') {
@@ -3885,8 +4162,8 @@ app.post('/api/student/resume', requireStudent, async (req, res) => {
   try { fileData = Buffer.from(encoded, 'base64'); }
   catch { return res.status(400).json({ error: 'The uploaded PDF could not be read.' }); }
 
-  if (!fileData.length || fileData.length > 10 * 1024 * 1024) {
-    return res.status(400).json({ error: 'Resume PDF must be smaller than 10 MB.' });
+  if (!fileData.length || fileData.length >= MAX_STUDENT_UPLOAD_BYTES) {
+    return res.status(413).json({ error: 'Resume PDFs must be smaller than 10 KB.' });
   }
 
   if (fileData.subarray(0, 5).toString() !== '%PDF-') {

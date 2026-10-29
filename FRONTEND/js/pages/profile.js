@@ -1,6 +1,7 @@
 /* profile.js — student profile: Details, Academics, Skills, More */
 import { $, $$, esc } from '../core/dom.js';
 import { api, getToken } from '../core/api.js';
+import { compressImageFile, prepareUploadFile } from '../core/upload-limits.js';
 import { profileMeta } from '../data/profile.data.js';
 import { navigate } from '../core/router.js';
 import { announceUser } from '../core/user.js';
@@ -54,9 +55,28 @@ const MORE = [
 ];
 const ACAD = [['level','Level (Current / 12th / 10th / Diploma)'],['inst','Institution / School'],['course','Course'],['branch','Branch / Stream'],['cgpa','CGPA or %'],['year','Year'],['status','Status (e.g. Out Going)'],['arrears','Current arrears'],['arrHist','Arrears history'],['sems','Semester scores (comma separated, e.g. 8.18, 7.91, 8.61)']];
 
-let P, S, tab = 'Details', editing = null, view = 'grid', q = '';
+let P, S, tab = 'Details', editing = null, view = 'grid', q = '', profileSyncTimer;
+let profileSyncQueue = Promise.resolve();
 const key = () => 'stepupProfile:' + (P.d.regNo || 'guest');
-const save = () => { try{ localStorage.setItem(key(), JSON.stringify(S)); }catch{} announceUser(); if(P?.logged) syncCore(); };
+const save = () => {
+  if(P?.logged){
+    S.verified = false;
+    S.requested = true;
+    S.verificationStatus = 'pending';
+  }
+  try{ localStorage.setItem(key(), JSON.stringify(S)); }
+  catch{ toast('Could not save your profile in this browser.'); }
+  announceUser();
+  if(P?.logged){
+    clearTimeout(profileSyncTimer);
+    profileSyncTimer = setTimeout(() => {
+      profileSyncQueue = profileSyncQueue.then(() => syncCore()).then(
+        () => toast('Changes submitted for admin approval'),
+        error => toast('Could not submit changes for approval: ' + error.message)
+      );
+    }, 300);
+  }
+};
 const val = k => (P.d[k] ?? '') === '' ? '-' : P.d[k];
 
 /* Applications come from /student/applications. Status 'Selected' = an offer.
@@ -82,7 +102,34 @@ async function load(){
     if(m.status === 'fulfilled') me = m.value.data;
     if(a.status === 'fulfilled' && Array.isArray(a.value.data)) apps = a.value.data;
   }
-  const b = me || st || {};
+  const pending = me?.pending_profile;
+  const b = pending ? {
+    ...me,
+    name:pending.name,
+    reg_no:pending.regNo,
+    email:pending.email,
+    phone:pending.phone,
+    dob:pending.dob,
+    gender:pending.gender,
+    address:pending.address,
+    college:pending.college,
+    degree:pending.degree,
+    department:pending.department,
+    graduation_year:pending.graduationYear,
+    cgpa:pending.cgpa,
+    education:pending.education,
+    skills:pending.skills,
+    languages:pending.languages,
+    experience:pending.experience,
+    achievements:pending.achievements,
+    certifications:pending.certifications,
+    projects:pending.projects,
+    summary:pending.summary,
+    linkedin:pending.linkedin,
+    github:pending.github,
+    portfolio:pending.portfolio,
+    profile_details:pending.profileDetails || me.profile_details
+  } : me || st || {};
   const d = { name:b.name || profileMeta.name, regNo:b.reg_no || profileMeta.regNo, email:b.email || '', phone:b.phone || '',
     dob:(b.dob || '').slice(0,10), gender:b.gender || '', nation:'Indian', cCountry:'India', pCountry:'India', cAddr:b.address || '',
     registered:me ? 'True' : '', regOn:me && b.created_at ? new Date(b.created_at).toLocaleDateString() : '' };
@@ -90,7 +137,10 @@ async function load(){
   P = { d, base:b, logged:!!me, apps:countApps(apps) };
   let ext = {};
   try{ ext = JSON.parse(localStorage.getItem(key()) || '{}'); }catch{}
-  const remoteProfile = me && me.profile_details && typeof me.profile_details === 'object' ? me.profile_details : {};
+  const statusProfile = me && me.profile_details && typeof me.profile_details === 'object' ? me.profile_details : {};
+  const remoteProfile = pending?.profileDetails && typeof pending.profileDetails === 'object'
+    ? pending.profileDetails
+    : statusProfile;
   const remoteState = {
     d: remoteProfile.details || {},
     acad: Array.isArray(remoteProfile.academics) ? remoteProfile.academics : [],
@@ -101,10 +151,19 @@ async function load(){
     links: Array.isArray(remoteProfile.links) ? remoteProfile.links : [],
     tags: Array.isArray(remoteProfile.tags) ? remoteProfile.tags : [],
     photo: remoteProfile.photo || '',
-    verified: !!remoteProfile.verified,
-    requested: !!remoteProfile.requested
+    verified: !!statusProfile.verified,
+    requested: !!statusProfile.requested,
+    verificationStatus: statusProfile.verificationStatus || 'pending'
   };
-  S = Object.assign({ d:{}, acad:[], skills:null, more:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false }, remoteState, ext);
+  S = Object.assign(
+    { d:{}, acad:[], skills:null, more:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false, verificationStatus:'pending' },
+    remoteState,
+    ext
+  );
+  S.verified = !!statusProfile.verified;
+  S.requested = !!statusProfile.requested;
+  S.verificationStatus = statusProfile.verificationStatus || (S.verified ? 'approved' : S.requested ? 'pending' : 'pending');
+  if(pending || statusProfile.verified || statusProfile.reviewedAt) S = Object.assign(S, remoteState);
   if(!S.acad.length && (b.college || b.department)) S.acad = [{ level:'Current', inst:b.college || '', course:b.degree || '', branch:b.department || '', cgpa:b.cgpa || '', year:b.graduation_year || '', status:'', arrears:'0', arrHist:'0', sems:'' }];
   if(!S.skills) S.skills = (b.skills || []).map(n => ({ name:n, prof:'Intermediate' }));
   [['linkedin','LinkedIn'],['github','GitHub'],['portfolio','Portfolio Website']].forEach(([k,n]) => { if(b[k] && !S.social[n]) S.social[n] = b[k]; });
@@ -114,7 +173,7 @@ async function load(){
   if(c){ [['branch','branch'],['course','course'],['college','inst'],['passOut','year']].forEach(([k,f]) => { if(!P.d[k]) P.d[k] = c[f] || ''; }); }
 }
 
-export async function mount(){ await load(); tab = 'Details'; editing = null; q = ''; render(); if(P.logged) syncCore(); }
+export async function mount(){ await load(); tab = 'Details'; editing = null; q = ''; render(); }
 
 function render(){
   head();
@@ -126,11 +185,12 @@ function render(){
 
 function head(){
   const a = S.acad[0] || {}, d = P.d;
+  const verificationLabel = S.verified ? 'Verified' : S.verificationStatus === 'rejected' ? 'Changes rejected' : S.requested ? 'Pending approval' : 'Unverified';
   $('#pfHead').innerHTML = `<div class="pf-top">
     <label class="pf-photo" title="Change photo">${S.photo ? `<img src="${S.photo}" alt="">` : `<span>${esc(d.name[0] || 'S')}</span>`}<i>&#128247;</i><input type="file" id="pfPhoto" accept="image/*" hidden></label>
     <div class="pf-id"><h1>${esc(d.name)}</h1>
-      <div class="pf-reg">${esc(d.regNo)} <span class="pf-badge ${S.verified?'ok':'warn'}">${S.verified?'Verified':'Unverified'}</span></div>
-      ${S.verified ? '' : `<p class="pf-note">${S.requested ? 'Verification requested. Your placement team will review your profile.' : 'Your profile is not verified yet. <a href="#" id="pfReq">Request profile verification</a>.'}</p>`}
+      <div class="pf-reg">${esc(d.regNo)} <span class="pf-badge ${S.verified?'ok':'warn'}">${verificationLabel}</span></div>
+      ${S.verified ? '' : `<p class="pf-note">${S.verificationStatus === 'rejected' ? 'Your profile changes were rejected. Edit the profile and save again to resubmit.' : S.requested ? 'Your profile changes are awaiting admin approval. Your approved profile remains active until review.' : 'Your profile is not verified yet. <a href="#" id="pfReq">Request profile verification</a>.'}</p>`}
       <p class="pf-sub">${esc([a.branch, a.course, a.year].filter(Boolean).join(' · ') || 'Add your academics')}</p>
       <p class="pf-contact"><b>${P.apps.applied}</b> applied ${d.email ? ` &nbsp;&#9993; <b>${esc(d.email)}</b>` : ''} ${d.phone ? ` &nbsp;&#9742; <b>${esc(d.phone)}</b>` : ''}</p></div></div>
     <div class="pf-actions"><div class="pf-links">${S.links.map((l,i) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a><button data-rl="${i}" title="Remove">&times;</button>`).join('')}<button class="pf-ghost" id="pfLink">+ Add Link</button></div>
@@ -184,21 +244,12 @@ function modal(title, fields, v, onSave){
 }
 /* ---------- photo proof for skills ---------- */
 const MAX_PROOF = 3;
-function shrink(file, max = 1000){   // resize + compress so profile data stays small
-  return new Promise((ok, no) => {
-    const url = URL.createObjectURL(file), im = new Image();
-    im.onload = () => { const r = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas');
-      c.width = Math.round(im.width * r); c.height = Math.round(im.height * r); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', .72)); };
-    im.onerror = () => { URL.revokeObjectURL(url); no(new Error('bad image')); };
-    im.src = url;
-  });
-}
+const shrink = file => compressImageFile(file);
 function lightbox(src){ overlay(`<div class="pf-lb"><img src="${src}" alt="Skill proof"><button type="button" class="pf-pill pri" data-x>Close</button></div>`); }
 function skillModal(i){
   const cur = i == null ? { name:'', prof:'', proof:[] } : S.skills[i]; let prof = cur.prof; const proof = [...(cur.proof || [])];
   const o = overlay(`<form><h3>${i == null ? 'Add skill' : 'Edit skill'}</h3><label>Skill name<input name="name" placeholder="e.g. Python, React, Communication" value="${esc(cur.name)}"></label><label>Proficiency</label><div class="pf-chips">${PROF.map(p => `<button type="button" class="${p===prof?'on':''}" data-p="${p}">${p}</button>`).join('')}</div>
-    <label>Photo proof <small class="pf-hint">Certificate, badge or screenshot. Up to ${MAX_PROOF} photos.</small></label><div class="pf-proofs" id="pfProofs"></div>
+    <label>Photo proof <small class="pf-hint">Certificate, badge or screenshot. Up to ${MAX_PROOF} photos, compressed below 10 KB each.</small></label><div class="pf-proofs" id="pfProofs"></div>
     <input type="file" id="pfProofFile" accept="image/*" multiple hidden>
     <div class="pf-fa"><button type="button" class="pf-pill" data-x>Cancel</button><button class="pf-pill pri">Save</button></div></form>`);
   const box = o.querySelector('#pfProofs'), file = o.querySelector('#pfProofFile');
@@ -215,8 +266,8 @@ function skillModal(i){
     const room = MAX_PROOF - proof.length;
     if(files.length > room) toast('Maximum ' + MAX_PROOF + ' photos per skill');
     for(const f of files.slice(0, room)){
-      if(f.size > 15 * 1024 * 1024){ toast('Each photo must be under 15 MB'); continue; }
-      try{ proof.push(await shrink(f)); }catch{ toast('Could not read that image'); }
+      if(f.size > 15 * 1024 * 1024){ toast('Each source photo must be under 15 MB before compression.'); continue; }
+      try{ proof.push(await shrink(f)); }catch(error){ toast(error.message); }
     }
     paint();
   };
@@ -224,7 +275,7 @@ function skillModal(i){
   o.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { prof = b.dataset.p; o.querySelectorAll('[data-p]').forEach(x => x.classList.toggle('on', x === b)); });
   o.querySelector('form').onsubmit = e => { e.preventDefault(); const name = o.querySelector('[name=name]').value.trim(); if(!name){ toast('Enter a skill name'); return; } if(!prof){ toast('Pick a proficiency'); return; }
     const item = { name, prof, proof };
-    if(i == null) S.skills.push(item); else S.skills[i] = item; o.remove(); save(); syncCore(); render(); };
+    if(i == null) S.skills.push(item); else S.skills[i] = item; o.remove(); save(); render(); };
   o.querySelector('input').focus();
 }
 function pick(title, opts, onPick){
@@ -273,7 +324,7 @@ async function resume(){
     <label class="pf-file-label">PDF resume
       <input id="resumeFile" type="file" accept="application/pdf,.pdf">
     </label>
-    <p class="pf-hint">PDF only • Maximum 10 MB. The uploaded PDF remains the exact resume companies receive.</p>
+    <p class="pf-hint">PDF only • Must be smaller than 10 KB. The uploaded PDF remains the exact resume companies receive.</p>
     <div class="pf-fa">
       <button type="button" class="pf-pill" data-x>Close</button>
       ${existing ? '<button type="button" class="pf-pill" id="resumeDownload">Download Current</button>' : ''}
@@ -310,17 +361,14 @@ async function resume(){
       return;
     }
     if(file.type!=='application/pdf' && !/\.pdf$/i.test(file.name)){setMsg('Only PDF resumes are allowed.');return;}
-    if(file.size>10*1024*1024){setMsg('Resume PDF must be smaller than 10 MB.');return;}
-    const reader=new FileReader();
-    reader.onload=async()=>{
-      const button=o.querySelector('#resumeUpload'); button.disabled=true; setMsg('Uploading your actual PDF…',true);
-      try{
-        await api('/student/resume',{method:'POST',body:JSON.stringify({fileName:file.name,mimeType:'application/pdf',data:reader.result})});
-        await analyze();
-      }catch(err){button.disabled=false;setMsg(err.message);}
-    };
-    reader.onerror=()=>setMsg('Could not read the selected PDF.');
-    reader.readAsDataURL(file);
+    let data;
+    try{data=await prepareUploadFile(file);}
+    catch(error){setMsg(error.message);return;}
+    const button=o.querySelector('#resumeUpload'); button.disabled=true; setMsg('Uploading your PDF…',true);
+    try{
+      await api('/student/resume',{method:'POST',body:JSON.stringify({fileName:file.name,mimeType:'application/pdf',data})});
+      await analyze();
+    }catch(err){button.disabled=false;setMsg(err.message);}
   });
 }
 
@@ -338,15 +386,44 @@ function syncCore(){
     tags: Array.isArray(S.tags) ? S.tags : [],
     photo: S.photo || '',
     verified: !!S.verified,
-    requested: !!S.requested
+    requested: !!S.requested,
+    verificationStatus: S.verificationStatus || 'pending'
   };
-  api('/student/profile', { method:'PUT', body:JSON.stringify({ name:d.name, regNo:d.regNo, email:d.email, phone:d.phone, dob:d.dob, gender:d.gender, address:d.cAddr || b.address, college:b.college || d.college, degree:b.degree || d.degree || 'B.Tech', department:b.department || d.department || 'N/A', graduationYear:b.graduation_year || d.passOut, cgpa:b.cgpa || d.cgpa, education:b.education || S.acad || [], skills:Array.isArray(S.skills) ? S.skills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean) : [], languages:Object.keys(S.langs || {}), experience:b.experience || S.more?.work || [], achievements:b.achievements, certifications:b.certifications || S.more?.certs || [], projects:b.projects || S.more?.projects || [], summary:b.summary, linkedin:S.social?.LinkedIn, github:S.social?.GitHub, portfolio:S.social?.['Portfolio Website'], profileDetails }) }).catch(() => {});
+  return api('/student/profile', {
+    method:'PUT',
+    body:JSON.stringify({
+      name:d.name,
+      regNo:d.regNo,
+      email:d.email,
+      phone:d.phone,
+      dob:d.dob,
+      gender:d.gender,
+      address:d.cAddr || b.address,
+      college:d.college || b.college,
+      degree:d.course || b.degree || 'B.Tech',
+      department:d.branch || b.department || 'N/A',
+      graduationYear:d.passOut || b.graduation_year,
+      cgpa:d.cgpa || b.cgpa,
+      education:Array.isArray(S.acad) ? S.acad : b.education || [],
+      skills:Array.isArray(S.skills) ? S.skills.map(s => typeof s === 'string' ? s : s.name).filter(Boolean) : [],
+      languages:Object.keys(S.langs || {}),
+      experience:S.more?.work || b.experience || [],
+      achievements:b.achievements,
+      certifications:S.more?.certs || b.certifications || [],
+      projects:S.more?.projects || b.projects || [],
+      summary:b.summary,
+      linkedin:S.social?.LinkedIn,
+      github:S.social?.GitHub,
+      portfolio:S.social?.['Portfolio Website'],
+      profileDetails
+    })
+  });
 }
 
 
 function bind(){
   const on = (sel, fn) => $$(sel).forEach(el => el.addEventListener('click', e => fn(el, e)));
-  $('#pfPhoto')?.addEventListener('change', e => { const f = e.target.files[0]; if(!f) return; const im = new Image(); im.onload = () => { const c = document.createElement('canvas'), r = 240 / Math.max(im.width, im.height, 240); c.width = im.width * r; c.height = im.height * r; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); S.photo = c.toDataURL('image/jpeg', .8); save(); render(); }; im.src = URL.createObjectURL(f); });
+  $('#pfPhoto')?.addEventListener('change', async e => { const f = e.target.files[0]; if(!f) return; try{ S.photo = await compressImageFile(f); save(); render(); }catch(error){ toast(error.message); } });
   $('#pfReq')?.addEventListener('click', e => { e.preventDefault(); S.requested = true; save(); render(); });
   $('#pfLink')?.addEventListener('click', () => modal('Add link', [['name','Label'],['url','URL']], {}, r => S.links.push(r)));
   on('[data-rl]', b => { S.links.splice(+b.dataset.rl, 1); save(); render(); });
@@ -368,7 +445,7 @@ function bind(){
       else if(partsMoved && !nameMoved){ got.name = [got.first, got.last].filter(Boolean).join(' ') || got.name; }
     }
     Object.entries(got).forEach(([k,v]) => { P.d[k] = v; S.d[k] = v; });
-    editing = null; save(); syncCore(); render(); toast('Saved');
+    editing = null; save(); render(); toast('Saving changes for admin review…');
   });
   $('#tagAdd')?.addEventListener('click', () => modal('Add tag', [['t','Tag']], {}, r => S.tags.push(r.t.trim())));
   on('[data-rt]', b => { S.tags.splice(+b.dataset.rt, 1); save(); render(); });
@@ -380,11 +457,11 @@ function bind(){
   $('#skAdd')?.addEventListener('click', () => skillModal());
   on('[data-pv]', (im, e) => { e.stopPropagation(); const [a,b] = im.dataset.pv.split('|'); lightbox(S.skills[+a].proof[+b]); });
   on('[data-es]', (el, e) => { if(e.target.closest('[data-rs]') || e.target.closest('[data-pv]')) return; skillModal(+el.dataset.es); });
-  on('[data-rs]', (b, e) => { e.stopPropagation(); S.skills.splice(+b.dataset.rs, 1); save(); syncCore(); render(); });
+  on('[data-rs]', (b, e) => { e.stopPropagation(); S.skills.splice(+b.dataset.rs, 1); save(); render(); });
   on('[data-m]', b => { const m = MORE.find(x => x[0] === b.dataset.m); modal(m[2], m[3], {}, r => (S.more[m[0]] = S.more[m[0]] || []).push(r)); });
   on('[data-me]', b => { const [k,i] = b.dataset.me.split('|'), m = MORE.find(x => x[0] === k); modal('Edit', m[3], S.more[k][+i], r => S.more[k][+i] = r); });
   on('[data-mr]', b => { const [k,i] = b.dataset.mr.split('|'); S.more[k].splice(+i, 1); save(); render(); });
   on('[data-c]', b => { const [st,n] = b.dataset.c.split('|');
-    if(st === 'social') modal(n + ' link', [['u','Profile URL']], { u:S.social[n] || '' }, r => { S.social[n] = r.u.trim(); if(!S.social[n]) delete S.social[n]; syncCore(); });
-    else pick(n + ' proficiency', ['Beginner','Intermediate','Fluent','Native'].concat(S.langs[n] ? ['Remove'] : []), p => { p === 'Remove' ? delete S.langs[n] : S.langs[n] = p; save(); syncCore(); render(); }); });
+    if(st === 'social') modal(n + ' link', [['u','Profile URL']], { u:S.social[n] || '' }, r => { S.social[n] = r.u.trim(); if(!S.social[n]) delete S.social[n]; });
+    else pick(n + ' proficiency', ['Beginner','Intermediate','Fluent','Native'].concat(S.langs[n] ? ['Remove'] : []), p => { p === 'Remove' ? delete S.langs[n] : S.langs[n] = p; save(); render(); }); });
 }

@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS students (
   linkedin TEXT,
   github TEXT,
   portfolio TEXT,
+  profile_details JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -106,6 +107,26 @@ CREATE INDEX IF NOT EXISTS idx_students_email ON students(email);
 ALTER TABLE students ADD COLUMN IF NOT EXISTS study_year INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE students DROP CONSTRAINT IF EXISTS students_study_year_check;
 ALTER TABLE students ADD CONSTRAINT students_study_year_check CHECK (study_year BETWEEN 1 AND 4);
+ALTER TABLE students ADD COLUMN IF NOT EXISTS profile_details JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS student_skill_certificates (
+  id BIGSERIAL PRIMARY KEY,
+  student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  course_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  course_title TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  file_data TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT,
+  review_note TEXT,
+  UNIQUE(student_id, course_id)
+);
+CREATE INDEX IF NOT EXISTS idx_student_skill_certificates_review
+  ON student_skill_certificates(status, submitted_at DESC);
 
 CREATE TABLE IF NOT EXISTS password_reset_otps (
   id BIGSERIAL PRIMARY KEY,

@@ -162,6 +162,9 @@
 }
 .sk-attach:hover{ background:var(--violet-100); }
 .sk-cert-ok{ white-space:nowrap; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:var(--green); }
+.sk-cert-ok.sk-cert-pending{ color:#a46b00; }
+.sk-cert-ok.sk-cert-rejected{ color:#b42318; }
+.sk-cert-ok.sk-cert-local{ color:#667085; }
 .sk-cert-actions{ display:inline-flex; gap:10px; white-space:nowrap; }
 .sk-link{
   background:none; border:0; padding:0; cursor:pointer;

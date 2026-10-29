@@ -301,7 +301,7 @@
 <!-- VERIFICATION -->
 <section class="profile-setup-card verification-panel">
 <h2>Verification details</h2>
-<p>Attach proof and signature for each academic or identity record. Admins can review the uploaded documents before approval.</p>
+<p>Attach proof and signature for each academic or identity record. Images are compressed below 10 KB; PDF files must already be smaller than 10 KB. Admins can review the uploaded documents before approval.</p>
 
 <div class="verification-grid">
   <div class="verification-card">
@@ -511,6 +511,7 @@ Save & Continue to Dashboard
 <script type="module">
 
 import { api, getToken, clearSession } from './js/core/api.js';
+import { compressCanvasImage, prepareUploadFile } from './js/core/upload-limits.js';
 
 const $ = id => document.getElementById(id);
 
@@ -567,13 +568,7 @@ const lines = value =>
     .filter(Boolean)
     .map(x => ({ details: x }));
 
-const readFileAsDataUrl = file => new Promise((resolve, reject) => {
-  if (!file) return resolve('');
-  const reader = new FileReader();
-  reader.onload = () => resolve(String(reader.result || ''));
-  reader.onerror = () => reject(new Error('Unable to read the uploaded file.'));
-  reader.readAsDataURL(file);
-});
+const readFileAsDataUrl = file => prepareUploadFile(file);
 
 let currentStudentProfile = {};
 
@@ -598,15 +593,19 @@ function setupSignaturePad(canvas) {
     };
   };
 
-  const updatePreview = () => {
+  const updatePreview = async () => {
     const target = canvas.dataset.signatureTarget;
     const preview = document.querySelector(`[data-signature-preview="${target}"]`);
     const hidden = document.getElementById(`${target}SignatureData`);
-    if (preview) {
-      const dataUrl = canvas.toDataURL('image/png');
+    try {
+      const dataUrl = await compressCanvasImage(canvas);
+      if (preview) {
       preview.src = dataUrl;
       preview.style.display = 'block';
+      }
       if (hidden) hidden.value = dataUrl;
+    } catch (error) {
+      show(error.message);
     }
   };
 
@@ -659,7 +658,9 @@ function setupSignaturePad(canvas) {
   uploadInput?.addEventListener('change', async event => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
-    const dataUrl = await readFileAsDataUrl(file);
+    let dataUrl;
+    try{dataUrl=await readFileAsDataUrl(file);}
+    catch(error){show(error.message);return;}
     const preview = document.querySelector(`[data-signature-preview="${canvas.dataset.signatureTarget}"]`);
     const hidden = document.getElementById(`${canvas.dataset.signatureTarget}SignatureData`);
     if (preview) {
@@ -687,9 +688,18 @@ const load = async () => {
   try {
     const response = await api('/student/me');
     const student = response.data;
-    currentStudentProfile = student.profile_details || {};
+    const pending = student.pending_profile;
+    const candidate = pending ? {
+      ...student,
+      ...pending,
+      regNo:pending.regNo,
+      graduationYear:pending.graduationYear,
+      profile_details:pending.profileDetails || student.profile_details
+    } : student;
+    currentStudentProfile = candidate.profile_details || {};
 
-    const verificationState = currentStudentProfile.verificationStatus || (currentStudentProfile.verified ? 'approved' : currentStudentProfile.requested ? 'pending' : 'pending');
+    const statusDetails = student.profile_details || {};
+    const verificationState = statusDetails.verificationStatus || (statusDetails.verified ? 'approved' : statusDetails.requested ? 'pending' : 'pending');
     setVerificationStatus(verificationState);
 
     const fields = [
@@ -721,39 +731,39 @@ const load = async () => {
       const element = $(key);
 
       if (
-        student[key] !== null &&
-        student[key] !== undefined &&
+        candidate[key] !== null &&
+        candidate[key] !== undefined &&
         element
       ) {
-        element.value = student[key];
+        element.value = candidate[key];
       }
     });
 
-    const tenthScoreValue = currentStudentProfile.tenthScore || student.tenthScore || '';
-    const twelfthScoreValue = currentStudentProfile.twelfthScore || student.twelfthScore || '';
+    const tenthScoreValue = currentStudentProfile.tenthScore || candidate.tenthScore || '';
+    const twelfthScoreValue = currentStudentProfile.twelfthScore || candidate.twelfthScore || '';
     const schoolMarksText = [currentStudentProfile.schoolMarks, tenthScoreValue, twelfthScoreValue].filter(Boolean).join(' / ');
 
     $('tenthScore').value = tenthScoreValue;
     $('twelfthScore').value = twelfthScoreValue;
     $('aadhaarNumber').value = currentStudentProfile.aadhaarNumber || student.aadhaarNumber || $('aadhaarNumber').value || '';
 
-    $('skills').value = (student.skills || []).join(', ');
-    $('languages').value = (student.languages || []).join(', ');
+    $('skills').value = (candidate.skills || []).join(', ');
+    $('languages').value = (candidate.languages || []).join(', ');
 
     $('tenthSchoolName').value = currentStudentProfile.tenthSchoolName || student.tenthSchoolName || '';
     $('tenthCompletionYear').value = currentStudentProfile.tenthCompletionYear || student.tenthCompletionYear || '';
     $('twelfthSchoolName').value = currentStudentProfile.twelfthSchoolName || student.twelfthSchoolName || '';
     $('twelfthCompletionYear').value = currentStudentProfile.twelfthCompletionYear || student.twelfthCompletionYear || '';
 
-    $('experience').value = (student.experience || [])
+    $('experience').value = (candidate.experience || [])
       .map(item => item.details || '')
       .join('\n');
 
-    $('certifications').value = (student.certifications || [])
+    $('certifications').value = (candidate.certifications || [])
       .map(item => item.details || '')
       .join('\n');
 
-    $('projects').value = (student.projects || [])
+    $('projects').value = (candidate.projects || [])
       .map(item => item.details || '')
       .join('\n');
 
@@ -803,12 +813,20 @@ form.addEventListener('submit', async event => {
   save.disabled = true;
   save.textContent = 'Saving...';
 
-  const proofData = await Promise.all([
-    readFileAsDataUrl($('cgpaProof')?.files && $('cgpaProof').files[0]),
-    readFileAsDataUrl($('tenthProof')?.files && $('tenthProof').files[0]),
-    readFileAsDataUrl($('twelfthProof')?.files && $('twelfthProof').files[0]),
-    readFileAsDataUrl($('aadhaarProof')?.files && $('aadhaarProof').files[0])
-  ]);
+  let proofData;
+  try{
+    proofData = await Promise.all([
+      readFileAsDataUrl($('cgpaProof')?.files && $('cgpaProof').files[0]),
+      readFileAsDataUrl($('tenthProof')?.files && $('tenthProof').files[0]),
+      readFileAsDataUrl($('twelfthProof')?.files && $('twelfthProof').files[0]),
+      readFileAsDataUrl($('aadhaarProof')?.files && $('aadhaarProof').files[0])
+    ]);
+  }catch(error){
+    show(error.message);
+    save.disabled = false;
+    save.textContent = 'Save & Continue to Dashboard';
+    return;
+  }
 
   const schoolMarksValue = [
     $('tenthScore').value.trim(),
@@ -897,7 +915,7 @@ form.addEventListener('submit', async event => {
     });
 
     show(
-      'Profile saved successfully. Opening your placement dashboard...',
+      'Changes submitted for admin approval. Opening your placement dashboard...',
       'success'
     );
 

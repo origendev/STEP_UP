@@ -11,6 +11,8 @@
 ============================================================ */
 
 import { $, $$, esc } from '../core/dom.js';
+import { api, getToken } from '../core/api.js';
+import { prepareUploadFile } from '../core/upload-limits.js';
 import { DEPARTMENTS, YEARS, GENERAL_GROUPS, DEPT_NOTES, COURSES, PROG_LANGS, PROG_COURSES } from '../data/skills.data.js?v=20261022a';
 
 function read(key){ try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch{ return null; } }
@@ -43,14 +45,15 @@ function studentYear(){
 
 
 /* ---------- Certificates: students attach proof of a finished course ----------
-   Saved in this browser, per student (key stepupCerts:<reg_no>).
-   Images are shrunk first; PDFs are kept as they are up to MAX_PDF bytes. */
-const MAX_PDF = 1.5 * 1024 * 1024;
+   Signed-in submissions are stored for admin review; signed-out uploads stay local.
+   Images are compressed and PDFs are accepted only when smaller than 10 KB. */
 const certKey = () => 'stepupCerts:' + ((read('stepupStudent') || {}).reg_no || 'guest');
 const courseId = c => (c.company + '|' + c.title).toLowerCase();
-function loadCerts(){ return read(certKey()) || {}; }
-function saveCerts(all){
-  try{ localStorage.setItem(certKey(), JSON.stringify(all)); return true; }
+let certRecords = {};
+const courseMetadata = new Map();
+function loadCerts(){ return certRecords; }
+function saveLocalCertificates(records){
+  try{ localStorage.setItem(certKey(), JSON.stringify(records)); return true; }
   catch{ toast('Could not save — browser storage is full. Remove an old certificate and try again.'); return false; }
 }
 function toast(msg){
@@ -59,28 +62,18 @@ function toast(msg){
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3200);
 }
-function shrink(file, max = 1400){
-  return new Promise((ok, no) => {
-    const url = URL.createObjectURL(file), im = new Image();
-    im.onload = () => {
-      const r = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas');
-      c.width = Math.round(im.width * r); c.height = Math.round(im.height * r);
-      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', .8));
-    };
-    im.onerror = () => { URL.revokeObjectURL(url); no(new Error('bad image')); };
-    im.src = url;
-  });
-}
-function readAsDataURL(file){
-  return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
-}
-function viewCert(rec){
+async function viewCert(rec){
+  let data = rec.data;
+  if(!data && rec.id){
+    try{ data = (await api('/student/skill-certificates/' + rec.id)).data.file_data; }
+    catch(error){ toast(error.message); return; }
+  }
+  if(!data){ toast('This certificate is only saved in this browser. Sign in and attach it again to submit it for review.'); return; }
   const wrap = document.createElement('div');
   wrap.className = 'sk-lb';
-  const isPdf = rec.data.startsWith('data:application/pdf');
+  const isPdf = data.startsWith('data:application/pdf');
   wrap.innerHTML = `<div class="sk-lb-box" role="dialog" aria-label="Certificate">
-      ${isPdf ? `<iframe src="${rec.data}" title="Certificate"></iframe>` : `<img src="${rec.data}" alt="Certificate">`}
+      ${isPdf ? `<iframe src="${data}" title="Certificate"></iframe>` : `<img src="${data}" alt="Certificate">`}
       <button type="button" class="btn-solid" data-close>Close</button></div>`;
   wrap.addEventListener('click', e => { if(e.target === wrap || e.target.closest('[data-close]')) wrap.remove(); });
   document.body.appendChild(wrap);
@@ -185,10 +178,18 @@ function card(c){
   const levels = c.years.map(y => YEARS.find(v => v.key === y)?.level).filter(Boolean);
   const yearTag = c.years.length === YEARS.length ? 'All years' : c.years.map(ordinal).join(' · ') + ' year';
   const id = courseId(c);
+  courseMetadata.set(id, { provider:c.company, title:c.title });
   const rec = loadCerts()[id];
+  const certificateStatus = rec?.status === 'approved'
+    ? ['approved', CHECK + ' Verified']
+    : rec?.status === 'rejected'
+      ? ['rejected', 'Rejected — attach an updated certificate']
+      : rec?.status === 'pending'
+        ? ['pending', 'Awaiting admin approval']
+        : ['local', 'Saved in this browser only'];
   const certRow = rec
     ? `<div class="sk-cert-row has">
-         <span class="sk-cert-ok">${CHECK} Attached</span>
+         <span class="sk-cert-ok sk-cert-${certificateStatus[0]}">${certificateStatus[1]}</span>
          <span class="sk-cert-actions">
            <button type="button" class="sk-link" data-cert-view="${esc(id)}">View</button>
            <button type="button" class="sk-link" data-cert-add="${esc(id)}">Replace</button>
@@ -328,6 +329,11 @@ export function mount(){
   const years = $('#skYears');
   const view = $('#view-skills');
   if(!tabs || !years || !view) return;
+  const cachedCertificates = read(certKey()) || {};
+  certRecords = Object.fromEntries(Object.entries(cachedCertificates).map(([id, record]) => [
+    id,
+    { ...record, status: record.status || 'local' }
+  ]));
   const search = $('#skSearch');
   const clearSearch = $('#skSearchClear');
   state.query = '';
@@ -408,17 +414,21 @@ export function mount(){
     if(!f || !pending) return;
     const id = pending; pending = null;
     try{
-      let data;
-      if(f.type === 'application/pdf'){
-        if(f.size > MAX_PDF) return toast('That PDF is too large (max 1.5 MB). Attach a photo or screenshot instead.');
-        data = await readAsDataURL(f);
-      }else if(f.type.startsWith('image/')){
-        data = await shrink(f);
-      }else return toast('Please choose an image or a PDF.');
-      const all = loadCerts();
-      all[id] = { data, name: f.name, added: new Date().toISOString() };
-      if(saveCerts(all)){ render(); toast('Certificate attached'); }
-    }catch{ toast('Could not read that file'); }
+      const data = await prepareUploadFile(f);
+      if(!getToken()){
+        const all = { ...loadCerts(), [id]: { data, name: f.name, status: 'local', added: new Date().toISOString() } };
+        if(saveLocalCertificates(all)){ certRecords = all; render(); toast('Saved in this browser only. Sign in to submit it for admin review.'); }
+        return;
+      }
+      const metadata = courseMetadata.get(id) || {};
+      const result = await api('/student/skill-certificates', {
+        method: 'POST',
+        body: JSON.stringify({ courseId:id, provider:metadata.provider || id.split('|')[0], courseTitle:metadata.title || id.split('|').slice(1).join('|'), fileName:f.name, fileData:data })
+      });
+      certRecords[id] = { ...result.data, id:result.data.id, name:f.name, data, status:'pending' };
+      render();
+      toast('Certificate submitted for admin approval');
+    }catch(error){ toast(error.message || 'Could not submit that certificate'); }
   });
 
   view.addEventListener('click', e => {
@@ -429,12 +439,43 @@ export function mount(){
     else if(see){ const r = loadCerts()[see.dataset.certView]; if(r) viewCert(r); }
     else if(del){
       if(!confirm('Remove this certificate?')) return;
-      const all = loadCerts(); delete all[del.dataset.certDel];
-      if(saveCerts(all)) render();
+      const id = del.dataset.certDel, rec = loadCerts()[id];
+      if(rec?.id && getToken()){
+        api('/student/skill-certificates/' + rec.id, { method:'DELETE' })
+          .then(() => { delete certRecords[id]; render(); })
+          .catch(error => toast(error.message));
+      }else{
+        const all = { ...loadCerts() }; delete all[id];
+        if(saveLocalCertificates(all)){ certRecords = all; render(); }
+      }
     }
   });
 
   state.dept = 'ALL';   // opens on "All"; the student's own department is tagged in the chips
   state.year = myYear;
   render();
+  if(getToken()){
+    api('/student/skill-certificates').then(async response => {
+      const records = {};
+      for(const certificate of response.data || []){
+        records[certificate.course_id] = { ...certificate, id:certificate.id, name:certificate.file_name };
+      }
+      const legacy = read(certKey()) || {};
+      for(const [id, record] of Object.entries(legacy)){
+        if(records[id] || !record.data) continue;
+        const metadata = courseMetadata.get(id) || {};
+        const result = await api('/student/skill-certificates', {
+          method:'POST',
+          body:JSON.stringify({
+            courseId:id, provider:metadata.provider || id.split('|')[0], courseTitle:metadata.title || id.split('|').slice(1).join('|'),
+            fileName:record.name || 'certificate', fileData:record.data
+          })
+        });
+        records[id] = { ...result.data, id:result.data.id, name:result.data.file_name, data:record.data };
+      }
+      localStorage.removeItem(certKey());
+      certRecords = records;
+      render();
+    }).catch(error => toast('Could not load certificate submissions: ' + error.message));
+  }
 }

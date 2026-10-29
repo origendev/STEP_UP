@@ -6,7 +6,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const admin=JSON.parse(sessionStorage.getItem(adminKey)||'{}'); $('#adminName').textContent=admin.name||admin.id||'Administrator'; $('#adminRole').textContent=admin.role||'Super Admin';
 function initials(name){return String(name||'SA').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'SA'}
 document.documentElement.dataset.theme='light'; try{localStorage.removeItem('stepupAdminTheme')}catch{} $('#adminAvatar').textContent=initials(admin.name||admin.id);
-const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles and resumes'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
+const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles and resumes'],approvals:['Student Approvals','Review profile changes and skill certificates'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}
 async function api(path,opt={}){const r=await fetch(API_BASE+path,{...opt,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opt.headers||{})}});let j={};try{j=await r.json()}catch{}if(r.status===401){sessionStorage.clear();location.href='admin-login.html';throw Error('Session expired.')}if(!r.ok)throw Error(j.error||'Request failed');return j.data}
 function sectionHead(name){const [t,s]=titles[name]||[name,''];$('#sectionTitle').textContent=t;$('#sectionSub').textContent=s}
@@ -48,6 +48,113 @@ ${!s.id?'<div class="field full"><label>Temporary Password</label><input name="p
 
 async function students(){sectionHead('students');const data=await api('/admin/students');setContent(`<div class="panel"><div class="toolbar"><div class="filters"><input class="search" id="studentSearch" placeholder="Search name, reg no, email..."></div><button class="primary" id="addStudent">+ Add Student</button></div><div id="studentTable"></div></div>`);function draw(){const q=($('#studentSearch').value||'').toLowerCase();const rows=data.filter(s=>[s.name,s.reg_no,s.email,s.department].join(' ').toLowerCase().includes(q)).map(s=>`<tr><td>${esc(s.reg_no)}</td><td><b>${esc(s.name)}</b><br><small>${esc(s.email)}</small></td><td>${esc(s.department||'—')}</td><td>${s.profile_completed?'<span class="pill">Complete</span>':'<span class="pill">Pending</span>'}</td><td><button class="btn" data-view="${s.id}">View</button><button class="btn" data-edit="${s.id}">Edit</button>${s.id?`<button class="btn danger" data-del="${s.id}">Remove</button>`:''}</td></tr>`).join('');$('#studentTable').innerHTML=data.length?table(['Reg No','Student','Department','Profile','Actions'],rows):empty()};draw();$('#studentSearch').oninput=draw;$('#addStudent').onclick=()=>openModal('Add Student',studentForm(),async form=>{const body=formToObj(form);body.skills=body.skills.split(',').map(x=>x.trim()).filter(Boolean);body.languages=body.languages.split(',').map(x=>x.trim()).filter(Boolean);const d=await api('/admin/students',{method:'POST',body:JSON.stringify(body)});toast(`Student created. Temporary password: ${d.temporaryPassword}`);closeModal();students()});$('#studentTable').onclick=async e=>{const v=e.target.closest('[data-view]');const ed=e.target.closest('[data-edit]');const de=e.target.closest('[data-del]');if(v){const s=await api('/admin/students/'+v.dataset.view);const profile=(s.profile_details||{});const renderDocCard=(label, docValue, signatureValue)=>{if(!docValue && !signatureValue) return '';const isImage = typeof docValue === 'string' && docValue.toLowerCase().startsWith('data:image/');const isPdf = typeof docValue === 'string' && docValue.toLowerCase().startsWith('data:application/pdf');return `<div class="field full"><label>${label}</label>${docValue?isImage?`<img src="${esc(docValue)}" alt="${esc(label)}" style="max-width:100%;max-height:220px;border-radius:12px;border:1px solid rgba(98,109,128,0.2);background:#fff;object-fit:contain;" onerror="this.style.display='none'" />`:isPdf?`<a href="${esc(docValue)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px;color:#5b46d6;font-weight:700;">Open PDF</a>`:`<div style="margin-top:8px; color:#4a5062;">Uploaded document</div>`:'<div style="color:#4a5062;">—</div>'}${signatureValue?`<div style="margin-top:12px;"><div style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#5d6477; margin-bottom:6px;">Signature</div><img src="${esc(signatureValue)}" alt="${esc(label)} signature" style="max-width:220px;max-height:90px;border-radius:10px;border:1px solid rgba(98,109,128,0.2);background:#fff;object-fit:contain;" /></div>`:''}</div>`;};const verificationCards=[['10th marks', profile.tenthScore || profile.schoolMarks || s.tenthScore || '—', profile.tenthProof || '', profile.tenthSignature || profile.signature || ''],['12th marks', profile.twelfthScore || s.twelfthScore || '—', profile.twelfthProof || '', profile.twelfthSignature || ''],['CGPA', s.cgpa || profile.cgpa || '—', profile.cgpaProof || '', profile.cgpaSignature || ''],['Aadhaar', profile.aadhaarNumber || s.aadhaarNumber || '—', profile.aadhaarProof || '', profile.aadhaarSignature || '']];const proofMarkup=verificationCards.map(([label, score, proofValue, sigValue])=>renderDocCard(label, proofValue, sigValue)).filter(Boolean).join('');openModal('Student Profile',`<div class="form-grid">${[['Name',s.name],['Reg No',s.reg_no],['Email',s.email],['Phone',s.phone],['College',s.college],['Degree',s.degree],['Department',s.department],['Current Year',s.study_year ? ['I Year','II Year','III Year','IV Year'][Number(s.study_year)-1] : '—'],['Graduation Year',s.graduation_year],['10th school',profile.tenthSchoolName || s.tenthSchoolName || '—'],['10th completion year',profile.tenthCompletionYear || s.tenthCompletionYear || '—'],['12th school',profile.twelfthSchoolName || s.twelfthSchoolName || '—'],['12th completion year',profile.twelfthCompletionYear || s.twelfthCompletionYear || '—'],['CGPA',s.cgpa || '—'],['School marks',profile.schoolMarks || [profile.tenthScore, profile.twelfthScore].filter(Boolean).join(' / ') || '—'],['Aadhaar number',profile.aadhaarNumber||'—'],['Skills',(s.skills||[]).join(', ')],['Languages',(s.languages||[]).join(', ')],['Summary',s.summary]].map(x=>`<div class="field"><label>${x[0]}</label><div>${esc(x[1]||'—')}</div></div>`).join('')}${verificationCards.map(([label, score, proofValue, sigValue])=>`<div class="field"><label>${label}</label><div>${esc(score || '—')}</div></div>`).join('')}${proofMarkup}</div><div class="form-actions"><button class="btn" id="resumeBtn">View Resume</button><button class="primary" id="cancelModal">Close</button></div>`);$('#resumeBtn').onclick=async()=>{try{const r=await fetch(`${API_BASE}/admin/student-resume/${s.id}`,{headers:{Authorization:'Bearer '+token}});if(!r.ok)throw Error('Resume not found');const blob=await r.blob();window.open(URL.createObjectURL(blob),'_blank')}catch(err){toast(err.message)}}}if(ed){const s=await api('/admin/students/'+ed.dataset.edit);openModal('Edit Student',studentForm(s),async form=>{const b=formToObj(form);b.skills=b.skills.split(',').map(x=>x.trim()).filter(Boolean);b.languages=b.languages.split(',').map(x=>x.trim()).filter(Boolean);await api('/admin/students/'+s.id,{method:'PATCH',body:JSON.stringify(b)});toast('Student updated');closeModal();students()})}if(de)confirmDelete('this student',async()=>{await api('/admin/students/'+de.dataset.del,{method:'DELETE'});toast('Student removed');students()})}}
 
+function reviewText(value){
+  if(value===null||value===undefined||value==='')return '—';
+  if(typeof value==='string'&&/^data:(image\/|application\/pdf)/i.test(value))return '[Uploaded image or PDF]';
+  const text=typeof value==='object'?JSON.stringify(value):String(value);
+  return text.length>400?text.slice(0,400)+'…':text;
+}
+function flattenReviewMap(value,prefix='',entries=new Map()){
+  if(value&&typeof value==='object'&&!Array.isArray(value)){
+    Object.entries(value).forEach(([key,item])=>flattenReviewMap(item,prefix?`${prefix} · ${key}`:key,entries));
+  }else if(Array.isArray(value)){
+    value.forEach((item,index)=>flattenReviewMap(item,`${prefix} · ${index+1}`,entries));
+  }else if(prefix)entries.set(prefix,value);
+  return entries;
+}
+function profileReviewChanges(student,pending){
+  const omit=['pendingChanges','verificationStatus','verified','requested','requestedAt','reviewedAt','reviewedBy','approvedAt','rejectedAt'];
+  const cleanDetails=value=>Object.fromEntries(Object.entries(value||{}).filter(([key])=>!omit.includes(key)));
+  const current={
+    name:student.name,regNo:student.reg_no,email:student.email,phone:student.phone,dob:student.dob,
+    gender:student.gender,address:student.address,college:student.college,degree:student.degree,
+    department:student.department,graduationYear:student.graduation_year,cgpa:student.cgpa,
+    education:student.education,skills:student.skills,languages:student.languages,
+    experience:student.experience,achievements:student.achievements,certifications:student.certifications,
+    projects:student.projects,summary:student.summary,linkedin:student.linkedin,github:student.github,
+    portfolio:student.portfolio,profileDetails:cleanDetails(student.profile_details)
+  };
+  const proposed={...pending,profileDetails:cleanDetails(pending.profileDetails)};
+  const before=flattenReviewMap(current),after=flattenReviewMap(proposed);
+  return [...new Set([...before.keys(),...after.keys()])]
+    .filter(key=>JSON.stringify(before.get(key))!==JSON.stringify(after.get(key)))
+    .map(key=>[key,`${reviewText(before.get(key))} → ${reviewText(after.get(key))}`]);
+}
+function reviewRows(entries){
+  return `<div class="review-diff">${entries.map(([key,value])=>`<div><span>${esc(key)}</span><b>${esc(value)}</b></div>`).join('')}</div>`;
+}
+async function approvals(){
+  sectionHead('approvals');
+  const [profiles,certificates]=await Promise.all([
+    api('/admin/profile-approvals'),
+    api('/admin/skill-certificates')
+  ]);
+  setContent(`<section class="panel review-panel"><div class="review-heading"><div><h2>Profile changes</h2><p class="muted">Student edits stay pending until approved.</p></div><button class="btn" id="refreshStudentApprovals">↻ Refresh</button></div><div id="profileApprovalList"></div></section>
+    <section class="panel review-panel"><div class="review-heading"><div><h2>Skill certificates</h2><p class="muted">Open each uploaded document before approving it.</p></div></div><div id="certificateApprovalList"></div></section>`);
+  const profileList=$('#profileApprovalList'), certificateList=$('#certificateApprovalList');
+  profileList.innerHTML=profiles.length?profiles.map(student=>{
+    const pending=student.pending_profile||{};
+    const summary=[['Name',pending.name],['Registration No.',pending.regNo],['Email',pending.email],['Department',pending.department]]
+      .filter(([,value])=>value).map(([label,value])=>`<span><b>${esc(label)}:</b> ${esc(value)}</span>`).join('');
+    const changeCount=profileReviewChanges(student,pending).length;
+    return `<article class="review-card"><div class="review-card-copy"><div><h3>${esc(student.name)} <span class="review-status pending">Pending</span></h3><p>${esc(student.reg_no)} · ${esc(student.email)}</p><div class="review-summary">${summary}</div></div><small>Submitted ${formatAdminDate(student.submitted_at)} · ${changeCount} profile values</small></div><button class="btn" data-profile-review="${student.id}">Review changes</button></article>`;
+  }).join(''):empty('No profile changes are waiting for review.');
+  certificateList.innerHTML=certificates.length?certificates.map(certificate=>{
+    const status=String(certificate.status||'pending').toLowerCase();
+    return `<article class="review-card"><div class="review-card-copy"><div><h3>${esc(certificate.course_title)} <span class="review-status ${status}">${esc(status)}</span></h3><p>${esc(certificate.student_name)} · ${esc(certificate.reg_no)} · ${esc(certificate.provider)}</p><small>${esc(certificate.file_name)} · Submitted ${formatAdminDate(certificate.submitted_at)}</small>${certificate.review_note?`<p>${esc(certificate.review_note)}</p>`:''}</div></div><div class="review-actions"><button class="btn" data-certificate-view="${certificate.id}">View certificate</button>${status==='pending'?`<button class="btn success" data-certificate-decision="approved" data-id="${certificate.id}">Approve</button><button class="btn danger" data-certificate-decision="rejected" data-id="${certificate.id}">Reject</button>`:''}</div></article>`;
+  }).join(''):empty('No certificates have been submitted.');
+  $('#refreshStudentApprovals').onclick=()=>approvals().catch(error=>toast(error.message));
+  profileList.onclick=async event=>{
+    const button=event.target.closest('[data-profile-review]');
+    if(!button)return;
+    const student=profiles.find(item=>String(item.id)===button.dataset.profileReview);
+    if(!student)return;
+    const pending=student.pending_profile||{};
+    const entries=profileReviewChanges(student,pending);
+    if(!entries.length)entries.push(['Profile','No differences found.']);
+    openModal(`Profile changes · ${student.name}`,
+      `${reviewRows(entries)}<div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button><button type="button" class="btn danger" id="rejectProfile">Reject changes</button><button type="button" class="primary" id="approveProfile">Approve profile</button></div>`,
+      async()=>{});
+    $('#approveProfile').onclick=async()=>{
+      try{
+        await api(`/admin/students/${student.id}/verification`,{method:'PATCH',body:JSON.stringify({status:'approved'})});
+        closeModal();toast('Profile changes approved');await approvals();
+      }catch(error){toast(error.message)}
+    };
+    $('#rejectProfile').onclick=async()=>{
+      try{
+        await api(`/admin/students/${student.id}/verification`,{method:'PATCH',body:JSON.stringify({status:'rejected'})});
+        closeModal();toast('Profile changes rejected');await approvals();
+      }catch(error){toast(error.message)}
+    };
+  };
+  certificateList.onclick=async event=>{
+    const view=event.target.closest('[data-certificate-view]');
+    const decision=event.target.closest('[data-certificate-decision]');
+    if(view){
+      try{
+        const certificate=await api('/admin/skill-certificates/'+view.dataset.certificateView);
+        const isPdf=certificate.mime_type==='application/pdf';
+        const preview=isPdf
+          ?`<iframe class="review-document" src="${esc(certificate.file_data)}" title="Certificate"></iframe>`
+          :`<img class="review-document-image" src="${esc(certificate.file_data)}" alt="Uploaded certificate">`;
+        openModal(certificate.file_name,`${preview}<div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button></div>`,async()=>{});
+      }catch(error){toast(error.message)}
+      return;
+    }
+    if(decision){
+      try{
+        await api('/admin/skill-certificates/'+decision.dataset.id,{
+          method:'PATCH',
+          body:JSON.stringify({status:decision.dataset.certificateDecision})
+        });
+        toast(decision.dataset.certificateDecision==='approved'?'Certificate approved':'Certificate rejected');
+        await approvals();
+      }catch(error){toast(error.message)}
+    }
+  };
+}
+
 function formatAdminDate(value){if(!value)return '—';const date=new Date(value);return Number.isNaN(date.getTime())?'—':date.toLocaleString()}
 function applicationRounds(raw){if(Array.isArray(raw))return raw.map((round,index)=>typeof round==='string'?{name:round}:({...round,name:round.name||round.title||round.roundName||`Round ${index+1}`}));const value=String(raw||'').trim();if(!value||value==='Not specified')return [];try{const parsed=JSON.parse(value);if(Array.isArray(parsed))return applicationRounds(parsed);if(Array.isArray(parsed.rounds))return applicationRounds(parsed.rounds)}catch{}return value.split(/\r?\n/).map(line=>line.replace(/^\s*\d+[.)]\s*/,'').trim()).filter(Boolean).map(name=>({name}))}
 function flowStep(label,status,detail='',tone='neutral'){return `<div class="student-flow-step ${tone}"><span class="student-flow-dot"></span><div><b>${esc(label)}</b><span class="student-flow-status">${esc(status)}</span>${detail?`<small>${esc(detail)}</small>`:''}</div></div>`}
@@ -82,6 +189,7 @@ function applicationFlow(application){
 async function viewStudentPerformance(studentId){
   try{
     const {student,applications}=await api(`/admin/students/${encodeURIComponent(studentId)}/performance`);
+    const certificates=await api(`/admin/students/${encodeURIComponent(studentId)}/skill-certificates`);
     const attempts=applications.flatMap(application=>Array.isArray(application.assessment_attempts)?application.assessment_attempts:[]);
     const verified=attempts.filter(attempt=>attempt.company_verified);
     const passedRoundKeys=new Set([
@@ -97,9 +205,85 @@ async function viewStudentPerformance(studentId){
       : verificationState === 'rejected'
         ? 'background:#fff1f1;color:#b42318;border:1px solid rgba(180,35,24,0.18);'
         : 'background:#fff8e6;color:#a16207;border:1px solid rgba(161,98,7,0.18);';
+    const currentProfile=student.profile_details||{};
+    const pendingProfile=student.pending_profile?.profileDetails||{};
+    const profile={...currentProfile,...pendingProfile};
+    const profileReviewStatus=currentProfile.verificationStatus||(student.pending_profile?'pending':'uploaded');
+    const documents=[];
+    const addProfileDocument=(label,data,status)=>{
+      if(typeof data==='string'&&/^data:(image\/|application\/pdf)/i.test(data)){
+        documents.push({label,data,status});
+      }
+    };
+    [
+      ['10th marksheet',profile.tenthProof||profile.schoolMarksProof],
+      ['12th marksheet',profile.twelfthProof],
+      ['CGPA marksheet',profile.cgpaProof],
+      ['Aadhaar card',profile.aadhaarProof],
+      ['10th signature',profile.tenthSignature||profile.signature],
+      ['12th signature',profile.twelfthSignature],
+      ['CGPA signature',profile.cgpaSignature],
+      ['Aadhaar signature',profile.aadhaarSignature]
+    ].forEach(([label,data])=>addProfileDocument(
+      label,
+      data,
+      profileReviewStatus
+    ));
+    Object.entries(profile).forEach(([key,data])=>{
+      if(/proof|signature/i.test(key)&&!['tenthProof','schoolMarksProof','twelfthProof','cgpaProof','aadhaarProof','tenthSignature','signature','twelfthSignature','cgpaSignature','aadhaarSignature'].includes(key)){
+        addProfileDocument(key.replace(/([A-Z])/g,' $1'),data,'Profile document');
+      }
+    });
+    (Array.isArray(profile.skills)?profile.skills:[]).forEach(skill=>{
+      (Array.isArray(skill?.proof)?skill.proof:[]).forEach((data,index)=>{
+        addProfileDocument(`${skill.name||'Skill'} proof ${index+1}`,data,'Profile document');
+      });
+    });
+    (Array.isArray(certificates)?certificates:[]).forEach(certificate=>documents.push({
+      label:`${certificate.course_title} · ${certificate.provider}`,
+      data:certificate.file_data,
+      status:certificate.status,
+      certificateId:certificate.id
+    }));
     const appCards=applications.map(application=>`<article class="student-application"><div class="student-application-head"><div><span class="eyebrow">${esc(application.company_name||'Company')}</span><h3>${esc(application.title||'Job')}</h3><p>${esc([application.job_type,application.location,application.work_mode].filter(Boolean).join(' · ')||'')}</p></div><span class="pill">${esc(application.status)}</span></div><div class="student-flow-heading">Recruitment progress</div>${applicationFlow(application)}</article>`).join('');
     const fields=[['Registration number',student.reg_no],['Email',student.email],['Phone',student.phone],['College',student.college],['Degree',student.degree],['Department',student.department],['Current year',student.study_year?['I Year','II Year','III Year','IV Year'][Number(student.study_year)-1]:'—'],['Graduation year',student.graduation_year],['CGPA',student.cgpa],['Skills',(student.skills||[]).join(', ')]];
     openModal(`${student.name} · Student performance`,`<div class="student-performance"><div class="student-performance-overview"><div class="student-performance-identity"><div class="avatar">${esc(initials(student.name))}</div><div><h3>${esc(student.name)}</h3><span>${esc(student.email)}</span></div></div><div class="student-performance-stats"><div><small>Applications</small><strong>${applications.length}</strong></div><div><small>Rounds passed</small><strong>${passedRounds}</strong></div><div><small>Verified assessments</small><strong>${verified.length}</strong></div><div><small>Selected / offers</small><strong>${selected}</strong></div></div></div><section class="student-profile-summary"><h3>Student profile</h3><div id="studentVerificationState" style="margin-bottom:12px"><span class="pill" style="${verificationStyle}">${verificationLabel}</span></div><div class="student-profile-grid">${fields.map(([label,value])=>`<div><small>${esc(label)}</small><span>${esc(value||'—')}</span></div>`).join('')}${student.summary?`<div class="student-profile-wide"><small>Summary</small><span>${esc(student.summary)}</span></div>`:''}</div></section><section class="student-applications"><div class="student-section-heading"><div><h3>Applications and recruitment flow</h3><p>Round results and assessment scores appear here only after company verification.</p></div><span class="pill">${applications.length} total</span></div>${appCards||empty('This student has not applied to any jobs yet.')}</section><div class="form-actions"><button type="button" class="btn" id="studentResumeBtn">View Resume</button>${verificationState === 'approved' ? '' : `<button type="button" class="primary" data-verification-action="approve" data-student-id="${student.id}">Approve profile</button><button type="button" class="btn danger" data-verification-action="reject" data-student-id="${student.id}">Reject</button>`}<button type="button" class="btn" id="cancelModal">Close</button></div></div>`);
+    const documentSection=document.createElement('section');
+    documentSection.className='student-applications student-documents';
+    const drawDocuments=()=>{
+      documentSection.innerHTML=`<div class="student-section-heading"><div><h3>Uploaded documents</h3><p>Marksheets, Aadhaar proof, signatures, skill proofs, and course certificates.</p></div><span class="pill">${documents.length} files</span></div>${documents.length?`<div class="student-document-grid">${documents.map((doc,index)=>{const status=String(doc.status).toLowerCase();const statusClass=['approved','rejected','pending'].includes(status)?status:'uploaded';return `<article class="student-document"><div><b>${esc(doc.label)}</b><span class="review-status ${statusClass}">${esc(doc.status)}</span></div><div class="student-document-actions"><button type="button" class="btn" data-document-view="${index}">View</button>${doc.certificateId&&doc.status==='pending'?`<button type="button" class="btn success" data-document-approve="${index}">Approve</button><button type="button" class="btn danger" data-document-reject="${index}">Reject</button>`:''}</div></article>`}).join('')}</div>`:empty('No uploaded documents found for this student.')}`;
+    };
+    drawDocuments();
+    document.querySelector('.student-applications')?.before(documentSection);
+    documentSection.onclick=async event=>{
+      const view=event.target.closest('[data-document-view]');
+      const approve=event.target.closest('[data-document-approve]');
+      const reject=event.target.closest('[data-document-reject]');
+      if(view){
+        const doc=documents[Number(view.dataset.documentView)];
+        if(!doc)return;
+        const preview=doc.data.startsWith('data:application/pdf')
+          ?`<iframe class="review-document" src="${esc(doc.data)}" title="${esc(doc.label)}"></iframe>`
+          :`<img class="review-document-image" src="${esc(doc.data)}" alt="${esc(doc.label)}">`;
+        openModal(doc.label,`${preview}<div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button></div>`,async()=>{});
+        return;
+      }
+      const decision=approve||reject;
+      if(!decision)return;
+      const doc=documents[Number(decision.dataset.documentApprove||decision.dataset.documentReject)];
+      if(!doc?.certificateId)return;
+      const status=approve?'approved':'rejected';
+      decision.disabled=true;
+      try{
+        const result=await api(`/admin/skill-certificates/${doc.certificateId}`,{
+          method:'PATCH',
+          body:JSON.stringify({status})
+        });
+        doc.status=result.status;
+        toast(`Certificate ${status}`);
+        drawDocuments();
+      }catch(error){decision.disabled=false;toast(error.message)}
+    };
     $('#studentResumeBtn').onclick=async()=>{try{const response=await fetch(`${API_BASE}/admin/student-resume/${student.id}`,{headers:{Authorization:'Bearer '+token}});if(!response.ok)throw Error('Resume not found');const blob=await response.blob();window.open(URL.createObjectURL(blob),'_blank')}catch(error){toast(error.message)}};
     document.querySelectorAll('[data-verification-action]').forEach(button=>{
       button.onclick=async()=>{
@@ -202,6 +386,6 @@ function formToObj(f){const o={};new FormData(f).forEach((v,k)=>o[k]=v);return o
 function openModal(title,html,onSubmit){$('#modalTitle').textContent=title;$('#modalForm').innerHTML=html;$('#modal').classList.remove('hidden');$('#cancelModal')?.addEventListener('click',closeModal);$('#modalForm').onsubmit=async e=>{e.preventDefault();try{await onSubmit(e.target)}catch(err){toast(err.message)}}}
 function closeModal(){$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
 function downloadCSV(name,rows){if(!rows.length)return toast('No data to export');const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))];const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""').replace(/\n/g,' ')}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,announcements,analyticsreports,activity,admins};
+const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,approvals,jobs,applications,announcements,analyticsreports,activity,admins};
 async function navigate(name){$$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.section===name));try{await loaders[name]()}catch(e){setContent(`<div class="panel"><div class="danger-text">${esc(e.message)}</div></div>`);toast(e.message)}}
 $('#nav').onclick=e=>{const b=e.target.closest('.nav');if(b)navigate(b.dataset.section)};$('#content').onclick=async e=>{const go=e.target.closest('[data-go]');if(go){navigate(go.dataset.go);return;}const b=e.target.closest('[data-export]');if(!b)return;try{const d=await api('/admin/'+b.dataset.export);const arr=d.data||d;downloadCSV(b.dataset.export+'.csv',Array.isArray(arr)?arr:[]);toast('Report exported')}catch(err){toast(err.message)}};$('#logout').onclick=()=>{sessionStorage.clear();location.href='admin-login.html'};navigate('overview');
