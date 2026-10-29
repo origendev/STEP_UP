@@ -2687,6 +2687,37 @@ app.patch('/api/admin/interviews/:id', requireAdmin, async(req,res)=>{try{const 
 app.get('/api/admin/admin-users', requireAdmin, async(_req,res)=>{try{const r=await pool.query('SELECT id,admin_id,name,email,role,active,created_at FROM admin_users ORDER BY created_at DESC');res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load admin users.'});}});
 app.post('/api/admin/admin-users', requireAdmin, async(req,res)=>{const b=req.body||{};if(!clean(b.adminId)||!clean(b.name)||!b.password)return res.status(400).json({error:'Admin ID, name and password are required.'});try{const hash=await bcrypt.hash(b.password,12);const r=await pool.query('INSERT INTO admin_users(admin_id,name,email,password_hash,role) VALUES($1,$2,$3,$4,$5) RETURNING id,admin_id,name,email,role,active',[clean(b.adminId),clean(b.name),clean(b.email)||null,hash,clean(b.role)||'Placement Officer']);res.status(201).json({data:r.rows[0]});}catch(e){if(e.code==='23505')return res.status(409).json({error:'That admin ID already exists.'});console.error(e);res.status(500).json({error:'Could not create admin user.'});}});
 app.patch('/api/admin/admin-users/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE admin_users SET active=COALESCE($1,active),role=COALESCE($2,role),updated_at=NOW() WHERE id=$3 RETURNING id,admin_id,name,email,role,active',[typeof req.body.active==='boolean'?req.body.active:null,clean(req.body.role)||null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Admin user not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update admin user.'});}});
+app.delete('/api/admin/admin-users', requireAdmin, async(req,res)=>{
+  if((req.admin?.adminRole||'Super Admin')!=='Super Admin')return res.status(403).json({error:'Only a Super Admin can remove admin accounts.'});
+  try{
+    const r=await pool.query('DELETE FROM admin_users WHERE admin_id<>$1 RETURNING id',[req.admin?.adminId||ADMIN_ID]);
+    await logAdminActivity(req,'Admin accounts cleared','admin_user',null,`${r.rowCount} account(s) removed; current admin preserved.`);
+    res.json({data:{deleted:r.rowCount}});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not clear admin accounts.'});}
+});
+app.delete('/api/admin/admin-users/:id', requireAdmin, async(req,res)=>{
+  if((req.admin?.adminRole||'Super Admin')!=='Super Admin')return res.status(403).json({error:'Only a Super Admin can remove admin accounts.'});
+  try{
+    const r=await pool.query(
+      `DELETE FROM admin_users target
+       WHERE target.id=$1 AND target.admin_id<>$2
+         AND (target.active=FALSE OR EXISTS(
+           SELECT 1 FROM admin_users active
+           WHERE active.active=TRUE AND active.id<>target.id
+         ))
+       RETURNING id,admin_id,name`,
+      [req.params.id,req.admin?.adminId||ADMIN_ID]
+    );
+    if(!r.rows[0]){
+      const target=await pool.query('SELECT id,admin_id,active FROM admin_users WHERE id=$1',[req.params.id]);
+      if(!target.rows[0])return res.status(404).json({error:'Admin user not found.'});
+      if(target.rows[0].admin_id===(req.admin?.adminId||ADMIN_ID))return res.status(400).json({error:'You cannot remove your own admin account.'});
+      return res.status(409).json({error:'Cannot remove the last active admin account.'});
+    }
+    await logAdminActivity(req,'Admin account removed','admin_user',r.rows[0].id,r.rows[0].admin_id);
+    res.json({data:r.rows[0]});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not remove admin user.'});}
+});
 
 app.get('/api/admin/student-resume/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('SELECT file_name,mime_type,file_data FROM student_resumes WHERE student_id=$1',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Resume not found.'});res.setHeader('Content-Type',r.rows[0].mime_type);res.setHeader('Content-Disposition',`inline; filename="${r.rows[0].file_name.replace(/"/g,'')}"`);res.send(r.rows[0].file_data);}catch(e){console.error(e);res.status(500).json({error:'Could not load resume.'});}});
 
@@ -2877,6 +2908,23 @@ app.patch('/api/admin/applications/:id', requireAdmin, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not update application.' }); }
 });
 
+app.delete('/api/admin/applications', requireAdmin, async (req,res)=>{
+  try{
+    const r=await pool.query('DELETE FROM job_applications RETURNING id');
+    await logAdminActivity(req,'Applications cleared','application',null,`${r.rowCount} application(s) removed.`);
+    res.json({data:{deleted:r.rowCount}});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not clear applications.'});}
+});
+
+app.delete('/api/admin/applications/:id', requireAdmin, async (req,res)=>{
+  try{
+    const r=await pool.query('DELETE FROM job_applications WHERE id=$1 RETURNING id',[req.params.id]);
+    if(!r.rows[0])return res.status(404).json({error:'Application not found.'});
+    await logAdminActivity(req,'Application removed','application',r.rows[0].id);
+    res.json({data:r.rows[0]});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not remove application.'});}
+});
+
 app.get('/api/admin/analytics', requireAdmin, async (_req, res) => {
   try {
     const [dept,apps,companies,jobs,studentCount,courseCertificates,certificateSummary] = await Promise.all([
@@ -2918,6 +2966,23 @@ app.get('/api/admin/activity', requireAdmin, async (_req, res) => {
     const r = await pool.query(`SELECT id,admin_id,action,entity_type,entity_id,details,created_at FROM admin_activity_logs ORDER BY created_at DESC LIMIT 50`);
     res.json({ data: r.rows });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load activity log.' }); }
+});
+
+app.delete('/api/admin/activity', requireAdmin, async (req,res)=>{
+  if((req.admin?.adminRole||'Super Admin')!=='Super Admin')return res.status(403).json({error:'Only a Super Admin can clear the activity log.'});
+  try{
+    const r=await pool.query('DELETE FROM admin_activity_logs');
+    res.json({data:{deleted:r.rowCount}});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not clear the activity log.'});}
+});
+
+app.delete('/api/admin/activity/:id', requireAdmin, async (req,res)=>{
+  if((req.admin?.adminRole||'Super Admin')!=='Super Admin')return res.status(403).json({error:'Only a Super Admin can delete activity log entries.'});
+  try{
+    const r=await pool.query('DELETE FROM admin_activity_logs WHERE id=$1 RETURNING id',[req.params.id]);
+    if(!r.rows[0])return res.status(404).json({error:'Activity log entry not found.'});
+    res.json({data:r.rows[0]});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not remove activity log entry.'});}
 });
 
 app.get('/api/admin/students', requireAdmin, async (_req, res) => {
