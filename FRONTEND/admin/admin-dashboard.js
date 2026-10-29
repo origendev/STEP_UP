@@ -88,18 +88,27 @@ function jobRoundFlow(raw){
   const rounds=applicationRounds(raw);
   if(!rounds.length)return '<p class="muted">No interview rounds specified.</p>';
   const field=(round,keys)=>{for(const key of keys){const value=round[key];if(value!==undefined&&value!==null&&String(value).trim())return String(value).trim()}return ''};
-  return `<div class="job-round-flow" aria-label="Interview rounds">${rounds.map((round,index)=>{
-    const metadata=[
-      field(round,['type','assessmentType','assessment_type']),
-      field(round,['mode']),
-      field(round,['durationMinutes','duration_minutes','duration'])?`${field(round,['durationMinutes','duration_minutes','duration'])} min`:'',
-      field(round,['questionCount','question_count'])?`${field(round,['questionCount','question_count'])} questions`:'',
-      field(round,['passingScore','passing_score','cutoff'])?`Pass: ${field(round,['passingScore','passing_score','cutoff'])}`:''
-    ].filter(Boolean);
-    const description=field(round,['topics','skills','description']);
-    const instructions=field(round,['instructions']);
-    return `<article class="job-round-step"><span class="job-round-number">${index+1}</span><div class="job-round-content"><small>ROUND ${index+1}</small><b>${esc(round.name||`Round ${index+1}`)}</b>${metadata.length?`<span class="job-round-meta">${metadata.map(esc).join(' · ')}</span>`:''}${description?`<span class="job-round-detail">${esc(description)}</span>`:''}${instructions?`<span class="job-round-detail">${esc(instructions)}</span>`:''}</div></article>`;
-  }).join('')}</div>`;
+  const configured=rounds.map((round,index)=>{
+    const type=field(round,['type','assessmentType','assessment_type']);
+    const mode=field(round,['mode']);
+    const duration=field(round,['durationMinutes','duration_minutes','duration']);
+    const questionCount=field(round,['questionCount','question_count']);
+    const passingScore=field(round,['cutoff','passingScore','passing_score']);
+    const isTest=/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name||''} ${type}`);
+    const complete=round.active===true&&Boolean(type&&mode&&Number(duration)>=5&&Number(duration)<=240&&(!isTest||(Number(questionCount)>0&&passingScore!=='')));
+    const details=[
+      ['Round type',type],
+      ['Mode',mode],
+      ['Duration',duration?`${duration} minutes`:'' ],
+      ...(isTest?[['Questions',questionCount],['Passing score',passingScore!==''?String(passingScore).includes('%')?passingScore:`${passingScore}%`:'']]:[]),
+      ['Scheduled',field(round,['scheduledAt','scheduled_at'])?formatAdminDate(field(round,['scheduledAt','scheduled_at'])):''],
+      ['Topics / skills',field(round,['topics','skills'])],
+      ['Instructions',field(round,['instructions'])],
+      ['Meeting link',field(round,['meetingUrl','meeting_url'])]
+    ].filter(([,value])=>value);
+    return {round,index,complete,details};
+  });
+  return `<div class="job-round-chart"><div class="job-round-flow" aria-label="Interview rounds">${configured.map(({round,index,complete})=>`<div class="job-round-node-wrap"><button type="button" class="job-round-step" data-job-round="${index}" ${complete?`aria-expanded="false" aria-controls="admin-job-round-details-${index}"`:'disabled'}><span class="job-round-number">${index+1}</span><span class="job-round-name">${esc(round.name||`Round ${index+1}`)}</span></button></div>`).join('')}</div><div class="job-round-detail-panels">${configured.filter(round=>round.complete).map(({index,round,details})=>`<section class="job-round-detail-panel" id="admin-job-round-details-${index}" data-job-round-details="${index}" hidden><h4>${esc(round.name||`Round ${index+1}`)} details</h4><dl>${details.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl></section>`).join('')}</div></div>`;
 }
 function flowStep(label,status,detail='',tone='neutral'){return `<div class="student-flow-step ${tone}"><span class="student-flow-dot"></span><div><b>${esc(label)}</b><span class="student-flow-status">${esc(status)}</span>${detail?`<small>${esc(detail)}</small>`:''}</div></div>`}
 function applicationFlow(application){
@@ -335,6 +344,18 @@ async function jobs(){
       const j=data.find(x=>String(x.id)===view.dataset.view);
       if(!j)return;
       openModal('Job submission details',`<div class="approval-detail-grid"><div><small>Company</small><b>${esc(j.company_name)}</b></div><div><small>Approval status</small><b>${esc(j.approval_status||'Approved')}</b></div><div><small>Job title</small><b>${esc(j.title)}</b></div><div><small>Job type / mode</small><b>${esc(j.job_type||'—')} / ${esc(j.work_mode||'—')}</b></div><div><small>Salary</small><b>${esc(j.salary||'Not provided')}</b></div><div><small>Stipend</small><b>${esc(j.stipend||'Not provided')}</b></div><div><small>Location</small><b>${esc(j.location||'Not provided')}</b></div><div><small>Application deadline</small><b>${date(j.apply_before)}</b></div><div><small>Eligible departments</small><b>${esc((j.eligible_departments||[]).join(', ')||'Not specified')}</b></div><div><small>Batch</small><b>${esc(j.batch||'Not specified')}</b></div><div class="full"><small>Description</small><p>${esc(j.description||'No description provided')}</p></div><div class="full"><small>Interview rounds</small>${jobRoundFlow(j.interview_rounds)}</div>${j.approval_note?`<div class="full"><small>Previous review note</small><p>${esc(j.approval_note)}</p></div>`:''}</div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button>${(j.approval_status||'Approved')!=='Approved'?`<button type="button" class="approval-btn approve" id="detailApprove">✓ Approve job</button>`:''}</div>`,async()=>{});
+      $('#modalForm').onclick=event=>{
+        const toggle=event.target.closest('[data-job-round]');
+        if(!toggle)return;
+        const panel=$(`#admin-job-round-details-${toggle.dataset.jobRound}`);
+        if(!panel)return;
+        const expanded=panel.hidden;
+        $('#modalForm').querySelectorAll('[data-job-round-details]').forEach(item=>{item.hidden=true});
+        $('#modalForm').querySelectorAll('[data-job-round]').forEach(item=>{item.setAttribute('aria-expanded','false');item.classList.remove('is-expanded')});
+        panel.hidden=!expanded;
+        toggle.setAttribute('aria-expanded',String(expanded));
+        toggle.classList.toggle('is-expanded',expanded);
+      };
       $('#detailApprove')?.addEventListener('click',async()=>{try{await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});closeModal();toast('Job approved and published');await reload()}catch(err){toast(err.message)}});
     }
   };

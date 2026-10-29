@@ -22,19 +22,31 @@ function interviewRoundsFlow(raw){
   const rounds=parseInterviewRounds(raw);
   const field=(round,keys)=>{for(const key of keys){const value=round[key];if(value!==undefined&&value!==null&&String(value).trim())return String(value).trim()}return ''};
   if(!rounds.length)return '<p class="round-flow-empty">Interview rounds have not been specified.</p>';
-  return `<div class="job-round-flow" aria-label="Interview rounds">${rounds.map((round,index)=>{
+  const configured=rounds.map((round,index)=>{
+    const type=field(round,['type','assessmentType','assessment_type']);
+    const mode=field(round,['mode']);
     const duration=field(round,['durationMinutes','duration_minutes','duration']);
-    const metadata=[
-      field(round,['type','assessmentType','assessment_type']),
-      field(round,['mode']),
-      duration?`${duration} min`:'',
-      field(round,['questionCount','question_count'])?`${field(round,['questionCount','question_count'])} questions`:'',
-      field(round,['passingScore','passing_score','cutoff'])?`Pass: ${field(round,['passingScore','passing_score','cutoff'])}`:''
-    ].filter(Boolean);
-    const description=field(round,['topics','skills','description']);
-    const instructions=field(round,['instructions']);
-    return `<article class="job-round-step"><span class="job-round-number">${index+1}</span><div class="job-round-content"><small>ROUND ${index+1}</small><b>${esc(round.name||`Round ${index+1}`)}</b>${metadata.length?`<span class="job-round-meta">${metadata.map(esc).join(' · ')}</span>`:''}${description?`<span class="job-round-detail">${esc(description)}</span>`:''}${instructions?`<span class="job-round-detail">${esc(instructions)}</span>`:''}</div></article>`;
-  }).join('')}</div>`;
+    const questionCount=field(round,['questionCount','question_count']);
+    const passingScore=field(round,['cutoff','passingScore','passing_score']);
+    const isTest=/aptitude|coding|programming|assessment|online test|written test|quiz|technical test|mcq/i.test(`${round.name||''} ${type}`);
+    const complete=round.active===true&&Boolean(type&&mode&&Number(duration)>=5&&Number(duration)<=240&&(!isTest||(Number(questionCount)>0&&passingScore!=='')));
+    const scheduled=field(round,['scheduledAt','scheduled_at']);
+    const meeting=field(round,['meetingUrl','meeting_url']);
+    let safeMeeting='';
+    try{const url=new URL(meeting);if(url.protocol==='https:')safeMeeting=url.href}catch{}
+    const details=[
+      ['Round type',type],
+      ['Mode',mode],
+      ['Duration',duration?`${duration} minutes`:'' ],
+      ...(isTest?[['Questions',questionCount],['Passing score',passingScore!==''?String(passingScore).includes('%')?passingScore:`${passingScore}%`:'']]:[]),
+      ['Scheduled',scheduled&&!Number.isNaN(new Date(scheduled).getTime())?new Date(scheduled).toLocaleString():''],
+      ['Topics / skills',field(round,['topics','skills'])],
+      ['Instructions',field(round,['instructions'])],
+      ['Meeting link',safeMeeting?`<a href="${esc(safeMeeting)}" target="_blank" rel="noopener noreferrer">Open meeting link ↗</a>`:'']
+    ].filter(([,value])=>value);
+    return {round,index,complete,details};
+  });
+  return `<div class="job-round-chart"><div class="job-round-flow" aria-label="Interview rounds">${configured.map(({round,index,complete})=>`<div class="job-round-node-wrap"><button type="button" class="job-round-step" data-job-round="${index}" ${complete?`aria-expanded="false" aria-controls="student-job-round-details-${index}"`:'disabled'}><span class="job-round-number">${index+1}</span><span class="job-round-name">${esc(round.name||`Round ${index+1}`)}</span></button></div>`).join('')}</div><div class="job-round-detail-panels">${configured.filter(round=>round.complete).map(({index,round,details})=>`<section class="job-round-detail-panel" id="student-job-round-details-${index}" data-job-round-details="${index}" hidden><h3>${esc(round.name||`Round ${index+1}`)} details</h3><dl>${details.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${value.startsWith('<a ')?value:esc(value)}</dd></div>`).join('')}</dl></section>`).join('')}</div></div>`;
 }
 function saved(){try{return new Set(JSON.parse(localStorage.getItem(SAVED)||'[]').map(String))}catch{return new Set()}}
 function toggle(cid){const s=saved(),key=String(cid);s.has(key)?s.delete(key):s.add(key);localStorage.setItem(SAVED,JSON.stringify([...s]));render(current,applied)}
@@ -90,6 +102,18 @@ function render(j,isApplied){
   const s=saved(),isSaved=s.has(String(j.company_id));
   const rounds=interviewRoundsFlow(j.interview_rounds);
   $('app').innerHTML=`<div class="details-head"><div class="details-company"><div class="details-logo">${esc(initials(j.company_name))}</div><div><h1>${esc(j.company_name)}</h1><p>${esc(j.industry||'IT')} • ${esc(j.company_location||j.location||'India')}</p></div></div><button class="save-detail ${isSaved?'saved':''}" id="save">${isSaved?'★ Saved':'☆ Save Job'}</button></div><div class="details-grid"><section class="details-main"><h2>${esc(j.title)}</h2><p>${esc(j.description)}</p><div class="facts"><div class="fact"><small>Job type</small><strong>${esc(j.job_type)}</strong></div><div class="fact"><small>Work mode</small><strong>${esc(j.work_mode||'Hybrid')}</strong></div><div class="fact"><small>Salary</small><strong>${esc(j.salary||j.stipend||'Not specified')}</strong></div><div class="fact"><small>Apply before</small><strong>${esc(String(j.apply_before||'').slice(0,10))}</strong></div><div class="fact"><small>Location</small><strong>${esc(j.location||j.company_location||'Not specified')}</strong></div><div class="fact"><small>Batch</small><strong>${esc(j.batch||'All eligible batches')}</strong></div></div><div class="interview-rounds"><h2>Interview rounds</h2>${rounds}</div><div class="roles"><h2>Recruitment status</h2><div class="role"><h3>${esc(j.status||'Eligible')}</h3><p>Posted on ${esc(j.created_at?new Date(j.created_at).toLocaleDateString():'StepUp')}</p></div><button class="apply-detail ${isApplied?'applied':''}" id="applyDetail">${isApplied?'✓ Applied — click to withdraw':'Apply'}</button><div class="apply-message" id="applyMessage"></div></div></section><aside class="details-side"><h2>About the company</h2><p style="color:var(--ink-soft);font-size:13px;line-height:1.6">${esc(j.company_description||'Company information provided through the StepUp Company Portal.')}</p>${j.website?`<a class="company-link" href="${esc(j.website)}" target="_blank" rel="noopener">Visit company website →</a>`:''}</aside></div>`;
+  $('app').onclick=event=>{
+    const toggle=event.target.closest('[data-job-round]');
+    if(!toggle)return;
+    const panel=$(`student-job-round-details-${toggle.dataset.jobRound}`);
+    if(!panel)return;
+    const expanded=panel.hidden;
+    $('app').querySelectorAll('[data-job-round-details]').forEach(item=>{item.hidden=true});
+    $('app').querySelectorAll('[data-job-round]').forEach(item=>{item.setAttribute('aria-expanded','false');item.classList.remove('is-expanded')});
+    panel.hidden=!expanded;
+    toggle.setAttribute('aria-expanded',String(expanded));
+    toggle.classList.toggle('is-expanded',expanded);
+  };
   $('save').onclick=()=>toggle(j.company_id);
   $('applyDetail').onclick=apply;
 }
