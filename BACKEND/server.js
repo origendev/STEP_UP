@@ -977,7 +977,9 @@ async function ensureSchema() {
       ON resume_ai_analysis(analyzed_at DESC);
 
     ALTER TABLE companies
-      ADD COLUMN IF NOT EXISTS admin_status TEXT NOT NULL DEFAULT 'Active';
+      ADD COLUMN IF NOT EXISTS admin_status TEXT NOT NULL DEFAULT 'Pending';
+    ALTER TABLE companies
+      ALTER COLUMN admin_status SET DEFAULT 'Pending';
 
     CREATE TABLE IF NOT EXISTS admin_activity_logs (
       id BIGSERIAL PRIMARY KEY,
@@ -1888,9 +1890,9 @@ app.post('/api/auth/register', async (req, res) => {
 
     const r = await pool.query(
       `INSERT INTO companies
-       (name,email,password_hash,website,industry,location,description)
-       VALUES($1,$2,$3,$4,$5,$6,$7)
-       RETURNING id,name,email,website,industry,location,description,created_at`,
+       (name,email,password_hash,website,industry,location,description,admin_status)
+       VALUES($1,$2,$3,$4,$5,$6,$7,'Pending')
+       RETURNING id,name,email,website,industry,location,description,admin_status,created_at`,
       [
         name,
         email,
@@ -1990,7 +1992,7 @@ app.get(
   requireCompany,
   async (req, res) => {
     const r = await pool.query(
-      `SELECT id,name,email,website,industry,location,description,created_at
+      `SELECT id,name,email,website,industry,location,description,admin_status,created_at
        FROM companies
        WHERE id=$1`,
       [req.company.companyId]
@@ -2757,7 +2759,7 @@ app.get('/api/admin/companies', requireAdmin, async (_req, res) => {
 
 app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
   const status = clean(req.body.status);
-  if (!['Active','Suspended'].includes(status)) return res.status(400).json({ error: 'Company status must be Active or Suspended.' });
+  if (!['Pending','Active','Suspended'].includes(status)) return res.status(400).json({ error: 'Company status must be Pending, Active, or Suspended.' });
   try {
     const r = await pool.query(`UPDATE companies SET admin_status=$1,updated_at=NOW() WHERE id=$2 RETURNING id,name,admin_status`, [status, req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Company not found.' });
