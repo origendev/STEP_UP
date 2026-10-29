@@ -317,7 +317,7 @@ async function jobs(){
     $('#pendingTabCount').textContent=counts.Pending;
     const rows=data.filter(j=>(activeFilter==='All'||(j.approval_status||'Approved')===activeFilter)&&[j.title,j.company_name,j.job_type,j.location].join(' ').toLowerCase().includes(q)).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
     $('#approvalResultLabel').textContent=`${rows.length} ${activeFilter==='All'?'job':activeFilter.toLowerCase()+' job'}${rows.length===1?'':'s'}`;
-    $('#approvalList').innerHTML=rows.length?rows.map(j=>{const st=j.approval_status||'Approved';return `<article class="approval-card"><div class="approval-card-main"><div class="approval-company-mark">${esc(initials(j.company_name||'CO'))}</div><div class="approval-job-copy"><div class="approval-job-heading"><h3>${esc(j.title)}</h3><span class="approval-badge ${statusClass(st)}"><i></i>${esc(st)}</span></div><p class="approval-company">${esc(j.company_name||'Company')} <span>•</span> ${esc(j.job_type||'Role not specified')}</p><div class="approval-meta"><span>⌖ ${esc(j.location||'Location not specified')}</span><span>◷ Apply by ${date(j.apply_before)}</span><span>♙ ${Number(j.applicant_count||0)} applicants</span></div><div class="approval-tags">${(j.eligible_departments||[]).map(d=>`<span>${esc(d)}</span>`).join('')||'<span>Departments not specified</span>'}<span>${esc(j.work_mode||'Work mode not specified')}</span></div>${st==='Rejected'&&j.approval_note?`<div class="approval-note"><b>Rejection reason:</b> ${esc(j.approval_note)}</div>`:''}</div></div><div class="approval-card-actions"><button class="btn" data-view="${j.id}">Review details</button><button class="btn" data-applicants="${j.id}">Applicants (${Number(j.applicant_count||0)})</button>${st!=='Approved'?`<button class="approval-btn approve" data-approve="${j.id}">✓ Approve</button>`:''}${st!=='Rejected'?`<button class="approval-btn reject" data-reject="${j.id}">✕ Reject</button>`:''}</div><div class="approval-card-foot"><span>Submitted ${date(j.created_at)}</span><span>Job ID #${esc(j.id)}</span></div></article>`}).join(''):`<div class="approval-empty"><div>✓</div><h3>${q?'No matching jobs':activeFilter==='Pending'?'You’re all caught up':'No jobs in this view yet'}</h3><p>${q?'Try another search term.':activeFilter==='Pending'?'New company submissions will appear here for review.':'Choose another status tab to view job submissions.'}</p></div>`;
+    $('#approvalList').innerHTML=rows.length?rows.map(j=>{const st=j.approval_status||'Approved';return `<article class="approval-card"><div class="approval-card-main"><div class="approval-company-mark">${esc(initials(j.company_name||'CO'))}</div><div class="approval-job-copy"><div class="approval-job-heading"><h3>${esc(j.title)}</h3><span class="approval-badge ${statusClass(st)}"><i></i>${esc(st)}</span></div><p class="approval-company">${esc(j.company_name||'Company')} <span>•</span> ${esc(j.job_type||'Role not specified')}</p><div class="approval-meta"><span>⌖ ${esc(j.location||'Location not specified')}</span><span>◷ Apply by ${date(j.apply_before)}</span><span>♙ ${Number(j.applicant_count||0)} applicants</span></div><div class="approval-tags">${(j.eligible_departments||[]).map(d=>`<span>${esc(d)}</span>`).join('')||'<span>Departments not specified</span>'}<span>${esc(j.work_mode||'Work mode not specified')}</span></div>${st==='Rejected'&&j.approval_note?`<div class="approval-note"><b>Rejection reason:</b> ${esc(j.approval_note)}</div>`:''}</div></div><div class="approval-card-actions"><button class="btn" data-view="${j.id}">Review details</button><button class="btn" data-applicants="${j.id}">Applicants (${Number(j.applicant_count||0)})</button>${st!=='Approved'?`<button class="approval-btn approve" data-approve="${j.id}">✓ Approve</button>`:''}${st!=='Rejected'?`<button class="approval-btn reject" data-reject="${j.id}">✕ Reject</button>`:''}<button class="approval-btn remove" data-remove-job="${j.id}">Remove job</button></div><div class="approval-card-foot"><span>Submitted ${date(j.created_at)}</span><span>Job ID #${esc(j.id)}</span></div></article>`}).join(''):`<div class="approval-empty"><div>✓</div><h3>${q?'No matching jobs':activeFilter==='Pending'?'You’re all caught up':'No jobs in this view yet'}</h3><p>${q?'Try another search term.':activeFilter==='Pending'?'New company submissions will appear here for review.':'Choose another status tab to view job submissions.'}</p></div>`;
   }
   async function reload(){data=await api('/admin/jobs');draw();}
   draw();
@@ -325,6 +325,27 @@ async function jobs(){
   $('#approvalTabs').onclick=e=>{const b=e.target.closest('[data-filter]');if(!b)return;activeFilter=b.dataset.filter;$$('#approvalTabs .approval-tab').forEach(x=>x.classList.toggle('active',x===b));draw()};
   $('#refreshApprovals').onclick=async()=>{try{await reload();toast('Job approvals refreshed')}catch(e){toast(e.message)}};
   $('#approvalList').onclick=async e=>{
+    const remove=e.target.closest('[data-remove-job]');
+    if(remove){
+      const job=data.find(item=>String(item.id)===remove.dataset.removeJob);
+      if(!job)return;
+      const applicants=Number(job.applicant_count||0);
+      const applicantLabel=`${applicants} application${applicants===1?'':'s'}`;
+      if(!confirm(`Remove "${job.title}"? This permanently deletes the job, its ${applicantLabel}, and related recruitment records. This action cannot be undone.`))return;
+      remove.disabled=true;
+      remove.textContent='Removing…';
+      try{
+        await api(`/admin/jobs/${encodeURIComponent(job.id)}`,{method:'DELETE'});
+      }catch(error){
+        toast(error.message||'Could not remove the job.');
+        remove.disabled=false;
+        remove.textContent='Remove job';
+        return;
+      }
+      toast(`Job "${job.title}" and related records removed`);
+      try{await reload()}catch(error){toast(`Job removed, but the list could not refresh: ${error.message}`)}
+      return;
+    }
     const approve=e.target.closest('[data-approve]'),reject=e.target.closest('[data-reject]'),view=e.target.closest('[data-view]'),applicantButton=e.target.closest('[data-applicants]');
     if(applicantButton){
       const job=data.find(x=>String(x.id)===applicantButton.dataset.applicants);if(!job)return;
