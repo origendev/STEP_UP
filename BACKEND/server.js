@@ -2123,8 +2123,9 @@ app.post(
       })));
     }
 
-    const client = await pool.connect();
+    let client;
     try {
+      client = await pool.connect();
       await client.query('BEGIN');
       const r = await client.query(
         `INSERT INTO jobs
@@ -2755,6 +2756,49 @@ app.get('/api/admin/companies', requireAdmin, async (_req, res) => {
     `);
     res.json({ data: r.rows });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load companies.' }); }
+});
+
+app.delete('/api/admin/companies', requireAdmin, async (req, res) => {
+  if (clean(req.body?.confirmation) !== 'RESET') {
+    return res.status(400).json({ error: 'Type RESET to confirm clearing company and job records.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('LOCK TABLE companies, jobs IN ACCESS EXCLUSIVE MODE');
+    const counts = await client.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM companies) AS companies,
+        (SELECT COUNT(*)::int FROM jobs) AS jobs,
+        (SELECT COUNT(*)::int FROM job_applications) AS applications
+    `);
+    await client.query('DELETE FROM interviews WHERE company_id IS NOT NULL OR job_id IS NOT NULL');
+    await client.query('DELETE FROM companies');
+    await client.query('COMMIT');
+
+    const deleted = counts.rows[0];
+    await logAdminActivity(
+      req,
+      'Company and job records reset',
+      'company',
+      null,
+      `${deleted.companies} companies, ${deleted.jobs} jobs, and ${deleted.applications} applications removed`
+    );
+    res.json({ data: { deleted } });
+  } catch (e) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackError) {
+        console.error('Could not roll back company reset:', rollbackError);
+      }
+    }
+    console.error('Could not reset company and job records:', e);
+    res.status(500).json({ error: 'Could not reset company and job records.' });
+  } finally {
+    if (client) client.release();
+  }
 });
 
 app.patch('/api/admin/companies/:id', requireAdmin, async (req, res) => {
