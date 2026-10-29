@@ -323,7 +323,105 @@ async function announcements(){sectionHead('announcements');const data=await api
 async function interviews(){sectionHead('interviews');const [data,studentsData,companiesData,jobsData]=await Promise.all([api('/admin/interviews'),api('/admin/students'),api('/admin/companies'),api('/admin/jobs')]);setContent(`<div class="panel"><div class="toolbar"><span class="muted">Schedule online or campus interviews.</span><button class="primary" id="newInterview">+ Schedule Interview</button></div>${table(['Student','Company','Job','Date','Mode','Status','Actions'],data.map(i=>`<tr><td>${esc(i.student_name)}<br><small>${esc(i.reg_no)}</small></td><td>${esc(i.company_name||'—')}</td><td>${esc(i.job_title||'—')}</td><td>${i.interview_date?new Date(i.interview_date).toLocaleString():'—'}</td><td>${esc(i.mode)}</td><td>${esc(i.status)}</td><td><select class="int-status" data-id="${i.id}">${['Scheduled','Completed','Cancelled','No Show'].map(x=>`<option ${x===i.status?'selected':''}>${x}</option>`).join('')}</select></td></tr>`).join('')||empty())}</div>`);$('#newInterview').onclick=()=>openModal('Schedule Interview',`<div class="form-grid"><div class="field"><label>Student</label><select name="studentId">${studentsData.map(s=>`<option value="${s.id}">${esc(s.name)} (${esc(s.reg_no)})</option>`).join('')}</select></div><div class="field"><label>Company</label><select name="companyId"><option value="">Select</option>${companiesData.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Job</label><select name="jobId"><option value="">Select</option>${jobsData.map(j=>`<option value="${j.id}">${esc(j.title)}</option>`).join('')}</select></div><div class="field"><label>Date & Time</label><input name="interviewDate" type="datetime-local" required></div><div class="field"><label>Mode</label><select name="mode"><option>Online</option><option>Campus</option><option>Phone</option></select></div><div class="field"><label>Meeting Link</label><input name="meetingLink"></div><div class="field"><label>Interviewer</label><input name="interviewer"></div><div class="field full"><label>Notes</label><textarea name="notes"></textarea></div></div><div class="form-actions"><button class="primary">Schedule</button></div>`,async f=>{await api('/admin/interviews',{method:'POST',body:JSON.stringify(formToObj(f))});toast('Interview scheduled');closeModal();interviews()});$('.panel').onchange=async e=>{if(e.target.matches('.int-status')){await api('/admin/interviews/'+e.target.dataset.id,{method:'PATCH',body:JSON.stringify({status:e.target.value})});toast('Interview updated')}}}
 async function analytics(){sectionHead('analytics');const d=await api('/admin/analytics');const max=a=>Math.max(1,...a.map(x=>Number(x.value)));const bars=(title,a)=>`<div class="panel"><h3>${title}</h3>${a.length?a.map(x=>`<div class="bar-row"><span>${esc(x.label)}</span><div class="bar"><i style="width:${Number(x.value)/max(a)*100}%"></i></div><b>${x.value}</b></div>`).join(''):empty()}</div>`;setContent(`<div class="chart-grid">${bars('Students by Department',d.departments)}${bars('Applications by Status',d.applications)}${bars('Applications by Company',d.companies)}${bars('Jobs by Month',d.jobsByMonth)}</div>`)}
 async function reports(){sectionHead('reports');setContent(`<div class="panel"><h3>Export Reports</h3><p class="muted">CSV files open directly in Excel and preserve the current StepUp data.</p><div class="quick"><button class="primary" data-export="students">Students CSV</button><button class="primary" data-export="companies">Companies CSV</button><button class="primary" data-export="jobs">Jobs CSV</button><button class="primary" data-export="applications">Applications CSV</button><button class="primary" data-export="activity">Activity CSV</button></div></div>`);$('.panel').onclick=async e=>{const b=e.target.closest('[data-export]');if(!b)return;const d=await api('/admin/'+b.dataset.export);const arr=d.data||d;const rows=Array.isArray(arr)?arr:[];downloadCSV(b.dataset.export+'.csv',rows);toast('Report exported')};}
-async function analyticsreports(){sectionHead('analyticsreports');const d=await api('/admin/analytics');const max=a=>Math.max(1,...a.map(x=>Number(x.value)));const bars=(title,a)=>`<div class="panel"><h3>${title}</h3>${a.length?a.map(x=>`<div class="bar-row"><span>${esc(x.label)}</span><div class="bar"><i style="width:${Number(x.value)/max(a)*100}%"></i></div><b>${x.value}</b></div>`).join(''):empty()}</div>`;setContent(`<div class="analytics-report-toolbar"><div><h2>Placement intelligence</h2><p class="muted">Explore platform activity and export current records for reporting.</p></div><div class="quick"><button class="primary" data-export="students">Students CSV</button><button class="primary" data-export="companies">Companies CSV</button><button class="primary" data-export="jobs">Jobs CSV</button><button class="primary" data-export="applications">Applications CSV</button><button class="primary" data-export="activity">Activity CSV</button></div></div><div class="chart-grid">${bars('Students by Department',d.departments)}${bars('Applications by Status',d.applications)}${bars('Applications by Company',d.companies)}${bars('Jobs by Month',d.jobsByMonth)}</div>`)}
+async function analyticsreports(){
+  sectionHead('analyticsreports');
+  const [d,catalog] = await Promise.all([
+    api('/admin/analytics'),
+    import('../js/data/skills.data.js?v=20261029a')
+  ]);
+  const courseMap = new Map();
+  const addCourse = (course,category) => {
+    const id = `${course.company}|${course.title}`.toLowerCase();
+    const existing = courseMap.get(id) || {
+      id,
+      title: course.title,
+      provider: course.company,
+      categories: new Set(),
+      students: 0,
+      submissions: 0,
+      approved: 0,
+      pending: 0,
+      rejected: 0
+    };
+    if(category) existing.categories.add(category);
+    courseMap.set(id,existing);
+  };
+  catalog.PROG_COURSES.forEach(course=>addCourse(course,`Programming · ${course.lang}`));
+  const groupLabels = new Map(catalog.GENERAL_GROUPS.map(group=>[group.key,group.label]));
+  catalog.COURSES.forEach(course=>{
+    if(course.general) addCourse(course,`General · ${groupLabels.get(course.group)||'Other'}`);
+    if(course.depts==='ALL') addCourse(course,'Department · All departments');
+    else (Array.isArray(course.depts)?course.depts:[]).forEach(dept=>addCourse(course,`Department · ${dept}`));
+  });
+  (d.courseCertificates||[]).forEach(row=>{
+    const id=String(row.course_id).toLowerCase();
+    const existing=courseMap.get(id)||{
+      id,
+      title:row.course_title,
+      provider:row.provider,
+      categories:new Set(['Other · Previously listed']),
+      students:0,
+      submissions:0,
+      approved:0,
+      pending:0,
+      rejected:0
+    };
+    existing.students=Number(row.students)||0;
+    existing.submissions=Number(row.submissions)||0;
+    existing.approved=Number(row.approved)||0;
+    existing.pending=Number(row.pending)||0;
+    existing.rejected=Number(row.rejected)||0;
+    courseMap.set(id,existing);
+  });
+  const courses=[...courseMap.values()].map(course=>({
+    ...course,
+    categories:[...course.categories].sort().join(', ')||'Department courses'
+  })).sort((a,b)=>a.title.localeCompare(b.title)||a.provider.localeCompare(b.provider));
+  const categories=[...new Set(courses.flatMap(course=>course.categories.split(', ')))].sort();
+  const summary=d.certificateSummary||{};
+  const stats=[
+    ['Total students',Number(d.totalStudents)||0,'All student accounts'],
+    ['Course catalog',courses.length,'Available courses'],
+    ['Students with certificates',Number(summary.students)||0,'Unique students'],
+    ['Pending reviews',Number(summary.pending)||0,'Awaiting admin approval']
+  ];
+  const max=rows=>Math.max(1,...rows.map(row=>Number(row.value)||0));
+  const bars=(title,rows)=>`<div class="panel"><div class="analytics-panel-heading"><h3>${esc(title)}</h3><span>${rows.reduce((sum,row)=>sum+(Number(row.value)||0),0).toLocaleString()} total</span></div>${rows.length?rows.map(row=>`<div class="bar-row"><span title="${esc(row.label)}">${esc(row.label)}</span><div class="bar"><i style="width:${Math.max(0,Number(row.value)||0)/max(rows)*100}%"></i></div><b>${Number(row.value)||0}</b></div>`).join(''):empty('No data available yet.')}</div>`;
+  const categoryCards=categories.map(category=>{
+    const matching=courses.filter(course=>course.categories.split(', ').includes(category));
+    const completions=matching.reduce((sum,course)=>sum+course.students,0);
+    return `<article class="analytics-category-card"><span>${esc(category)}</span><strong>${matching.length}</strong><small>courses · ${completions.toLocaleString()} student-course certificates</small></article>`;
+  }).join('');
+  const courseRows=courses.map(course=>({
+    category:course.categories,
+    course:course.title,
+    provider:course.provider,
+    students_with_certificates:course.students,
+    submissions:course.submissions,
+    approved:course.approved,
+    pending:course.pending,
+    rejected:course.rejected
+  }));
+  setContent(`<div class="analytics-report-toolbar"><div><h2>Placement intelligence</h2><p class="muted">Student, course-certificate, application, and recruitment activity.</p></div><div class="quick analytics-export-actions"><button class="primary" data-export="students">Students CSV</button><button class="primary" data-export="companies">Companies CSV</button><button class="primary" data-export="jobs">Jobs CSV</button><button class="primary" data-export="applications">Applications CSV</button><button class="primary" data-export="activity">Activity CSV</button><button class="btn" id="courseReportExport">Course report CSV</button></div></div>
+    <div class="analytics-stats">${stats.map((stat,index)=>`<article class="analytics-stat"><small>${esc(stat[0])}</small><strong>${Number(stat[1]).toLocaleString()}</strong><span>${esc(stat[2])}</span><i>${['S','C','✓','!'][index]}</i></article>`).join('')}</div>
+    <div class="analytics-course-summary"><div class="analytics-section-heading"><div><h2>Course categories</h2><p>Counts include students who submitted a course certificate, not course enrollments.</p></div><span class="pill">${categories.length} categories</span></div><div class="analytics-category-grid">${categoryCards||empty('No course categories are configured.')}</div></div>
+    <div class="panel analytics-course-panel"><div class="analytics-section-heading"><div><h2>Course-by-course report</h2><p>Each student is counted once per course. Pending, approved, and rejected certificate reviews are shown separately.</p></div></div><div class="analytics-course-filters"><input class="search" id="courseReportSearch" placeholder="Search course or provider"><select id="courseCategoryFilter"><option value="">All categories</option>${categories.map(category=>`<option value="${esc(category)}">${esc(category)}</option>`).join('')}</select></div><div id="courseReportTable"></div></div>
+    <div class="analytics-secondary-heading"><h2>Placement and recruitment</h2><p>Current platform activity grouped by department, status, company, and month.</p></div>
+    <div class="chart-grid">${bars('Students by Department',d.departments||[])}${bars('Applications by Status',d.applications||[])}${bars('Applications by Company',d.companies||[])}${bars('Jobs by Month',d.jobsByMonth||[])}</div>`);
+  const renderCourses=()=>{
+    const query=($('#courseReportSearch').value||'').trim().toLowerCase();
+    const category=$('#courseCategoryFilter').value;
+    const filtered=courses.filter(course=>(!category||course.categories.split(', ').includes(category))&&`${course.title} ${course.provider} ${course.categories}`.toLowerCase().includes(query));
+    $('#courseReportTable').innerHTML=table(
+      ['Category','Course','Provider','Students with certificates','Approved','Pending','Rejected'],
+      filtered.map(course=>`<tr><td><span class="analytics-course-category">${esc(course.categories)}</span></td><td><b>${esc(course.title)}</b></td><td>${esc(course.provider)}</td><td><strong>${course.students.toLocaleString()}</strong></td><td>${course.approved.toLocaleString()}</td><td>${course.pending.toLocaleString()}</td><td>${course.rejected.toLocaleString()}</td></tr>`).join('')||`<tr><td colspan="7">${empty('No courses match your filters.')}</td></tr>`
+    );
+  };
+  renderCourses();
+  $('#courseReportSearch').oninput=renderCourses;
+  $('#courseCategoryFilter').onchange=renderCourses;
+  $('#courseReportExport').onclick=()=>downloadCSV('course-student-report.csv',courseRows);
+}
 async function activity(){sectionHead('activity');const d=await api('/admin/activity');setContent(`<div class="panel">${table(['Time','Admin','Action','Entity','Details'],d.map(x=>`<tr><td>${new Date(x.created_at).toLocaleString()}</td><td>${esc(x.admin_id)}</td><td>${esc(x.action)}</td><td>${esc(x.entity_type||'')}</td><td>${esc(x.details||'')}</td></tr>`).join('')||empty())}</div>`)}
 async function admins(){sectionHead('admins');const d=await api('/admin/admin-users');setContent(`<div class="panel"><div class="toolbar"><span class="muted">Super Admin is controlled by ADMIN_KEY. Additional accounts can use role-based access.</span><button class="primary" id="newAdmin">+ Add Admin</button></div>${table(['Admin ID','Name','Email','Role','Active','Actions'],d.map(a=>`<tr><td>${esc(a.admin_id)}</td><td>${esc(a.name)}</td><td>${esc(a.email||'—')}</td><td>${esc(a.role)}</td><td>${a.active?'Yes':'No'}</td><td><button class="btn" data-toggle="${a.id}" data-active="${!a.active}">${a.active?'Disable':'Enable'}</button></td></tr>`).join('')||empty())}</div>`);$('#newAdmin').onclick=()=>openModal('Add Admin',`<div class="form-grid"><div class="field"><label>Admin ID</label><input name="adminId" required></div><div class="field"><label>Name</label><input name="name" required></div><div class="field"><label>Email</label><input name="email"></div><div class="field"><label>Role</label><select name="role"><option>Placement Officer</option><option>Recruiter Manager</option><option>Viewer</option></select></div><div class="field full"><label>Password</label><input name="password" type="password" required></div></div><div class="form-actions"><button class="primary">Create Admin</button></div>`,async f=>{await api('/admin/admin-users',{method:'POST',body:JSON.stringify(formToObj(f))});toast('Admin created');closeModal();admins()});$('.panel').onclick=async e=>{const b=e.target.closest('[data-toggle]');if(b){await api('/admin/admin-users/'+b.dataset.toggle,{method:'PATCH',body:JSON.stringify({active:b.dataset.active==='true'})});admins()}}}
 function formToObj(f){const o={};new FormData(f).forEach((v,k)=>o[k]=v);return o}

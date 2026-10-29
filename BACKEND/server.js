@@ -2879,13 +2879,37 @@ app.patch('/api/admin/applications/:id', requireAdmin, async (req, res) => {
 
 app.get('/api/admin/analytics', requireAdmin, async (_req, res) => {
   try {
-    const [dept,apps,companies,jobs] = await Promise.all([
+    const [dept,apps,companies,jobs,studentCount,courseCertificates,certificateSummary] = await Promise.all([
       pool.query(`SELECT COALESCE(NULLIF(department,''),'Not specified') AS label, COUNT(*)::int AS value FROM students GROUP BY 1 ORDER BY value DESC LIMIT 10`),
       pool.query(`SELECT status AS label, COUNT(*)::int AS value FROM job_applications GROUP BY status ORDER BY value DESC`),
       pool.query(`SELECT c.name AS label, COUNT(a.id)::int AS value FROM companies c LEFT JOIN jobs j ON j.company_id=c.id LEFT JOIN job_applications a ON a.job_id=j.id GROUP BY c.id ORDER BY value DESC LIMIT 8`),
-      pool.query(`SELECT TO_CHAR(month_start,'Mon YYYY') AS label, COUNT(*)::int AS value FROM (SELECT date_trunc('month',created_at) AS month_start FROM jobs) m GROUP BY month_start ORDER BY month_start DESC LIMIT 8`)
+      pool.query(`SELECT TO_CHAR(month_start,'Mon YYYY') AS label, COUNT(*)::int AS value FROM (SELECT date_trunc('month',created_at) AS month_start FROM jobs) m GROUP BY month_start ORDER BY month_start DESC LIMIT 8`),
+      pool.query(`SELECT COUNT(*)::int AS value FROM students`),
+      pool.query(`SELECT course_id, MIN(provider) AS provider, MIN(course_title) AS course_title,
+          COUNT(DISTINCT student_id)::int AS students,
+          COUNT(*)::int AS submissions,
+          COUNT(*) FILTER (WHERE status='approved')::int AS approved,
+          COUNT(*) FILTER (WHERE status='pending')::int AS pending,
+          COUNT(*) FILTER (WHERE status='rejected')::int AS rejected
+        FROM student_skill_certificates
+        GROUP BY course_id
+        ORDER BY students DESC, course_title ASC`),
+      pool.query(`SELECT COUNT(*)::int AS submissions,
+          COUNT(DISTINCT student_id)::int AS students,
+          COUNT(*) FILTER (WHERE status='approved')::int AS approved,
+          COUNT(*) FILTER (WHERE status='pending')::int AS pending,
+          COUNT(*) FILTER (WHERE status='rejected')::int AS rejected
+        FROM student_skill_certificates`)
     ]);
-    res.json({ data: { departments: dept.rows, applications: apps.rows, companies: companies.rows, jobsByMonth: jobs.rows.reverse() } });
+    res.json({ data: {
+      departments: dept.rows,
+      applications: apps.rows,
+      companies: companies.rows,
+      jobsByMonth: jobs.rows.reverse(),
+      totalStudents: studentCount.rows[0].value,
+      courseCertificates: courseCertificates.rows,
+      certificateSummary: certificateSummary.rows[0]
+    } });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not load analytics.' }); }
 });
 
