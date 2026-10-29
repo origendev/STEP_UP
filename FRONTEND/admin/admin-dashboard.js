@@ -303,7 +303,7 @@ document.addEventListener('click',event=>{const button=event.target.closest('#st
 async function companies(){
   sectionHead('companies');
   const data=await api('/admin/companies');
-  setContent(`<div class="panel"><div class="toolbar"><input class="search" id="companySearch" placeholder="Search companies..."></div><div id="companyTable"></div></div>`);
+  setContent(`<div class="panel"><div class="toolbar"><input class="search" id="companySearch" placeholder="Search companies..."><button class="btn danger" id="resetCompanyData">Reset companies &amp; jobs</button></div><div id="companyTable"></div></div>`);
   function draw(){
     const q=($('#companySearch').value||'').toLowerCase();
     $('#companyTable').innerHTML=table(['Company','Industry','Location','Jobs','Applications','Status','Actions'],data.filter(c=>[c.name,c.industry,c.location].join(' ').toLowerCase().includes(q)).map(c=>{
@@ -316,6 +316,21 @@ async function companies(){
   }
   draw();
   $('#companySearch').oninput=draw;
+  $('#resetCompanyData').onclick=async event=>{
+    const confirmation=prompt('This permanently deletes every company, job role, application, and linked interview. Student accounts, student profiles, and admin accounts are preserved.\n\nType RESET to continue.');
+    if(confirmation!=='RESET')return;
+    const button=event.currentTarget;
+    button.disabled=true;
+    try{
+      const result=await api('/admin/companies',{method:'DELETE',body:JSON.stringify({confirmation})});
+      const deleted=result.deleted;
+      toast(`Reset complete: ${deleted.companies} companies, ${deleted.jobs} jobs, and ${deleted.applications} applications removed`);
+      await navigate('overview');
+    }catch(error){
+      toast(error.message);
+      button.disabled=false;
+    }
+  };
   $('#companyTable').onclick=async e=>{
     const button=e.target.closest('[data-company]');
     const remove=e.target.closest('[data-del]');
