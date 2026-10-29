@@ -51,8 +51,7 @@ async function students(){sectionHead('students');const data=await api('/admin/s
 function reviewText(value){
   if(value===null||value===undefined||value==='')return '—';
   if(typeof value==='string'&&/^data:(image\/|application\/pdf)/i.test(value))return '[Uploaded image or PDF]';
-  const text=typeof value==='object'?JSON.stringify(value):String(value);
-  return text.length>400?text.slice(0,400)+'…':text;
+  return typeof value==='object'?JSON.stringify(value):String(value);
 }
 function flattenReviewMap(value,prefix='',entries=new Map()){
   if(value&&typeof value==='object'&&!Array.isArray(value)){
@@ -186,6 +185,33 @@ function applicationFlow(application){
   if(!configuredRounds.length)steps.push(flowStep('Recruitment rounds','Not configured','This job has no configured rounds.'));
   return `<div class="student-flow">${steps.join('')}</div>`;
 }
+function studentMoreSection(profile){
+  const more=profile?.more&&typeof profile.more==='object'?profile.more:{};
+  const humanize=value=>String(value).replace(/([a-z0-9])([A-Z])/g,'$1 $2').replace(/[_-]+/g,' ').replace(/\b\w/g,char=>char.toUpperCase());
+  const renderValue=(label,value)=>{
+    if(value===null||value===undefined||value==='')return '';
+    if(Array.isArray(value)){
+      return value.length?`<div class="student-more-list">${value.map((item,index)=>`<article class="student-more-item">${renderValue(`Entry ${index+1}`,item)}</article>`).join('')}</div>`:'';
+    }
+    if(typeof value==='object'){
+      const entries=Object.entries(value).filter(([,item])=>item!==null&&item!==undefined&&item!=='');
+      return entries.length?`<div class="student-more-fields">${entries.map(([key,item])=>renderValue(humanize(key),item)).join('')}</div>`:'';
+    }
+    return `<div class="student-more-field"><small>${esc(humanize(label))}</small><span>${esc(reviewText(value))}</span></div>`;
+  };
+  const sections=Object.entries({
+    ...more,
+    social:profile?.social||{},
+    languages:profile?.languages||{},
+    links:profile?.links||[],
+    tags:profile?.tags||[]
+  })
+    .map(([key,value])=>[key,renderValue(key,value)])
+    .filter(([,content])=>content)
+    .map(([key,content])=>`<section class="student-more-section"><h4>${esc(humanize(key))}</h4>${content}</section>`);
+  if(profile?.achievements)sections.push(`<section class="student-more-section"><h4>Achievements</h4>${renderValue('Achievements',profile.achievements)}</section>`);
+  return `<section class="student-profile-summary student-more-summary"><div class="student-section-heading"><div><h3>More profile details</h3><p>Projects, achievements, awards, test scores, and other submitted items.</p></div>${profile?.verificationStatus==='pending'?'<span class="review-status pending">Pending review</span>':''}</div>${sections.length?sections.join(''):empty('No additional profile details have been submitted.')}</section>`;
+}
 async function viewStudentPerformance(studentId){
   try{
     const {student,applications}=await api(`/admin/students/${encodeURIComponent(studentId)}/performance`);
@@ -207,7 +233,12 @@ async function viewStudentPerformance(studentId){
         : 'background:#fff8e6;color:#a16207;border:1px solid rgba(161,98,7,0.18);';
     const currentProfile=student.profile_details||{};
     const pendingProfile=student.pending_profile?.profileDetails||{};
-    const profile={...currentProfile,...pendingProfile};
+    const profile={
+      ...currentProfile,
+      ...pendingProfile,
+      verificationStatus:student.pending_profile?'pending':currentProfile.verificationStatus,
+      achievements:student.pending_profile?.achievements??student.achievements
+    };
     const profileReviewStatus=currentProfile.verificationStatus||(student.pending_profile?'pending':'uploaded');
     const documents=[];
     const addProfileDocument=(label,data,status)=>{
@@ -247,7 +278,7 @@ async function viewStudentPerformance(studentId){
     }));
     const appCards=applications.map(application=>`<article class="student-application"><div class="student-application-head"><div><span class="eyebrow">${esc(application.company_name||'Company')}</span><h3>${esc(application.title||'Job')}</h3><p>${esc([application.job_type,application.location,application.work_mode].filter(Boolean).join(' · ')||'')}</p></div><span class="pill">${esc(application.status)}</span></div><div class="student-flow-heading">Recruitment progress</div>${applicationFlow(application)}</article>`).join('');
     const fields=[['Registration number',student.reg_no],['Email',student.email],['Phone',student.phone],['College',student.college],['Degree',student.degree],['Department',student.department],['Current year',student.study_year?['I Year','II Year','III Year','IV Year'][Number(student.study_year)-1]:'—'],['Graduation year',student.graduation_year],['CGPA',student.cgpa],['Skills',(student.skills||[]).join(', ')]];
-    openModal(`${student.name} · Student performance`,`<div class="student-performance"><div class="student-performance-overview"><div class="student-performance-identity"><div class="avatar">${esc(initials(student.name))}</div><div><h3>${esc(student.name)}</h3><span>${esc(student.email)}</span></div></div><div class="student-performance-stats"><div><small>Applications</small><strong>${applications.length}</strong></div><div><small>Rounds passed</small><strong>${passedRounds}</strong></div><div><small>Verified assessments</small><strong>${verified.length}</strong></div><div><small>Selected / offers</small><strong>${selected}</strong></div></div></div><section class="student-profile-summary"><h3>Student profile</h3><div id="studentVerificationState" style="margin-bottom:12px"><span class="pill" style="${verificationStyle}">${verificationLabel}</span></div><div class="student-profile-grid">${fields.map(([label,value])=>`<div><small>${esc(label)}</small><span>${esc(value||'—')}</span></div>`).join('')}${student.summary?`<div class="student-profile-wide"><small>Summary</small><span>${esc(student.summary)}</span></div>`:''}</div></section><section class="student-applications"><div class="student-section-heading"><div><h3>Applications and recruitment flow</h3><p>Round results and assessment scores appear here only after company verification.</p></div><span class="pill">${applications.length} total</span></div>${appCards||empty('This student has not applied to any jobs yet.')}</section><div class="form-actions"><button type="button" class="btn" id="studentResumeBtn">View Resume</button>${verificationState === 'approved' ? '' : `<button type="button" class="primary" data-verification-action="approve" data-student-id="${student.id}">Approve profile</button><button type="button" class="btn danger" data-verification-action="reject" data-student-id="${student.id}">Reject</button>`}<button type="button" class="btn" id="cancelModal">Close</button></div></div>`);
+    openModal(`${student.name} · Student performance`,`<div class="student-performance"><div class="student-performance-overview"><div class="student-performance-identity"><div class="avatar">${esc(initials(student.name))}</div><div><h3>${esc(student.name)}</h3><span>${esc(student.email)}</span></div></div><div class="student-performance-stats"><div><small>Applications</small><strong>${applications.length}</strong></div><div><small>Rounds passed</small><strong>${passedRounds}</strong></div><div><small>Verified assessments</small><strong>${verified.length}</strong></div><div><small>Selected / offers</small><strong>${selected}</strong></div></div></div><section class="student-profile-summary"><h3>Student profile</h3><div id="studentVerificationState" style="margin-bottom:12px"><span class="pill" style="${verificationStyle}">${verificationLabel}</span></div><div class="student-profile-grid">${fields.map(([label,value])=>`<div><small>${esc(label)}</small><span>${esc(value||'—')}</span></div>`).join('')}${student.summary?`<div class="student-profile-wide"><small>Summary</small><span>${esc(student.summary)}</span></div>`:''}</div></section>${studentMoreSection(profile)}<section class="student-applications"><div class="student-section-heading"><div><h3>Applications and recruitment flow</h3><p>Round results and assessment scores appear here only after company verification.</p></div><span class="pill">${applications.length} total</span></div>${appCards||empty('This student has not applied to any jobs yet.')}</section><div class="form-actions"><button type="button" class="btn" id="studentResumeBtn">View Resume</button>${verificationState === 'approved' ? '' : `<button type="button" class="primary" data-verification-action="approve" data-student-id="${student.id}">Approve profile</button><button type="button" class="btn danger" data-verification-action="reject" data-student-id="${student.id}">Reject</button>`}<button type="button" class="btn" id="cancelModal">Close</button></div></div>`);
     const documentSection=document.createElement('section');
     documentSection.className='student-applications student-documents';
     const drawDocuments=()=>{

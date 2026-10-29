@@ -53,6 +53,11 @@ const MORE = [
   ['writes','Write Ups','Add Write Up',[['title','Title'],['org','Platform'],['link','Link'],['desc','Summary','area']]],
   ['breaks','Career Breaks','Add Career Break',[['title','Reason'],['period','Duration'],['desc','Details','area']]],
 ];
+const DETAIL_DOCUMENTS = [
+  ['tenthProof','10th marksheet'],
+  ['twelfthProof','12th marksheet'],
+  ['aadhaarProof','Aadhaar proof']
+];
 const ACAD = [['level','Level (Current / 12th / 10th / Diploma)'],['inst','Institution / School'],['course','Course'],['branch','Branch / Stream'],['cgpa','CGPA or %'],['year','Year'],['status','Status (e.g. Out Going)'],['arrears','Current arrears'],['arrHist','Arrears history'],['sems','Semester scores (comma separated, e.g. 8.18, 7.91, 8.61)']];
 
 let P, S, tab = 'Details', editing = null, view = 'grid', q = '', profileSyncTimer;
@@ -146,6 +151,11 @@ async function load(){
     acad: Array.isArray(remoteProfile.academics) ? remoteProfile.academics : [],
     skills: Array.isArray(remoteProfile.skills) ? remoteProfile.skills : null,
     more: remoteProfile.more && typeof remoteProfile.more === 'object' ? remoteProfile.more : {},
+    documents: {
+      tenthProof: remoteProfile.tenthProof || remoteProfile.schoolMarksProof || '',
+      twelfthProof: remoteProfile.twelfthProof || '',
+      aadhaarProof: remoteProfile.aadhaarProof || ''
+    },
     social: remoteProfile.social && typeof remoteProfile.social === 'object' ? remoteProfile.social : {},
     langs: remoteProfile.languages && typeof remoteProfile.languages === 'object' ? remoteProfile.languages : {},
     links: Array.isArray(remoteProfile.links) ? remoteProfile.links : [],
@@ -156,10 +166,11 @@ async function load(){
     verificationStatus: statusProfile.verificationStatus || 'pending'
   };
   S = Object.assign(
-    { d:{}, acad:[], skills:null, more:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false, verificationStatus:'pending' },
+    { d:{}, acad:[], skills:null, more:{}, documents:{}, social:{}, langs:{}, links:[], tags:[], photo:'', verified:false, requested:false, verificationStatus:'pending' },
     remoteState,
     ext
   );
+  S.documents = { ...remoteState.documents, ...(ext.documents || {}) };
   S.verified = !!statusProfile.verified;
   S.requested = !!statusProfile.requested;
   S.verificationStatus = statusProfile.verificationStatus || (S.verified ? 'approved' : S.requested ? 'pending' : 'pending');
@@ -200,13 +211,20 @@ function head(){
 const row = (l,v) => `<div class="pf-row"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
 function details(){
   const ql = q.toLowerCase();
-  return `<div class="pf-search"><input id="pfQ" placeholder="Search any field or value..." value="${esc(q)}"></div>` + DET.map(([t,ed,f]) => {
+  const sections = DET.map(([t,ed,f]) => {
     if(t === 'TAGS') return (ql && !S.tags.join(' ').toLowerCase().includes(ql)) ? '' : `<section class="pf-sec"><div class="pf-sh"><h2>Student Tags</h2><button class="pf-edit" id="tagAdd">+ Add tag</button></div>${S.tags.length ? `<div class="pf-chips">${S.tags.map((x,i) => `<button class="on" data-rt="${i}" title="Remove">${esc(x)} &times;</button>`).join('')}</div>` : '<p class="pf-hint">-</p>'}</section>`;
     if(editing === t) return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2></div><div class="pf-form">${f.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : `<label>${esc(l)}${RO.has(k) ? '<em class="pf-lock">locked</em>' : ''}${fieldInput(k)}</label>`).join('')}</div><div class="pf-fa"><button class="pf-pill" id="dCancel">Cancel</button><button class="pf-pill pri" id="dSave">Save</button></div></section>`;
     const rows = f.filter(([l,k]) => l==='#' || !ql || (l + ' ' + val(k)).toLowerCase().includes(ql));
     if(!rows.some(r => r[0] !== '#')) return '';
     return `<section class="pf-sec"><div class="pf-sh"><h2>${t}</h2>${ed ? `<button class="pf-edit" data-ed="${t}">&#9998; Edit</button>` : ''}</div><div class="pf-grid">${rows.map(([l,k]) => l==='#' ? `<h3 class="pf-subh">${esc(k)}</h3>` : row(l, k==='aadhaar' && P.d[k] ? 'XXXX XXXX ' + String(P.d[k]).slice(-4) : val(k))).join('')}</div></section>`;
   }).join('');
+  const documentsMatch = !ql || /aadhaar|10th|12th|mark.?sheet|document|proof|upload/.test(ql);
+  return `<div class="pf-search"><input id="pfQ" placeholder="Search any field or value..." value="${esc(q)}"></div>${sections}${documentsMatch ? detailDocuments() : ''}`;
+}
+
+function detailDocuments(){
+  const status = S.verificationStatus === 'approved' ? 'Approved' : P.logged ? 'Pending admin approval' : 'Saved on this device';
+  return `<section class="pf-card pf-detail-documents"><div class="pf-sh"><h2>Marksheets and Aadhaar</h2></div><p class="pf-hint">If you did not upload these during sign-up, you can add them here. Images are compressed below 10 KB; PDFs must be smaller than 10 KB. Uploads and replacements are sent to the admin for approval.</p><div class="pf-detail-doc-grid">${DETAIL_DOCUMENTS.map(([key,label])=>`<div class="pf-detail-doc"><div><b>${label}</b><span class="pf-hint">${S.documents[key] ? status : 'Not uploaded'}</span></div><label class="pf-file-label">${S.documents[key] ? 'Replace file' : 'Upload file'}<input type="file" accept="image/*,application/pdf,.pdf" data-detail-document="${key}"></label>${S.documents[key] ? `<button type="button" class="pf-pill" data-detail-document-view="${key}">View uploaded file</button>` : ''}</div>`).join('')}</div></section>`;
 }
 
 function academics(){
@@ -227,7 +245,7 @@ function skills(){
 
 function more(){
   const chips = (title, list, store, hint) => `<section class="pf-card"><div class="pf-sh"><h2>${title} (${Object.keys(S[store]).length})</h2></div><p class="pf-hint">${hint}</p><div class="pf-chips">${list.map(n => `<button class="${S[store][n]?'on':''}" data-c="${store}|${esc(n)}">${esc(n)}</button>`).join('')}</div></section>`;
-  return MORE.map(([k,t,add]) => { const it = S.more[k] || [];
+  return `<p class="pf-review-note">${P.logged ? 'Changes in More are submitted to the admin for approval when you save them.' : 'Sign in to submit profile changes to the admin for approval.'}</p>` + MORE.map(([k,t,add]) => { const it = S.more[k] || [];
     return `<section class="pf-card"><div class="pf-sh"><h2>${t} (${it.length})</h2><button class="pf-pill pri" data-m="${k}">+ ${add}</button></div>` +
       (it.length ? it.map((x,i) => `<div class="pf-item"><div><b>${esc(x.title || '')}</b> <small>${esc([x.org, x.period].filter(Boolean).join(' · '))}</small><p>${esc(x.desc || '')}</p>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.link)}</a>` : ''}</div><span class="pf-ia"><button data-me="${k}|${i}" title="Edit">Edit</button><button data-mr="${k}|${i}" title="Remove">&times;</button></span></div>`).join('') : `<p class="pf-empty">No ${t.toLowerCase()} added yet.</p>`) + '</section>'; }).join('') +
     chips('Social Media', SOCIAL, 'social', 'Click a platform to add or edit your link.') + chips('Languages', LANGS, 'langs', 'Click a language to add or edit proficiency.');
@@ -376,10 +394,12 @@ function syncCore(){
   if(!P.logged) return;
   const b = P.base, d = P.d;
   const profileDetails = {
+    ...(b.profile_details && typeof b.profile_details === 'object' ? b.profile_details : {}),
     details: { ...d },
     academics: Array.isArray(S.acad) ? S.acad : [],
     skills: Array.isArray(S.skills) ? S.skills : [],
     more: S.more || {},
+    ...S.documents,
     social: S.social || {},
     languages: S.langs || {},
     links: Array.isArray(S.links) ? S.links : [],
@@ -423,6 +443,26 @@ function syncCore(){
 
 function bind(){
   const on = (sel, fn) => $$(sel).forEach(el => el.addEventListener('click', e => fn(el, e)));
+  $$('[data-detail-document]').forEach(input => input.addEventListener('change', async () => {
+    const file = input.files?.[0], documentKey = input.dataset.detailDocument;
+    input.value = '';
+    if(!file || !DETAIL_DOCUMENTS.some(([key]) => key === documentKey)) return;
+    try{
+      S.documents[documentKey] = await prepareUploadFile(file);
+      save();
+      render();
+      toast('Document submitted for admin approval');
+    }catch(error){ toast(error.message); }
+  }));
+  $$('[data-detail-document-view]').forEach(button => button.addEventListener('click', () => {
+    const data = S.documents[button.dataset.detailDocumentView];
+    if(!data) return;
+    const title = DETAIL_DOCUMENTS.find(([key]) => key === button.dataset.detailDocumentView)?.[1] || 'Uploaded document';
+    const preview = data.startsWith('data:application/pdf')
+      ? `<iframe class="pf-document-preview" src="${esc(data)}" title="${esc(title)}"></iframe>`
+      : `<img class="pf-document-preview-image" src="${esc(data)}" alt="${esc(title)}">`;
+    overlay(`<div class="pf-document-modal"><h3>${esc(title)}</h3>${preview}<div class="pf-fa"><button type="button" class="pf-pill pri" data-x>Close</button></div></div>`);
+  }));
   $('#pfPhoto')?.addEventListener('change', async e => { const f = e.target.files[0]; if(!f) return; try{ S.photo = await compressImageFile(f); save(); render(); }catch(error){ toast(error.message); } });
   $('#pfReq')?.addEventListener('click', e => { e.preventDefault(); S.requested = true; save(); render(); });
   $('#pfLink')?.addEventListener('click', () => modal('Add link', [['name','Label'],['url','URL']], {}, r => S.links.push(r)));
