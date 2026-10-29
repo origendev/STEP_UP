@@ -18,34 +18,61 @@ function loadImage(file){
   });
 }
 
-function canvasBlob(canvas,quality){
+function canvasBlob(canvas,type,quality){
   return new Promise((resolve,reject)=>{
     canvas.toBlob(blob=>{
       if(blob)resolve(blob);
       else reject(new Error('Could not compress this image.'));
-    },'image/jpeg',quality);
+    },type,quality);
   });
+}
+
+async function bestCanvasBlob(canvas,type){
+  const maximumQuality=0.94;
+  const minimumQuality=0.55;
+  let best=await canvasBlob(canvas,type,maximumQuality);
+  if(best.type!==type)return null;
+  if(best.size<MAX_UPLOAD_BYTES)return {blob:best,quality:maximumQuality};
+
+  best=await canvasBlob(canvas,type,minimumQuality);
+  if(best.type!==type||best.size>=MAX_UPLOAD_BYTES)return null;
+  let low=minimumQuality,high=maximumQuality;
+  for(let attempt=0;attempt<6;attempt++){
+    const quality=(low+high)/2;
+    const candidate=await canvasBlob(canvas,type,quality);
+    if(candidate.size<MAX_UPLOAD_BYTES){
+      best=candidate;
+      low=quality;
+    }else{
+      high=quality;
+    }
+  }
+  return {blob:best,quality:low};
 }
 
 async function compressCanvas(canvas){
   if(!canvas.getContext('2d'))throw new Error('Image compression is not available in this browser.');
-  const original=canvas;
-  for(let scale=1;scale>=0.18;scale*=0.75){
-    const width=Math.max(1,Math.round(original.width*scale));
-    const height=Math.max(1,Math.round(original.height*scale));
+  const scales=[1,0.85,0.72,0.61,0.52,0.44,0.37,0.31,0.26,0.22,0.18,0.15,0.12,0.1];
+  const minimumDimension=Math.min(480,Math.max(canvas.width,canvas.height));
+  for(const scale of scales){
+    const width=Math.max(1,Math.round(canvas.width*scale));
+    const height=Math.max(1,Math.round(canvas.height*scale));
+    if(Math.max(width,height)<minimumDimension)break;
     const output=document.createElement('canvas');
     output.width=width;
     output.height=height;
     const outputContext=output.getContext('2d');
+    if(!outputContext)throw new Error('Image compression is not available in this browser.');
     outputContext.fillStyle='#fff';
     outputContext.fillRect(0,0,width,height);
-    outputContext.drawImage(original,0,0,width,height);
-    for(const quality of [0.72,0.55,0.4,0.28,0.16,0.08]){
-      const blob=await canvasBlob(output,quality);
-      if(blob.size<MAX_UPLOAD_BYTES)return readAsDataUrl(blob);
-    }
+    outputContext.drawImage(canvas,0,0,width,height);
+    const candidates=await Promise.all(
+      ['image/webp','image/jpeg'].map(type=>bestCanvasBlob(output,type))
+    );
+    const best=candidates.filter(Boolean).sort((a,b)=>b.quality-a.quality||b.blob.size-a.blob.size)[0];
+    if(best)return readAsDataUrl(best.blob);
   }
-  throw new Error('This image cannot be made smaller than 10 KB while preserving a readable preview. Choose a simpler image.');
+  throw new Error('This image cannot fit under 10 KB at readable quality. Crop it to the important area or upload a smaller image.');
 }
 
 export async function compressImageFile(file){
