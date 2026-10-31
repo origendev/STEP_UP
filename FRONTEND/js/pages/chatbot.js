@@ -446,7 +446,26 @@ export function initChatbot() {
     careerWins = [...careerWins, { id, title, detail, earnedAt: Date.now() }];
     persistCareerWins();
     winMessage = `${title} — ${detail}`;
-    renderAll();
+    renderWinNotice();
+    const wins = body.querySelector('.sb-career-wins');
+    if (wins) {
+      const replacement = document.createElement('div');
+      replacement.innerHTML = careerWinsMarkup();
+      wins.replaceWith(replacement.firstElementChild);
+    }
+  }
+
+  function renderWinNotice() {
+    if (!winMessage) return;
+    let notice = body.querySelector('[data-win-notice]');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.className = 'sb-win-celebration';
+      notice.dataset.winNotice = '';
+      notice.setAttribute('role', 'status');
+      body.prepend(notice);
+    }
+    notice.innerHTML = `<span>✦</span><p>${esc(winMessage)}</p><button type="button" data-dismiss-win aria-label="Dismiss celebration">×</button>`;
   }
 
   function persistMockInterview() {
@@ -714,7 +733,6 @@ export function initChatbot() {
       ? latestWins.map(win => `<span class="sb-win-badge" title="${esc(win.detail)}"><i>✦</i><b>${esc(win.title)}</b></span>`).join('')
       : '<p class="sb-feature-empty">Your first small win will show up here. There is no streak to maintain.</p>';
     return `<section class="sb-career-wins" aria-label="Career wins"><div class="sb-feature-heading"><div><small>WORTH CELEBRATING</small><h3>Small wins</h3></div><span>${careerWins.length}</span></div>
-      ${winMessage ? `<div class="sb-win-celebration" role="status"><span>✦</span><p>${esc(winMessage)}</p><button type="button" data-dismiss-win aria-label="Dismiss celebration">×</button></div>` : ''}
       <div class="sb-win-list">${wins}</div>
     </section>`;
   }
@@ -748,14 +766,15 @@ export function initChatbot() {
     const percent = Math.round(completed / missionTasks.length * 100);
     const taskRows = missionTasks.map(task => {
       const done = missionDone.has(task.id);
+      const start = `data-mission-start="${esc(task.id)}"`;
       const action = task.mockInterview
-        ? `<button type="button" class="sb-mission-action" data-mock-start>${esc(task.label)}</button>`
+        ? `<button type="button" class="sb-mission-action" ${start} data-mock-start>${esc(task.label)}</button>`
         : task.prompt
-        ? `<button type="button" class="sb-mission-action" data-mission-prompt="${esc(task.prompt)}">${esc(task.label)}</button>`
+        ? `<button type="button" class="sb-mission-action" ${start} data-mission-prompt="${esc(task.prompt)}">${esc(task.label)}</button>`
         : task.external
-          ? `<a class="sb-mission-action" href="${esc(task.href)}" target="_blank" rel="noopener noreferrer">${esc(task.label)} <span aria-hidden="true">↗</span></a>`
-          : `<a class="sb-mission-action" href="${esc(task.href)}" data-mission-route="${esc(task.href.slice(2))}">${esc(task.label)} <span aria-hidden="true">→</span></a>`;
-      return `<article class="sb-mission-task${done ? ' is-done' : ''}">
+          ? `<a class="sb-mission-action" ${start} href="${esc(task.href)}" target="_blank" rel="noopener noreferrer">${esc(task.label)} <span aria-hidden="true">↗</span></a>`
+          : `<a class="sb-mission-action" ${start} href="${esc(task.href)}" data-mission-route="${esc(task.href.slice(2))}">${esc(task.label)} <span aria-hidden="true">→</span></a>`;
+      return `<article class="sb-mission-task${done ? ' is-done' : ''}" data-mission-task-id="${esc(task.id)}">
         <button type="button" class="sb-mission-check" data-mission-toggle="${esc(task.id)}" aria-label="${done ? 'Mark incomplete' : 'Mark complete'}: ${esc(task.title)}" aria-pressed="${done}">${done ? '✓' : ''}</button>
         <div class="sb-mission-task-copy"><b>${esc(task.title)}</b><p>${esc(task.detail)}</p>${action}</div>
       </article>`;
@@ -763,15 +782,15 @@ export function initChatbot() {
 
     return `<section class="sb-mission${compact ? ' sb-mission-compact' : ''}" aria-label="Weekly placement mission">
       <div class="sb-mission-head">
-        <div><span class="sb-mission-kicker">${missionLabel}</span><b>${completed === missionTasks.length ? 'All done for this week' : 'Choose a next step'}</b></div>
+        <div><span class="sb-mission-kicker">${missionLabel}</span><b data-mission-status>${completed === missionTasks.length ? 'All done for this week' : 'Choose a next step'}</b></div>
         <span class="sb-mission-week">${esc(currentMissionWeek())}</span>
       </div>
       <div class="sb-mission-progress">
-        <div><span>${completed} of ${missionTasks.length} steps complete</span><b>${percent}%</b></div>
-        <div class="sb-mission-track" role="progressbar" aria-label="Weekly mission progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div>
+        <div><span data-mission-count>${completed} of ${missionTasks.length} steps complete</span><b data-mission-percent>${percent}%</b></div>
+        <div class="sb-mission-track" data-mission-progress role="progressbar" aria-label="Weekly mission progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div>
       </div>
       <div class="sb-mission-list">${taskRows}</div>
-      <p class="sb-mission-footnote">${missionError ? esc(missionError) : 'Your checklist saves in this browser and resets with your new weekly mission.'}</p>
+      <p class="sb-mission-footnote" data-mission-note>${missionError ? esc(missionError) : 'Starting a task marks it complete. You can also check off a step after doing it.'}</p>
     </section>`;
   }
 
@@ -816,20 +835,65 @@ export function initChatbot() {
     }
   }
 
-  function toggleMissionTask(taskId) {
+  function updateMissionProgressUI() {
+    const completed = missionTasks.filter(task => missionDone.has(task.id)).length;
+    const percent = missionTasks.length ? Math.round(completed / missionTasks.length * 100) : 0;
+    body.querySelectorAll('[data-mission-status]').forEach(element => {
+      element.textContent = completed === missionTasks.length ? 'All done for this week' : 'Choose a next step';
+    });
+    body.querySelectorAll('[data-mission-count]').forEach(element => {
+      element.textContent = `${completed} of ${missionTasks.length} steps complete`;
+    });
+    body.querySelectorAll('[data-mission-percent]').forEach(element => {
+      element.textContent = `${percent}%`;
+    });
+    body.querySelectorAll('[data-mission-progress]').forEach(element => {
+      element.setAttribute('aria-valuenow', String(percent));
+      element.firstElementChild.style.width = `${percent}%`;
+    });
+    body.querySelectorAll('[data-mission-note]').forEach(element => {
+      element.textContent = missionError || 'Starting a task marks it complete. You can also check off a step after doing it.';
+    });
+    const summary = body.querySelector('.sb-weekly-trigger-copy small');
+    if (summary) summary.textContent = weeklyTasksSummary();
+    for (const task of missionTasks) {
+      const row = [...body.querySelectorAll('[data-mission-task-id]')].find(item => item.dataset.missionTaskId === task.id);
+      if (!row) continue;
+      const done = missionDone.has(task.id);
+      row.classList.toggle('is-done', done);
+      const check = row.querySelector('[data-mission-toggle]');
+      check.setAttribute('aria-pressed', String(done));
+      check.setAttribute('aria-label', `${done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`);
+      check.textContent = done ? '✓' : '';
+    }
+  }
+
+  function setMissionTaskDone(taskId, done) {
     if (!missionTasks.some(task => task.id === taskId) || !missionKey) return;
-    if (missionDone.has(taskId)) missionDone.delete(taskId);
-    else {
+    const wasDone = missionDone.has(taskId);
+    if (done === wasDone) return;
+    if (done) {
       missionDone.add(taskId);
-      if (missionDone.size === 1) celebrateWin(`mission-first-step:${currentMissionWeek()}`, 'First mission step', 'A little progress is still progress.');
-      if (missionDone.size === missionTasks.length) celebrateWin(`mission-complete:${currentMissionWeek()}`, 'Weekly mission complete', 'You made time for your next steps.');
+    } else {
+      missionDone.delete(taskId);
     }
     try {
       localStorage.setItem(missionKey, JSON.stringify([...missionDone]));
     } catch {
       missionError = 'Could not save mission progress in this browser.';
     }
-    renderAll();
+    if (done && missionDone.size === 1) {
+      const task = missionTasks.find(item => item.id === taskId);
+      celebrateWin(`mission-first-step:${currentMissionWeek()}`, 'First mission step', `You started: ${task.title}.`);
+    }
+    if (done && missionDone.size === missionTasks.length) {
+      celebrateWin(`mission-complete:${currentMissionWeek()}`, 'Weekly mission complete', 'You started every next step in this week’s plan.');
+    }
+    updateMissionProgressUI();
+  }
+
+  function toggleMissionTask(taskId) {
+    setMissionTaskDone(taskId, !missionDone.has(taskId));
   }
 
   function renderAll() {
@@ -883,6 +947,7 @@ export function initChatbot() {
         if (m.role === 'assistant') actionsFor(row, m, i === history.length - 1);
       });
     }
+    renderWinNotice();
     const careerTools = body.querySelector('.sb-extra-tools');
     if (careerTools) careerTools.addEventListener('toggle', () => { showingCareerTools = careerTools.open; });
     const weeklyToggle = body.querySelector('[data-weekly-toggle]');
@@ -1153,6 +1218,8 @@ export function initChatbot() {
   jump.addEventListener('click', () => toBottom());
   body.addEventListener('scroll', updateJump, { passive: true });
   body.addEventListener('click', e => {
+    const missionStart = e.target.closest('[data-mission-start]');
+    if (missionStart) setMissionTaskDone(missionStart.dataset.missionStart, true);
     if (e.target.closest('[data-skill-challenge],[data-challenge-restart]')) {
       startSkillChallenge();
       return;

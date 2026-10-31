@@ -6,13 +6,13 @@
    This is the only script index.html loads.
 ============================================================ */
 
-import * as router from './core/router.js?v=20260930d';
+import * as router from './core/router.js';
 import * as theme  from './core/theme.js';
 import { clearSession } from './core/api.js';
 import { esc } from './core/dom.js';
 import { getUser, USER_EVENT } from './core/user.js';
 
-import { mount as mountHome } from './pages/home.js?v=20261031k';
+import { mount as mountHome } from './pages/home.js?v=20261031n';
 import { mount as mountProfile } from './pages/profile.js?v=20261031a';
 import { mount as mountJobs } from './pages/jobs.js?v=20261021c';
 import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261008c';
