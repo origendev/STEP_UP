@@ -1221,8 +1221,27 @@ async function buildStudentChatContext(studentId) {
     )
   ]);
   const appliedJobIds = new Set(applicationsResult.rows.map(application => String(application.job_id)));
+  const studentForEligibility = { ...student, department: studentDepartment || student.department };
+  const skillGapJobs = jobsResult.rows
+    .map(job => {
+      const requiredSkills = Array.isArray(job.required_skills) ? job.required_skills : [];
+      const studentSkills = new Set((Array.isArray(student.skills) ? student.skills : [])
+        .map(skill => String(skill).trim().toLowerCase()));
+      const missingSkills = requiredSkills.filter(skill => !studentSkills.has(String(skill).trim().toLowerCase()));
+      const otherReasons = getJobEligibilityReasons(studentForEligibility, job)
+        .filter(reason => !reason.startsWith('Required skills:'));
+      return { job, missingSkills, otherReasons };
+    })
+    .filter(item => item.missingSkills.length && !item.otherReasons.length && !appliedJobIds.has(String(item.job.id)))
+    .slice(0, 5)
+    .map(({ job, missingSkills }) => ({
+      title: job.title,
+      company: job.company_name,
+      deadline: job.apply_before,
+      missingSkills
+    }));
   const eligibleJobs = jobsResult.rows
-    .filter(job => isStudentEligibleForJob({ ...student, department: studentDepartment || student.department }, job) && !appliedJobIds.has(String(job.id)))
+    .filter(job => isStudentEligibleForJob(studentForEligibility, job) && !appliedJobIds.has(String(job.id)))
     .slice(0, 8)
     .map(job => ({
       title: job.title,
@@ -1274,6 +1293,7 @@ async function buildStudentChatContext(studentId) {
       hasGitHub: Boolean(student.github || profileDetails.social?.GitHub)
     },
     eligibleOpenJobs: eligibleJobs,
+    skillGapJobs,
     upcomingCompetitions: competitionsResult.rows.map(({ id, title, deadline, registration_url }) => ({
       id, title, deadline, url: registration_url
     })),
@@ -1285,6 +1305,17 @@ async function buildStudentChatContext(studentId) {
     applicationCounts
   };
 }
+
+app.get('/api/student/mission', requireStudent, async (req, res) => {
+  try {
+    const context = await buildStudentChatContext(req.student.studentId);
+    if (!context) return res.status(401).json({ error: 'Student account not found.' });
+    res.json({ data: context });
+  } catch (error) {
+    console.error('Could not build student placement mission:', error);
+    res.status(500).json({ error: 'Could not load your placement mission.' });
+  }
+});
 
 async function chatEndpoint(req, res) {
   const now = Date.now();

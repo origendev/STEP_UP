@@ -11,27 +11,43 @@
    falls back to built-in answers so the bot never feels broken.
 ============================================================ */
 
-import { API_BASE, getToken } from '../core/api.js';
+import { API_BASE, api, getToken } from '../core/api.js';
 import { navigate } from '../core/router.js';
+import { getUser } from '../core/user.js';
 
 const ROBOT = 'assets/robot.png';
 const STORE = 'stepupChatV1';
 const MAX_SAVED = 40;
 const MAX_CHARS = 500;
 
-const SUGGESTIONS = [
-  'How do I prepare for placements?',
-  'Tips to improve my resume',
-  'Which skills are in demand?',
-  'How do I use StepUp?'
-];
-const PERSONALIZED_SUGGESTIONS = [
-  'Make a placement plan for me',
-  'Show my eligible open jobs',
-  'What courses can I take?',
-  'Are there upcoming competitions?'
+const COPILOT_TASKS = [
+  {
+    title: 'Build my placement plan',
+    detail: 'A practical roadmap for my next steps',
+    prompt: 'Make a placement plan for me',
+    icon: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/><path d="M9 7h7M9 11h7"/>'
+  },
+  {
+    title: 'Find my opportunities',
+    detail: 'Explore roles that match my profile',
+    prompt: 'Show me jobs I am eligible for',
+    icon: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/><path d="M8.5 11h5M11 8.5v5"/>'
+  },
+  {
+    title: 'Explore skill courses',
+    detail: 'Find a course that fits my study path',
+    prompt: 'Recommend skill courses for me',
+    icon: '<path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z"/>'
+  },
+  {
+    title: 'See what is coming up',
+    detail: 'Check competitions and important dates',
+    prompt: 'Are there upcoming competitions?',
+    icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h3"/>'
+  }
 ];
 const CHAT_ROUTES = new Set(['#/home', '#/jobs', '#/skills', '#/demands', '#/progress', '#/profile']);
+const MISSION_ROUTES = new Set(['#/profile', '#/skills', '#/jobs', '#/home']);
 
 const FALLBACKS = [
   [/resume|cv/i, 'Keep your resume to one page. Lead with projects and skills, use action verbs with numbers (e.g. "cut load time by 30%"), and tailor it to each role. Add your GitHub or portfolio link.'],
@@ -48,6 +64,7 @@ const ICON = {
   stop:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>',
   mic:   '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   renew: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>',
+  mission: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M12 3 4.5 6v5c0 5 3.2 8.5 7.5 10 4.3-1.5 7.5-5 7.5-10V6L12 3Z"/></svg>',
   down:  '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>',
   big:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>',
   small: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/></svg>',
@@ -114,6 +131,128 @@ function save(list, key) {
   try { localStorage.setItem(key, JSON.stringify(list.slice(-MAX_SAVED))); } catch { /* storage unavailable */ }
 }
 
+function currentMissionWeek() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+  const year = date.getFullYear();
+  const firstDay = new Date(year, 0, 1);
+  const week = Math.ceil((((date - firstDay) / 86400000) + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+function missionProgressKey(week) {
+  try {
+    const student = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
+    const registration = String(student?.reg_no || 'student').replace(/[^a-zA-Z0-9_-]/g, '');
+    return `stepupMission:${registration}:${week}`;
+  } catch {
+    return `stepupMission:student:${week}`;
+  }
+}
+
+function readMissionProgress(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || '[]');
+    return new Set(Array.isArray(saved) ? saved.filter(item => typeof item === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function buildMissionTasks(context) {
+  const student = context.student || {};
+  const tasks = [];
+  const skills = Array.isArray(student.skills) ? student.skills : [];
+  const opportunities = Array.isArray(context.eligibleOpenJobs) ? context.eligibleOpenJobs : [];
+  const skillGaps = Array.isArray(context.skillGapJobs) ? context.skillGapJobs : [];
+  const courses = Array.isArray(context.availableCourses) ? context.availableCourses : [];
+  const competitions = Array.isArray(context.upcomingCompetitions) ? context.upcomingCompetitions : [];
+  const skillGap = skillGaps.find(item => Array.isArray(item.missingSkills) && item.missingSkills.length);
+
+  if (!student.profileCompleted || !skills.length || !student.projectCount) {
+    const missing = [
+      !student.profileCompleted ? 'complete your profile' : '',
+      !skills.length ? 'add your skills' : '',
+      !student.projectCount ? 'add a project' : ''
+    ].filter(Boolean);
+    tasks.push({
+      id: 'profile',
+      title: 'Get your profile application-ready',
+      detail: `This week, ${missing.join(', ')}.`,
+      label: 'Update profile',
+      href: '#/profile'
+    });
+  } else {
+    tasks.push({
+      id: 'profile',
+      title: 'Refresh your placement profile',
+      detail: 'Keep your experience, projects and links ready for recruiters.',
+      label: 'Review profile',
+      href: '#/profile'
+    });
+  }
+
+  if (skillGap) {
+    const skill = String(skillGap.missingSkills[0]);
+    const course = courses.find(item =>
+      `${item.title || ''} ${item.description || ''}`.toLowerCase().includes(skill.toLowerCase())
+    );
+    tasks.push({
+      id: 'skill',
+      title: `Practice ${skill}`,
+      detail: `A skill gap for ${skillGap.title}${skillGap.company ? ` at ${skillGap.company}` : ''}.`,
+      label: course ? 'Open course' : 'Explore Skills',
+      href: course && /^https?:\/\//i.test(course.url || '') ? course.url : '#/skills',
+      external: Boolean(course && /^https?:\/\//i.test(course.url || ''))
+    });
+  } else {
+    const course = courses[0];
+    tasks.push({
+      id: 'skill',
+      title: course ? `Start ${course.title}` : 'Choose one skill to strengthen',
+      detail: course
+        ? `${course.provider ? `${course.provider} · ` : ''}Take one step toward a stronger placement profile.`
+        : 'Pick a skill you want to improve and build a weekly practice habit.',
+      label: course && /^https?:\/\//i.test(course.url || '') ? 'Open course' : 'Explore Skills',
+      href: course && /^https?:\/\//i.test(course.url || '') ? course.url : '#/skills',
+      external: Boolean(course && /^https?:\/\//i.test(course.url || ''))
+    });
+  }
+
+  const opportunity = opportunities[0];
+  tasks.push({
+    id: 'opportunity',
+    title: opportunity ? `Review ${opportunity.title}` : 'Explore current opportunities',
+    detail: opportunity
+      ? `${opportunity.company || 'Eligible employer'}${opportunity.deadline ? ` · apply before ${new Date(opportunity.deadline).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : ''}.`
+      : 'Check current openings and review their eligibility details.',
+    label: 'View opportunities',
+    href: '#/jobs'
+  });
+
+  const competition = competitions[0];
+  if (competition && /^https?:\/\//i.test(competition.url || '')) {
+    tasks.push({
+      id: 'deadline',
+      title: `Prepare for ${competition.title}`,
+      detail: `An upcoming competition${competition.deadline ? ` · deadline ${new Date(competition.deadline).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : ''}.`,
+      label: 'View competition',
+      href: competition.url,
+      external: true
+    });
+  } else {
+    tasks.push({
+      id: 'practice',
+      title: 'Practice one interview answer',
+      detail: 'Build confidence with a short, focused practice session.',
+      label: 'Practice with Step',
+      prompt: 'Help me practice one placement interview answer. Ask me a question, wait for my answer, then give specific feedback.'
+    });
+  }
+  return tasks;
+}
+
 export function initChatbot() {
   if (document.getElementById('sbChat')) return;   // already on the page
 
@@ -123,8 +262,9 @@ export function initChatbot() {
   wrap.innerHTML = `
     <section class="sb-panel" id="sbPanel" role="dialog" aria-label="StepUp assistant" aria-hidden="true">
       <header class="sb-head">
-        <img class="sb-avatar" src="${ROBOT}" alt="">
-        <div class="sb-title"><b>Step</b><span><i class="sb-dot"></i><em id="sbStatus">Online</em></span></div>
+        <span class="sb-avatar-wrap"><img class="sb-avatar" src="${ROBOT}" alt=""></span>
+        <div class="sb-title"><small>STEPUP CAREER COPILOT</small><b>Step</b><span><i class="sb-dot"></i><em id="sbStatus">Ready to help</em></span></div>
+        <button class="sb-hb sb-mission-toggle" id="sbMission" title="Open weekly mission" aria-label="Open weekly mission" aria-pressed="false" hidden>${ICON.mission}</button>
         <button class="sb-hb" id="sbNew"  title="New chat"            aria-label="Start a new chat">${ICON.renew}</button>
         <button class="sb-hb" id="sbSave" title="Download chat"       aria-label="Download this chat">${ICON.down}</button>
         <button class="sb-hb" id="sbBig"  title="Expand"              aria-label="Expand chat window">${ICON.big}</button>
@@ -137,7 +277,6 @@ export function initChatbot() {
       </div>
       <div class="sb-body" id="sbBody" aria-live="polite"></div>
       <button class="sb-jump" id="sbJump" aria-label="Scroll to latest message" hidden>↓</button>
-      <div class="sb-chips" id="sbChips"></div>
       <form class="sb-form" id="sbForm" autocomplete="off">
         <button type="button" class="sb-mic" id="sbMic" aria-label="Speak your question" title="Speak" hidden>${ICON.mic}</button>
         <div class="sb-field">
@@ -148,14 +287,15 @@ export function initChatbot() {
       </form>
     </section>
     <button class="sb-launcher" id="sbLauncher" aria-label="Chat with Step, the StepUp assistant" aria-expanded="false">
-      <span class="sb-bubble">Hi, I'm Step! 👋</span>
+      <span class="sb-bubble">Your placement copilot</span>
       <img src="${ROBOT}" alt="">
     </button>`;
   document.body.appendChild(wrap);
 
   const $ = id => wrap.querySelector('#' + id);
   const panel = $('sbPanel'), body = $('sbBody'), input = $('sbInput'), form = $('sbForm');
-  const launcher = $('sbLauncher'), chips = $('sbChips'), sendBtn = $('sbSend');
+  const launcher = $('sbLauncher'), sendBtn = $('sbSend');
+  const missionButton = $('sbMission');
   const jump = $('sbJump'), confirmBar = $('sbConfirm'), count = $('sbCount'), status = $('sbStatus');
 
   const historyKey = chatStorageKey();
@@ -164,6 +304,13 @@ export function initChatbot() {
   let abort = null;              // AbortController for the request in flight
   let revealTimer = null;        // typing-reveal interval
   let revealing = null;          // {row, textEl, full, item}
+  let missionContext = null;
+  let missionTasks = [];
+  let missionDone = new Set();
+  let missionKey = '';
+  let missionLoading = false;
+  let missionError = '';
+  let showingMission = false;
 
   /* ---------- rendering ---------- */
   const nearBottom = () => body.scrollHeight - body.scrollTop - body.clientHeight < 60;
@@ -215,28 +362,146 @@ export function initChatbot() {
     });
   }
 
+  function missionMarkup(compact = false) {
+    if (missionLoading && !missionContext) {
+      return `<section class="sb-mission sb-mission-loading" aria-live="polite">
+        <div class="sb-mission-head"><span class="sb-mission-kicker">THIS WEEK'S PLACEMENT MISSION</span><span class="sb-mission-week">${esc(currentMissionWeek())}</span></div>
+        <p>Building a plan around your StepUp profile and live opportunities…</p>
+        <div class="sb-mission-skeleton"></div><div class="sb-mission-skeleton short"></div>
+      </section>`;
+    }
+    if (missionError && !missionContext) {
+      return `<section class="sb-mission sb-mission-error" role="status">
+        <div class="sb-mission-head"><span class="sb-mission-kicker">THIS WEEK'S PLACEMENT MISSION</span></div>
+        <p>${esc(missionError)}</p>
+        <button type="button" class="sb-mission-retry" data-mission-retry>Try again</button>
+      </section>`;
+    }
+    if (!missionContext || !missionTasks.length) return '';
+
+    const completed = missionTasks.filter(task => missionDone.has(task.id)).length;
+    const percent = Math.round(completed / missionTasks.length * 100);
+    const taskRows = missionTasks.map(task => {
+      const done = missionDone.has(task.id);
+      const action = task.prompt
+        ? `<button type="button" class="sb-mission-action" data-mission-prompt="${esc(task.prompt)}">${esc(task.label)}</button>`
+        : task.external
+          ? `<a class="sb-mission-action" href="${esc(task.href)}" target="_blank" rel="noopener noreferrer">${esc(task.label)} <span aria-hidden="true">↗</span></a>`
+          : `<a class="sb-mission-action" href="${esc(task.href)}" data-mission-route="${esc(task.href.slice(2))}">${esc(task.label)} <span aria-hidden="true">→</span></a>`;
+      return `<article class="sb-mission-task${done ? ' is-done' : ''}">
+        <button type="button" class="sb-mission-check" data-mission-toggle="${esc(task.id)}" aria-label="${done ? 'Mark incomplete' : 'Mark complete'}: ${esc(task.title)}" aria-pressed="${done}">${done ? '✓' : ''}</button>
+        <div class="sb-mission-task-copy"><b>${esc(task.title)}</b><p>${esc(task.detail)}</p>${action}</div>
+      </article>`;
+    }).join('');
+
+    return `<section class="sb-mission${compact ? ' sb-mission-compact' : ''}" aria-label="Weekly placement mission">
+      <div class="sb-mission-head">
+        <div><span class="sb-mission-kicker">THIS WEEK'S PLACEMENT MISSION</span><b>${completed === missionTasks.length ? 'Mission complete!' : 'Small steps. Real progress.'}</b></div>
+        <span class="sb-mission-week">${esc(currentMissionWeek())}</span>
+      </div>
+      <div class="sb-mission-progress">
+        <div><span>${completed} of ${missionTasks.length} steps complete</span><b>${percent}%</b></div>
+        <div class="sb-mission-track" role="progressbar" aria-label="Weekly mission progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div>
+      </div>
+      <div class="sb-mission-list">${taskRows}</div>
+      <p class="sb-mission-footnote">${missionError ? esc(missionError) : 'Your checklist saves in this browser and resets with your new weekly mission.'}</p>
+    </section>`;
+  }
+
+  function missionView() {
+    return `<div class="sb-mission-screen">
+      <div class="sb-mission-screen-top"><span class="sb-mission-screen-icon">${ICON.mission}</span><div><small>YOUR PERSONAL ROADMAP</small><h2>Placement Mission</h2></div></div>
+      <p class="sb-mission-screen-intro">A focused checklist built from your profile and live StepUp opportunities. Pick one step and keep moving forward.</p>
+      ${missionMarkup()}
+    </div>`;
+  }
+
+  async function loadMission() {
+    if (!getToken() || missionLoading) return;
+    if (missionContext && missionKey !== missionProgressKey(currentMissionWeek())) {
+      missionContext = null;
+      missionTasks = [];
+      missionDone = new Set();
+      missionKey = '';
+    }
+    missionLoading = true;
+    missionError = '';
+    missionButton.hidden = false;
+    if (!missionContext && !history.length) renderAll();
+    try {
+      const response = await api('/student/mission');
+      missionContext = response.data;
+      missionTasks = buildMissionTasks(missionContext);
+      missionKey = missionProgressKey(currentMissionWeek());
+      missionDone = readMissionProgress(missionKey);
+      missionError = '';
+    } catch (error) {
+      missionError = error.message || 'Could not load your weekly mission.';
+    } finally {
+      missionLoading = false;
+      renderAll();
+    }
+  }
+
+  function toggleMissionTask(taskId) {
+    if (!missionTasks.some(task => task.id === taskId) || !missionKey) return;
+    if (missionDone.has(taskId)) missionDone.delete(taskId);
+    else missionDone.add(taskId);
+    try {
+      localStorage.setItem(missionKey, JSON.stringify([...missionDone]));
+    } catch {
+      missionError = 'Could not save mission progress in this browser.';
+    }
+    renderAll();
+  }
+
   function renderAll() {
     body.innerHTML = '';
-    chips.innerHTML = '';
-    if (!history.length) {
+    const signedIn = Boolean(getToken());
+    missionButton.hidden = !signedIn;
+    missionButton.setAttribute('aria-pressed', String(showingMission));
+    missionButton.title = showingMission ? 'Return to chat' : 'Open weekly mission';
+    missionButton.setAttribute('aria-label', showingMission ? 'Return to chat' : 'Open weekly mission');
+    if (showingMission && signedIn) {
+      body.innerHTML = missionView();
+    } else if (!history.length) {
       const personalized = Boolean(getToken());
-      const welcome = personalized
-        ? 'Hi! I am **Step**, your StepUp assistant. I can help with placements, resumes, interviews and skills. Signed-in answers can use your year, department, skills, profile/project status, application statuses and live StepUp opportunities (not your name or contact details). What would you like to know?'
-        : 'Hi! I am **Step**, your StepUp assistant. I can help with placements, resumes, interviews and skills. Sign in for guidance based on your profile and live StepUp opportunities. What would you like to know?';
-      bubble('bot', format(welcome));
-      const suggestions = personalized ? PERSONALIZED_SUGGESTIONS : SUGGESTIONS;
-      chips.innerHTML = suggestions.map(s => `<button type="button">${esc(s)}</button>`).join('');
+      const name = personalized ? getUser().first : '';
+      body.innerHTML = `
+        <section class="sb-welcome">
+          <div class="sb-welcome-top">
+            <div class="sb-orb" aria-hidden="true"><span></span><img src="${ROBOT}" alt=""></div>
+            <span class="sb-welcome-badge">${personalized ? 'PERSONALIZED FOR YOU' : 'YOUR CAREER, IN FOCUS'}</span>
+          </div>
+          <p class="sb-eyebrow">YOUR STEPUP PLACEMENT COPILOT</p>
+          <h2>${name ? `Hey ${esc(name)},` : 'Meet your next step.'}<br><span>let’s make it count.</span></h2>
+          <p class="sb-welcome-copy">${personalized
+            ? 'Turn your goals into a clear plan. Step can use your study path, skills and live StepUp opportunities to make its guidance relevant.'
+            : 'Get clear, practical guidance for placements, interviews, resumes and skills. Sign in to unlock suggestions based on your profile and live opportunities.'}</p>
+        </section>
+        ${personalized ? missionMarkup(true) : ''}
+        <div class="sb-task-heading"><span>What would you like to work on?</span><small>${personalized ? 'PICK A STARTING POINT' : 'QUICK START'}</small></div>
+        <div class="sb-task-grid">${COPILOT_TASKS.map((task, index) => `
+          <button type="button" class="sb-task" data-chat-prompt="${esc(task.prompt)}">
+            <span class="sb-task-icon sb-task-icon-${index + 1}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${task.icon}</svg></span>
+            <span class="sb-task-copy"><b>${esc(task.title)}</b><small>${esc(task.detail)}</small></span>
+            <span class="sb-task-arrow" aria-hidden="true">↗</span>
+          </button>`).join('')}</div>
+        <p class="sb-privacy-note"><span aria-hidden="true">✦</span> ${personalized
+          ? 'Personalized answers use your study details, not your name or contact information.'
+          : 'Your assistant for the StepUp placement journey.'}</p>`;
     } else {
       history.forEach((m, i) => {
         const row = bubble(m.role === 'user' ? 'user' : 'bot', m.role === 'user' ? esc(m.content) : format(m.content), m);
         if (m.role === 'assistant') actionsFor(row, m, i === history.length - 1);
       });
     }
-    toBottom(false);
+    if (history.length) toBottom(false);
+    else body.scrollTop = 0;
     updateJump();
   }
 
-  function updateJump() { jump.hidden = nearBottom(); }
+  function updateJump() { jump.hidden = !history.length || nearBottom(); }
 
   /* ---------- sending ---------- */
   function setBusy(state) {
@@ -244,7 +509,7 @@ export function initChatbot() {
     sendBtn.innerHTML = state ? ICON.stop : ICON.send;
     sendBtn.classList.toggle('stop', state);
     sendBtn.setAttribute('aria-label', state ? 'Stop generating' : 'Send');
-    status.textContent = state ? 'Typing…' : 'Online';
+    status.textContent = state ? 'Thinking through it…' : 'Ready to help';
   }
 
   function typingRow() {
@@ -286,7 +551,6 @@ export function initChatbot() {
 
   async function respond() {
     setBusy(true);
-    chips.innerHTML = '';
     const typing = typingRow();
     toBottom();
     abort = new AbortController();
@@ -417,13 +681,25 @@ export function initChatbot() {
     launcher.setAttribute('aria-expanded', String(state));
     if (state) {
       if (!body.children.length) renderAll();
-      setTimeout(() => { toBottom(false); input.focus(); }, 280);
+      if (getToken() && (!missionContext || missionKey !== missionProgressKey(currentMissionWeek()))) void loadMission();
+      setTimeout(() => {
+        if (history.length) toBottom(false);
+        else body.scrollTop = 0;
+        if (showingMission) body.scrollTop = 0;
+        input.focus();
+      }, 280);
     }
   }
 
   /* ---------- events ---------- */
   launcher.addEventListener('click', () => open(!wrap.classList.contains('open')));
   $('sbClose').addEventListener('click', () => open(false));
+  missionButton.addEventListener('click', () => {
+    showingMission = !showingMission;
+    renderAll();
+    if (showingMission && !missionContext) void loadMission();
+    body.scrollTop = 0;
+  });
   $('sbNew').addEventListener('click', askNew);
   $('sbYes').addEventListener('click', newChat);
   $('sbNo').addEventListener('click', () => { confirmBar.hidden = true; input.focus(); });
@@ -435,7 +711,29 @@ export function initChatbot() {
   });
   jump.addEventListener('click', () => toBottom());
   body.addEventListener('scroll', updateJump, { passive: true });
-  chips.addEventListener('click', e => { const b = e.target.closest('button'); if (b) send(b.textContent); });
+  body.addEventListener('click', e => {
+    const toggle = e.target.closest('[data-mission-toggle]');
+    if (toggle) {
+      toggleMissionTask(toggle.dataset.missionToggle);
+      return;
+    }
+    if (e.target.closest('[data-mission-retry]')) {
+      void loadMission();
+      return;
+    }
+    const task = e.target.closest('[data-chat-prompt],[data-mission-prompt]');
+    if (task) {
+      showingMission = false;
+      send(task.dataset.chatPrompt || task.dataset.missionPrompt);
+      return;
+    }
+    const missionLink = e.target.closest('a[data-mission-route]');
+    if (missionLink && MISSION_ROUTES.has(missionLink.getAttribute('href'))) {
+      e.preventDefault();
+      navigate(missionLink.dataset.missionRoute);
+      return;
+    }
+  });
   form.addEventListener('submit', e => { e.preventDefault(); if (busy) stop(); else send(input.value); });
   body.addEventListener('click', e => {
     const link = e.target.closest('a[data-chat-route]');
