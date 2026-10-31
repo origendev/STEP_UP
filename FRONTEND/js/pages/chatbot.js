@@ -6,11 +6,13 @@
    suggested questions, voice input, download transcript, expand,
    scroll-to-bottom, Enter to send / Shift+Enter for new line.
 
-   Talks to POST /api/chat. If the backend or AI key is unavailable it
+   Signed-in students use POST /api/student/chat for personalized live
+   StepUp context; guests use POST /api/chat. If AI is unavailable it
    falls back to built-in answers so the bot never feels broken.
 ============================================================ */
 
-import { API_BASE } from '../core/api.js';
+import { API_BASE, getToken } from '../core/api.js';
+import { navigate } from '../core/router.js';
 
 const ROBOT = 'assets/robot.png';
 const STORE = 'stepupChatV1';
@@ -23,6 +25,13 @@ const SUGGESTIONS = [
   'Which skills are in demand?',
   'How do I use StepUp?'
 ];
+const PERSONALIZED_SUGGESTIONS = [
+  'Make a placement plan for me',
+  'Show my eligible open jobs',
+  'What courses can I take?',
+  'Are there upcoming competitions?'
+];
+const CHAT_ROUTES = new Set(['#/home', '#/jobs', '#/skills', '#/demands', '#/progress', '#/profile']);
 
 const FALLBACKS = [
   [/resume|cv/i, 'Keep your resume to one page. Lead with projects and skills, use action verbs with numbers (e.g. "cut load time by 30%"), and tailor it to each role. Add your GitHub or portfolio link.'],
@@ -64,7 +73,17 @@ function clock(t) {
 function format(text) {
   let html = '', inList = false;
   for (const raw of esc(text).split('\n')) {
-    const line = raw.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    const line = raw
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, label, target) => {
+        if (CHAT_ROUTES.has(target)) {
+          return `<a href="${target}" data-chat-route="${target.slice(2)}">${label}</a>`;
+        }
+        if (/^https?:\/\/[^\s]+$/i.test(target)) {
+          return `<a href="${target}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        }
+        return match;
+      });
     const m = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
     if (m) {
       if (!inList) { html += '<ul>'; inList = true; }
@@ -77,14 +96,22 @@ function format(text) {
   return html + (inList ? '</ul>' : '');
 }
 
-function load() {
+function chatStorageKey() {
   try {
-    const data = JSON.parse(localStorage.getItem(STORE) || '[]');
+    const student = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
+    return student?.reg_no ? `${STORE}:${student.reg_no}` : STORE;
+  } catch {
+    return STORE;
+  }
+}
+function load(key) {
+  try {
+    const data = JSON.parse(localStorage.getItem(key) || '[]');
     return Array.isArray(data) ? data : [];
   } catch { return []; }
 }
-function save(list) {
-  try { localStorage.setItem(STORE, JSON.stringify(list.slice(-MAX_SAVED))); } catch { /* storage unavailable */ }
+function save(list, key) {
+  try { localStorage.setItem(key, JSON.stringify(list.slice(-MAX_SAVED))); } catch { /* storage unavailable */ }
 }
 
 export function initChatbot() {
@@ -131,7 +158,8 @@ export function initChatbot() {
   const launcher = $('sbLauncher'), chips = $('sbChips'), sendBtn = $('sbSend');
   const jump = $('sbJump'), confirmBar = $('sbConfirm'), count = $('sbCount'), status = $('sbStatus');
 
-  let history = load();          // [{role, content, t, fb?, offline?}]
+  const historyKey = chatStorageKey();
+  let history = load(historyKey); // [{role, content, t, fb?, offline?}]
   let busy = false;
   let abort = null;              // AbortController for the request in flight
   let revealTimer = null;        // typing-reveal interval
@@ -182,7 +210,7 @@ export function initChatbot() {
       } else if (a === 'up' || a === 'down') {
         item.fb = item.fb === a ? undefined : a;
         bar.querySelectorAll('[data-a=up],[data-a=down]').forEach(x => x.classList.toggle('on', x.dataset.a === item.fb));
-        save(history);
+        save(history, historyKey);
       } else if (a === 'redo') regenerate();
     });
   }
@@ -191,8 +219,13 @@ export function initChatbot() {
     body.innerHTML = '';
     chips.innerHTML = '';
     if (!history.length) {
-      bubble('bot', format('Hi! I am **Step**, your StepUp assistant. I can help with placements, resumes, interviews and skills. What would you like to know?'));
-      chips.innerHTML = SUGGESTIONS.map(s => `<button type="button">${esc(s)}</button>`).join('');
+      const personalized = Boolean(getToken());
+      const welcome = personalized
+        ? 'Hi! I am **Step**, your StepUp assistant. I can help with placements, resumes, interviews and skills. Signed-in answers can use your year, department, skills, profile/project status, application statuses and live StepUp opportunities (not your name or contact details). What would you like to know?'
+        : 'Hi! I am **Step**, your StepUp assistant. I can help with placements, resumes, interviews and skills. Sign in for guidance based on your profile and live StepUp opportunities. What would you like to know?';
+      bubble('bot', format(welcome));
+      const suggestions = personalized ? PERSONALIZED_SUGGESTIONS : SUGGESTIONS;
+      chips.innerHTML = suggestions.map(s => `<button type="button">${esc(s)}</button>`).join('');
     } else {
       history.forEach((m, i) => {
         const row = bubble(m.role === 'user' ? 'user' : 'bot', m.role === 'user' ? esc(m.content) : format(m.content), m);
@@ -220,24 +253,32 @@ export function initChatbot() {
 
   async function ask(signal) {
     const local = new AbortController();
+    const token = getToken();
+    const endpoint = token ? '/student/chat' : '/chat';
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; local.abort(); }, 35000);   // never spin forever
     signal.addEventListener('abort', () => local.abort());
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
         signal: local.signal
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 401 && token) {
+        return { text: 'Your sign-in session has expired. Sign in again to get personalized answers based on current StepUp data.', offline: false };
+      }
       if (!res.ok || !data.reply) throw new Error(data.error || 'No reply');
       return { text: data.reply, offline: false };
     } catch (err) {
-      if (timedOut) return { text: 'Sorry, I am taking too long to answer right now. Please try again in a moment (tap the refresh arrow under this message).', offline: true };
+      if (timedOut) return { text: `${token ? 'I could not load your live StepUp data in time. ' : ''}Sorry, I am taking too long to answer right now. Please try again in a moment (tap the refresh arrow under this message).`, offline: true };
       if (err.name === 'AbortError') throw err;
       const last = history[history.length - 1];
-      return { text: fallbackReply(last ? last.content : ''), offline: true };
+      const prefix = token ? 'I could not reach your live StepUp data just now, so this is general guidance. ' : '';
+      return { text: prefix + fallbackReply(last ? last.content : ''), offline: true };
     } finally {
       clearTimeout(timer);
     }
@@ -260,7 +301,7 @@ export function initChatbot() {
 
     const item = { role: 'assistant', content: result.text, t: Date.now(), offline: result.offline };
     history.push(item);
-    save(history);
+    save(history, historyKey);
 
     const row = bubble('bot', '', item);
     const textEl = row.querySelector('.sb-text');
@@ -286,7 +327,7 @@ export function initChatbot() {
       }
       textEl.innerHTML = format(item.content);
       actionsFor(row, item, true);
-      save(history);
+      save(history, historyKey);
       revealing = null;
     }
     setBusy(false);
@@ -302,7 +343,7 @@ export function initChatbot() {
     text = (text || '').trim();
     if (!text || busy) return;
     history.push({ role: 'user', content: text, t: Date.now() });
-    save(history);
+    save(history, historyKey);
     input.value = ''; autosize();
     renderAll();
     respond();
@@ -312,7 +353,7 @@ export function initChatbot() {
     if (busy) return;
     while (history.length && history[history.length - 1].role === 'assistant') history.pop();
     if (!history.length) return;
-    save(history);
+    save(history, historyKey);
     renderAll();
     respond();
   }
@@ -321,7 +362,7 @@ export function initChatbot() {
   function newChat() {
     stop();
     history = [];
-    save(history);
+    save(history, historyKey);
     confirmBar.hidden = true;
     renderAll();
     input.value = ''; autosize();
@@ -396,6 +437,12 @@ export function initChatbot() {
   body.addEventListener('scroll', updateJump, { passive: true });
   chips.addEventListener('click', e => { const b = e.target.closest('button'); if (b) send(b.textContent); });
   form.addEventListener('submit', e => { e.preventDefault(); if (busy) stop(); else send(input.value); });
+  body.addEventListener('click', e => {
+    const link = e.target.closest('a[data-chat-route]');
+    if (!link || !CHAT_ROUTES.has(link.getAttribute('href'))) return;
+    e.preventDefault();
+    navigate(link.dataset.chatRoute);
+  });
   input.addEventListener('input', autosize);
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) send(input.value); }

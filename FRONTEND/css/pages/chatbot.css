@@ -74,6 +74,8 @@ body[data-route="home"] .sb-chat{ display:block; }
 .sb-text{ font-size:14px; line-height:1.5; padding:10px 13px; border-radius:16px; word-break:break-word; }
 .sb-text p{ margin:0 0 6px; } .sb-text p:last-child{ margin:0; }
 .sb-text ul{ margin:4px 0 0; padding-left:18px; } .sb-text li{ margin:2px 0; }
+.sb-msg.bot .sb-text a{ color:#5b34e6; font-weight:600; text-decoration:underline; text-underline-offset:2px; }
+.sb-msg.bot .sb-text a:focus-visible{ outline:2px solid #8a6bff; outline-offset:2px; border-radius:3px; }
 .sb-msg.bot .sb-text{ background:#fff; border:1px solid #e6e0ff; border-bottom-left-radius:5px; box-shadow:0 4px 12px -8px rgba(80,50,200,.4); }
 .sb-msg.user .sb-text{ background:linear-gradient(135deg,#8a6bff,#5b34e6); color:#fff; border-bottom-right-radius:5px; }
 @keyframes sb-in{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
