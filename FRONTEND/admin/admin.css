@@ -86,3 +86,14 @@
 #studentTable .table th:last-child{z-index:2}
 #studentTable .table td:last-child{z-index:1}
 #studentTable .table tbody tr:hover td:last-child{background:#f2f0ff}
+
+.applications-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:14px;margin-bottom:18px}
+.application-search{display:grid;gap:7px;min-width:0}
+.application-search-label{font-size:12px;font-weight:700;color:var(--muted)}
+.application-search input{width:100%;min-width:0;min-height:44px}
+.application-toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.application-count{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 12px;border:1px solid rgba(91,92,240,.15);border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:12px;font-weight:700;white-space:nowrap}
+#clearApplications{min-height:40px;margin:0}
+#clearApplications:disabled{opacity:.5;cursor:not-allowed;transform:none}
+@media(max-width:700px){.applications-toolbar{grid-template-columns:minmax(0,1fr);align-items:stretch}.application-toolbar-actions{justify-content:space-between}}
+@media(max-width:420px){.application-toolbar-actions{align-items:stretch}.application-toolbar-actions>*{flex:1}}

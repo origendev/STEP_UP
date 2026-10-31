@@ -438,10 +438,11 @@ async function jobs(){
 async function applications(){
   sectionHead('applications');
   const data=await api('/admin/applications');
-  setContent(`<div class="panel"><div class="toolbar"><div class="filters"><input class="search" id="appSearch" placeholder="Search student, company or job..."><span class="pill">${data.length} applications</span></div><button class="btn danger" id="clearApplications" ${data.length?'':'disabled'}>Clear all applications</button></div><div id="appTable"></div></div>`);
+  setContent(`<div class="panel"><div class="applications-toolbar"><label class="application-search" for="appSearch"><span class="application-search-label">Search applications</span><input class="search" id="appSearch" type="search" placeholder="Search by student, company or job"></label><div class="application-toolbar-actions"><span class="application-count" id="applicationCount" aria-live="polite"></span><button class="btn danger" id="clearApplications" ${data.length?'':'disabled'}>Clear all applications</button></div></div><div id="appTable"></div></div>`);
   function draw(){
     const q=($('#appSearch').value||'').toLowerCase();
     const filtered=data.filter(a=>[a.student_name,a.reg_no,a.job_title,a.company_name].join(' ').toLowerCase().includes(q));
+    $('#applicationCount').textContent=q?`${filtered.length} of ${data.length} applications`:`${data.length} ${data.length===1?'application':'applications'}`;
     $('#appTable').innerHTML=table(['Student','Job','Company','Applied','Status','Actions'],filtered.map(a=>`<tr><td>${esc(a.student_name)}<br><small>${esc(a.reg_no)}</small></td><td>${esc(a.job_title)}</td><td>${esc(a.company_name)}</td><td>${a.applied_at?new Date(a.applied_at).toLocaleDateString():'—'}</td><td><select class="app-status" data-id="${a.id}">${['Applied','Shortlisted','Interview','Selected','Waitlisted','Rejected'].map(x=>`<option ${x===a.status?'selected':''}>${x}</option>`).join('')}</select></td><td><button class="btn danger" data-delete-application="${a.id}">Delete</button></td></tr>`).join('')||empty('No applications match this search.'));
   }
   draw();
