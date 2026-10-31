@@ -33,3 +33,9 @@ window.STEPUP_API_BASE_URL = 'http://localhost:3000/api';
 For universal team sync, deploy the backend + one PostgreSQL database and replace that value with the deployed API URL. Commit the config change to GitHub. Every teammate then uses the same database rather than separate browser/local data.
 
 Saved companies are intentionally user/browser-specific and are stored in localStorage; company/job listings are shared through PostgreSQL.
+
+## Placement Copilot toolkit
+
+The Step chatbot includes an optional, low-pressure mock interview with one question at a time, supportive AI feedback, and a skip option. It selects from a varied question set without repeating questions until the set is exhausted. The quick skill challenge offers three short multiple-choice questions with hints and explanations, without a timer or leaderboard. Asked-question history for both activities is stored per student in that browser; clearing browser storage or switching devices resets that history.
+
+Signed-in students can also open the Placement Mission for a profile-based career progress map, explanations of eligible roles and skill-growth opportunities, and a small-win badge list. Mission progress, challenge history, and badges are local to the student's browser.

@@ -44,10 +44,62 @@ const COPILOT_TASKS = [
     detail: 'Check competitions and important dates',
     prompt: 'Are there upcoming competitions?',
     icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h3"/>'
+  },
+  {
+    title: 'Try a mock interview',
+    detail: 'One fresh question at a time, with gentle feedback',
+    mockInterview: true,
+    icon: '<path d="M12 3a6 6 0 0 0-6 6v3a6 6 0 0 0 12 0V9a6 6 0 0 0-6-6Z"/><path d="M4 12v1a8 8 0 0 0 16 0v-1M12 21v-3M9 21h6"/><path d="M9.5 9.5h.01M14.5 9.5h.01"/>'
+  },
+  {
+    title: 'Take a skill challenge',
+    detail: 'Three quick questions, no pressure',
+    skillChallenge: true,
+    icon: '<path d="M9 3h6M10 3v6.2L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M8 15h8M9 18h.01M15 18h.01"/>'
   }
 ];
 const CHAT_ROUTES = new Set(['#/home', '#/jobs', '#/skills', '#/demands', '#/progress', '#/profile']);
-const MISSION_ROUTES = new Set(['#/profile', '#/skills', '#/jobs', '#/home']);
+const MISSION_ROUTES = new Set(['#/profile', '#/skills', '#/jobs', '#/home', '#/progress']);
+const MOCK_QUESTIONS = [
+  { id: 'intro', text: 'Tell me about yourself and one thing you are proud of learning recently.' },
+  { id: 'project', text: 'Walk me through a project you enjoyed building. What was your contribution?' },
+  { id: 'challenge', text: 'Describe a tricky problem you faced in a project and how you worked through it.' },
+  { id: 'teamwork', text: 'Tell me about a time you worked with others to get something done.' },
+  { id: 'feedback', text: 'What is a piece of feedback that helped you improve, and what did you do with it?' },
+  { id: 'learning', text: 'How do you approach learning a tool or topic that is completely new to you?' },
+  { id: 'priorities', text: 'When you have several deadlines at once, how do you decide what to do first?' },
+  { id: 'setback', text: 'Tell me about a setback you experienced. What did you learn from it?' },
+  { id: 'strength', text: 'What is one strength you would bring to a team, and when have you used it?' },
+  { id: 'motivation', text: 'What kind of work or problem makes you feel motivated to do your best?' },
+  { id: 'conflict', text: 'How would you handle a disagreement with a teammate about how to solve a problem?' },
+  { id: 'initiative', text: 'Tell me about a time you took initiative, even when nobody asked you to.' },
+  { id: 'debugging', text: 'A feature works on your machine but fails for a teammate. How would you investigate?' },
+  { id: 'testing', text: 'How would you check that a small change has not broken something that used to work?' },
+  { id: 'api', text: 'In simple terms, what happens when an app makes a request to an API?' },
+  { id: 'database', text: 'When might you choose a relational database for an application?' },
+  { id: 'security', text: 'What is one simple step a developer can take to protect user data?' },
+  { id: 'tradeoff', text: 'Tell me about a technical choice you made for a project and why you chose it.' },
+  { id: 'ownership', text: 'If you realized a task might miss its deadline, what would you do?' },
+  { id: 'curiosity', text: 'What is something in technology you are curious about right now, and why?' },
+  { id: 'adapt', text: 'Describe a time a plan changed unexpectedly. How did you adapt?' },
+  { id: 'explain', text: 'How would you explain a technical idea you know well to someone new to it?' },
+  { id: 'quality', text: 'What does “good quality” mean to you when you build a feature?' },
+  { id: 'growth', text: 'What is one skill you would like to strengthen, and how are you working on it?' }
+];
+const SKILL_CHALLENGES = [
+  { id: 'http-status', topic: 'Web basics', question: 'What does an HTTP 404 response usually mean?', options: ['The page or resource was not found', 'The server is healthy', 'The user is signed out'], answer: 0, hint: 'Think of what happens when you follow a broken link.', explanation: 'A 404 means the requested resource could not be found.' },
+  { id: 'http-post', topic: 'Web basics', question: 'Which HTTP method is commonly used to submit new data?', options: ['GET', 'POST', 'TRACE'], answer: 1, hint: 'It is often used for forms that create something.', explanation: 'POST commonly sends data to create or process a resource.' },
+  { id: 'api', topic: 'Web basics', question: 'What is an API mainly used for?', options: ['Letting software systems communicate', 'Compressing every image', 'Replacing a database'], answer: 0, hint: 'Think about how a frontend requests information from a backend.', explanation: 'An API defines a way for software systems to communicate.' },
+  { id: 'sql-filter', topic: 'Data basics', question: 'In SQL, which clause filters rows to match a condition?', options: ['WHERE', 'ORDER BY', 'CREATE'], answer: 0, hint: 'It reads like a question: keep rows ___ this condition.', explanation: 'WHERE filters rows using a condition.' },
+  { id: 'sql-sort', topic: 'Data basics', question: 'Which SQL clause sorts query results?', options: ['GROUP ONLY', 'ORDER BY', 'SORT ROW'], answer: 1, hint: 'It names a field and the direction you want.', explanation: 'ORDER BY sorts results by one or more columns.' },
+  { id: 'git-commit', topic: 'Developer workflow', question: 'What does a Git commit represent?', options: ['A saved snapshot of changes', 'A new programming language', 'A deployed server'], answer: 0, hint: 'It records a set of changes in version history.', explanation: 'A commit records a snapshot of changes in a repository.' },
+  { id: 'git-branch', topic: 'Developer workflow', question: 'Why create a Git branch for a feature?', options: ['To work on changes separately', 'To erase the project history', 'To make a database backup'], answer: 0, hint: 'It keeps feature work separate until it is ready to merge.', explanation: 'Branches isolate work so changes can be developed and reviewed safely.' },
+  { id: 'debug', topic: 'Problem solving', question: 'A bug appears only sometimes. What is a useful first step?', options: ['Change several things at once', 'Try to reproduce it and note the conditions', 'Delete the test'], answer: 1, hint: 'A repeatable example makes a problem easier to investigate.', explanation: 'Reproducing the bug and recording its conditions helps narrow down the cause.' },
+  { id: 'testing', topic: 'Problem solving', question: 'What is a regression test meant to catch?', options: ['A feature that used to work but broke after a change', 'A typo in a meeting invite', 'A slow internet connection'], answer: 0, hint: 'It checks for an old behavior that changed unexpectedly.', explanation: 'Regression tests help ensure new changes do not break existing behavior.' },
+  { id: 'security-password', topic: 'Safer software', question: 'How should an application store user passwords?', options: ['As readable text', 'As a secure salted password hash', 'In a public profile field'], answer: 1, hint: 'The application should not be able to read the original password back.', explanation: 'Passwords should be stored using a strong salted password-hashing algorithm.' },
+  { id: 'teamwork', topic: 'Work habits', question: 'A teammate is blocked by a task you understand. What is a helpful response?', options: ['Offer to explain or pair for a few minutes', 'Wait until the deadline passes', 'Take over without asking'], answer: 0, hint: 'Good teamwork helps while still respecting the other person.', explanation: 'Offering a quick explanation or pairing is collaborative and keeps the teammate involved.' },
+  { id: 'feedback', topic: 'Work habits', question: 'You receive feedback on a project. What is a constructive next step?', options: ['Ask a clarifying question and try one improvement', 'Ignore all of it', 'Assume it is a personal criticism'], answer: 0, hint: 'Focus on the work and make the feedback actionable.', explanation: 'Clarifying feedback and applying one useful change turns it into learning.' }
+];
 
 const FALLBACKS = [
   [/resume|cv/i, 'Keep your resume to one page. Lead with projects and skills, use action verbs with numbers (e.g. "cut load time by 30%"), and tailor it to each role. Add your GitHub or portfolio link.'],
@@ -151,6 +203,63 @@ function missionProgressKey(week) {
   }
 }
 
+function mockInterviewStorageKey() {
+  try {
+    const student = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
+    const registration = String(student?.reg_no || 'student').replace(/[^a-zA-Z0-9_-]/g, '');
+    return `stepupMockInterview:${registration}`;
+  } catch {
+    return 'stepupMockInterview:student';
+  }
+}
+
+function readMockInterviewState(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || '{}');
+    const validIds = new Set(MOCK_QUESTIONS.map(question => question.id));
+    return {
+      asked: new Set(Array.isArray(saved.asked) ? saved.asked.filter(id => validIds.has(id)) : []),
+      active: saved.active === true,
+      awaitingNext: saved.awaitingNext === true,
+      answers: Number.isSafeInteger(saved.answers) && saved.answers >= 0 ? saved.answers : 0
+    };
+  } catch {
+    return { asked: new Set(), active: false, awaitingNext: false, answers: 0 };
+  }
+}
+
+function studentFeatureStorageKey(feature) {
+  try {
+    const student = JSON.parse(localStorage.getItem('stepupStudent') || 'null');
+    const registration = String(student?.reg_no || 'student').replace(/[^a-zA-Z0-9_-]/g, '');
+    return `stepup${feature}:${registration}`;
+  } catch {
+    return `stepup${feature}:student`;
+  }
+}
+
+function readSkillChallengeState(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || '{}');
+    const validIds = new Set(SKILL_CHALLENGES.map(challenge => challenge.id));
+    return {
+      asked: new Set(Array.isArray(saved.asked) ? saved.asked.filter(id => validIds.has(id)) : []),
+      answered: Number.isSafeInteger(saved.answered) && saved.answered >= 0 ? saved.answered : 0
+    };
+  } catch {
+    return { asked: new Set(), answered: 0 };
+  }
+}
+
+function readStudentWins(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(saved) ? saved.filter(item => item && typeof item.id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function readMissionProgress(key) {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || '[]');
@@ -246,8 +355,8 @@ function buildMissionTasks(context) {
       id: 'practice',
       title: 'Practice one interview answer',
       detail: 'Build confidence with a short, focused practice session.',
-      label: 'Practice with Step',
-      prompt: 'Help me practice one placement interview answer. Ask me a question, wait for my answer, then give specific feedback.'
+    label: 'Start mock interview',
+    mockInterview: true
     });
   }
   return tasks;
@@ -299,6 +408,9 @@ export function initChatbot() {
   const jump = $('sbJump'), confirmBar = $('sbConfirm'), count = $('sbCount'), status = $('sbStatus');
 
   const historyKey = chatStorageKey();
+  const mockInterviewKey = mockInterviewStorageKey();
+  const challengeKey = studentFeatureStorageKey('SkillChallenge');
+  const winsKey = studentFeatureStorageKey('CareerWins');
   let history = load(historyKey); // [{role, content, t, fb?, offline?}]
   let busy = false;
   let abort = null;              // AbortController for the request in flight
@@ -311,6 +423,96 @@ export function initChatbot() {
   let missionLoading = false;
   let missionError = '';
   let showingMission = false;
+  let showingChallenge = false;
+  let challengeSession = null;
+  let winMessage = '';
+  const interviewState = readMockInterviewState(mockInterviewKey);
+  const challengeState = readSkillChallengeState(challengeKey);
+  let careerWins = readStudentWins(winsKey);
+
+  function persistCareerWins() {
+    try {
+      localStorage.setItem(winsKey, JSON.stringify(careerWins));
+    } catch (error) {
+      console.error('Could not save career achievements:', error);
+      status.textContent = 'Achievement could not be saved';
+    }
+  }
+
+  function celebrateWin(id, title, detail) {
+    if (careerWins.some(win => win.id === id)) return;
+    careerWins = [...careerWins, { id, title, detail, earnedAt: Date.now() }];
+    persistCareerWins();
+    winMessage = `${title} — ${detail}`;
+    renderAll();
+  }
+
+  function persistMockInterview() {
+    try {
+      localStorage.setItem(mockInterviewKey, JSON.stringify({
+        asked: [...interviewState.asked],
+        active: interviewState.active,
+        awaitingNext: interviewState.awaitingNext,
+        answers: interviewState.answers || 0
+      }));
+    } catch (error) {
+      console.error('Could not save mock interview question history:', error);
+      status.textContent = 'Question history could not be saved';
+    }
+  }
+
+  function nextMockQuestion() {
+    const available = MOCK_QUESTIONS.filter(question => !interviewState.asked.has(question.id));
+    if (!available.length) {
+      interviewState.active = false;
+      interviewState.awaitingNext = false;
+      persistMockInterview();
+      history.push({
+        role: 'assistant',
+        content: 'You have practiced every question in this set. Great work! I will add more questions before asking these again.',
+        t: Date.now()
+      });
+      save(history, historyKey);
+      renderAll();
+      input.focus();
+      return;
+    }
+    const question = available[Math.floor(Math.random() * available.length)];
+    interviewState.asked.add(question.id);
+    interviewState.active = true;
+    interviewState.awaitingNext = false;
+    persistMockInterview();
+    const item = {
+      role: 'assistant',
+      content: `No pressure—take your time, and you can skip any question.\n\n**Practice question:** ${question.text}`,
+      t: Date.now(),
+      mockQuestionId: question.id
+    };
+    history.push(item);
+    save(history, historyKey);
+    renderAll();
+    input.focus();
+  }
+
+  function startMockInterview() {
+    showingMission = false;
+    if (history.length) {
+      interviewState.active = false;
+      interviewState.awaitingNext = false;
+      persistMockInterview();
+      history.push({
+        role: 'assistant',
+        content: 'Let’s keep this relaxed. I will ask one fresh question at a time, give supportive feedback, and avoid repeats. You can skip any question.',
+        t: Date.now()
+      });
+      save(history, historyKey);
+    } else {
+      interviewState.active = true;
+      interviewState.awaitingNext = false;
+      persistMockInterview();
+    }
+    nextMockQuestion();
+  }
 
   /* ---------- rendering ---------- */
   const nearBottom = () => body.scrollHeight - body.scrollTop - body.clientHeight < 60;
@@ -345,6 +547,8 @@ export function initChatbot() {
       <button data-a="copy" title="Copy" aria-label="Copy answer">${ICON.copy}</button>
       <button data-a="up" title="Helpful" aria-label="Helpful" class="${item.fb === 'up' ? 'on' : ''}">${ICON.up}</button>
       <button data-a="down" title="Not helpful" aria-label="Not helpful" class="${item.fb === 'down' ? 'on' : ''}">${ICON.dn}</button>
+      ${isLast && interviewState.active && item.mockQuestionId && !interviewState.awaitingNext ? '<button data-a="mock-next" title="Skip this question" aria-label="Skip this question">Skip</button>' : ''}
+      ${isLast && interviewState.active && item.mockFeedback && interviewState.awaitingNext ? '<button data-a="mock-next" title="Ask a fresh question" aria-label="Ask the next interview question">Next question</button>' : ''}
       ${isLast ? `<button data-a="redo" title="Regenerate" aria-label="Regenerate answer">${ICON.redo}</button>` : ''}`;
     meta.appendChild(bar);
     bar.addEventListener('click', e => {
@@ -358,8 +562,159 @@ export function initChatbot() {
         item.fb = item.fb === a ? undefined : a;
         bar.querySelectorAll('[data-a=up],[data-a=down]').forEach(x => x.classList.toggle('on', x.dataset.a === item.fb));
         save(history, historyKey);
+      } else if (a === 'mock-next') {
+        nextMockQuestion();
       } else if (a === 'redo') regenerate();
     });
+  }
+
+  function persistSkillChallenge() {
+    try {
+      localStorage.setItem(challengeKey, JSON.stringify({
+        asked: [...challengeState.asked],
+        answered: challengeState.answered
+      }));
+    } catch (error) {
+      console.error('Could not save skill challenge history:', error);
+      status.textContent = 'Challenge history could not be saved';
+    }
+  }
+
+  function chooseChallengeQuestion() {
+    let available = SKILL_CHALLENGES.filter(question => !challengeState.asked.has(question.id));
+    if (!available.length) {
+      challengeState.asked.clear();
+      available = SKILL_CHALLENGES;
+    }
+    const question = available[Math.floor(Math.random() * available.length)];
+    challengeState.asked.add(question.id);
+    persistSkillChallenge();
+    return question;
+  }
+
+  function startSkillChallenge() {
+    showingMission = false;
+    showingChallenge = true;
+    challengeSession = { question: chooseChallengeQuestion(), selected: null, answered: 0, correct: 0 };
+    renderAll();
+  }
+
+  function answerChallenge(index) {
+    if (!challengeSession || challengeSession.selected !== null || !Number.isInteger(index)) return;
+    if (index < 0 || index >= challengeSession.question.options.length) return;
+    challengeSession.selected = index;
+    challengeSession.answered += 1;
+    challengeState.answered += 1;
+    if (index === challengeSession.question.answer) challengeSession.correct += 1;
+    persistSkillChallenge();
+    renderAll();
+  }
+
+  function advanceChallenge() {
+    if (!challengeSession || challengeSession.selected === null) return;
+    if (challengeSession.answered >= 3) {
+      const { correct } = challengeSession;
+      challengeSession.complete = true;
+      if (challengeSession.answered === 3) {
+        celebrateWin('challenge-first-finish', 'Challenge complete', `You got ${correct} of 3 this time and kept learning.`);
+      }
+      renderAll();
+      return;
+    }
+    challengeSession.question = chooseChallengeQuestion();
+    challengeSession.selected = null;
+    renderAll();
+  }
+
+  function challengeView() {
+    if (!challengeSession) return '';
+    if (challengeSession.complete) {
+      return `<section class="sb-challenge-screen">
+        <button type="button" class="sb-feature-back" data-challenge-exit>← Back to Step</button>
+        <div class="sb-challenge-complete"><span class="sb-challenge-trophy">✦</span><small>CHALLENGE COMPLETE</small><h2>Nice work showing up.</h2><p>You answered ${challengeSession.answered} short questions. Keep what you learned; there is no score to chase.</p><button type="button" class="sb-challenge-next" data-challenge-restart>Try another set</button></div>
+      </section>`;
+    }
+    const question = challengeSession.question;
+    const selected = challengeSession.selected;
+    const answered = selected !== null;
+    const options = question.options.map((option, index) => {
+      const correct = index === question.answer;
+      const chosen = index === selected;
+      const className = answered ? (correct ? ' is-correct' : chosen ? ' is-incorrect' : '') : '';
+      return `<button type="button" class="sb-challenge-option${className}" data-challenge-answer="${index}"${answered ? ' disabled' : ''}>
+        <span>${String.fromCharCode(65 + index)}</span>${esc(option)}${answered && correct ? '<b aria-label="Correct answer">✓</b>' : ''}
+      </button>`;
+    }).join('');
+    const feedback = answered
+      ? `<div class="sb-challenge-feedback${selected === question.answer ? ' is-correct' : ''}" role="status"><b>${selected === question.answer ? 'That’s right!' : 'Good try—here’s a clue for next time.'}</b><p>${esc(question.explanation)}</p></div>`
+      : `<p class="sb-challenge-hint">Need a hint? <span>${esc(question.hint)}</span></p>`;
+    return `<section class="sb-challenge-screen">
+      <button type="button" class="sb-feature-back" data-challenge-exit>← Back to Step</button>
+      <div class="sb-challenge-top"><span class="sb-challenge-icon">✦</span><div><small>QUICK SKILL CHALLENGE</small><h2>${esc(question.topic)}</h2></div><span class="sb-challenge-count">${Math.min(challengeSession.answered + (answered ? 0 : 1), 3)} / 3</span></div>
+      <p class="sb-challenge-prompt">${esc(question.question)}</p>
+      <div class="sb-challenge-options">${options}</div>
+      ${feedback}
+      ${answered ? `<button type="button" class="sb-challenge-next" data-challenge-next>${challengeSession.answered === 3 ? 'See how you did' : 'Next question'} <span aria-hidden="true">→</span></button>` : ''}
+      <p class="sb-challenge-note">Just for practice—no timer, leaderboard, or pressure.</p>
+    </section>`;
+  }
+
+  function careerProgressMarkup() {
+    if (!missionContext) return '';
+    const student = missionContext.student || {};
+    const applications = Array.isArray(missionContext.applications) ? missionContext.applications : [];
+    const statuses = applications.map(application => String(application.status || '').toLowerCase());
+    const milestones = [
+      { title: 'Profile ready', detail: 'Your StepUp profile is complete.', done: Boolean(student.profileCompleted), href: '#/profile' },
+      { title: 'Skills added', detail: `${Array.isArray(student.skills) ? student.skills.length : 0} skills on your profile.`, done: Boolean(student.skills?.length), href: '#/profile' },
+      { title: 'Project experience', detail: `${student.projectCount || 0} project${student.projectCount === 1 ? '' : 's'} added.`, done: Boolean(student.projectCount), href: '#/profile' },
+      { title: 'First application', detail: applications.length ? `${applications.length} application${applications.length === 1 ? '' : 's'} in progress.` : 'Your applications will show here.', done: applications.length > 0, href: '#/progress' },
+      { title: 'Interview stage', detail: statuses.some(value => value.includes('interview')) ? 'You have reached an interview stage.' : 'Keep preparing; interview updates appear here.', done: statuses.some(value => value.includes('interview')), href: '#/progress' },
+      { title: 'Offer milestone', detail: statuses.some(value => ['selected', 'offer', 'offered'].includes(value)) ? 'An offer milestone is on your journey.' : 'Every step forward counts.', done: statuses.some(value => ['selected', 'offer', 'offered'].includes(value)), href: '#/progress' }
+    ];
+    const completeCount = milestones.filter(item => item.done).length;
+    const percent = Math.round(completeCount / milestones.length * 100);
+    const rows = milestones.map(item => `<a class="sb-career-step${item.done ? ' is-done' : ''}" href="${item.href}" data-mission-route="${item.href.slice(2)}">
+      <span class="sb-career-check">${item.done ? '✓' : ''}</span><span><b>${esc(item.title)}</b><small>${esc(item.detail)}</small></span><i>${item.done ? 'Reached' : 'Next'}</i>
+    </a>`).join('');
+    return `<section class="sb-career-map" aria-label="Career progress map">
+      <div class="sb-feature-heading"><div><small>YOUR CAREER JOURNEY</small><h3>Progress map</h3></div><span>${completeCount} / ${milestones.length}</span></div>
+      <div class="sb-career-progress"><span style="width:${percent}%"></span></div>
+      <div class="sb-career-steps">${rows}</div>
+      <p class="sb-feature-footnote">Milestones use your current StepUp profile and application updates.</p>
+    </section>`;
+  }
+
+  function jobMatchMarkup() {
+    if (!missionContext) return '';
+    const eligible = Array.isArray(missionContext.eligibleOpenJobs) ? missionContext.eligibleOpenJobs : [];
+    const gaps = Array.isArray(missionContext.skillGapJobs) ? missionContext.skillGapJobs : [];
+    const cards = [
+      ...eligible.slice(0, 3).map(job => `<article class="sb-match-card">
+        <span class="sb-match-status">ELIGIBLE TO EXPLORE</span><b>${esc(job.title || 'Open role')}</b><small>${esc(job.company || 'StepUp employer')}</small>
+        <p>StepUp currently lists you as eligible. Open the role details to compare its requirements with your experience.</p><a href="#/jobs" data-mission-route="jobs">Review role <span aria-hidden="true">→</span></a>
+      </article>`),
+      ...gaps.slice(0, Math.max(0, 3 - eligible.length)).map(job => `<article class="sb-match-card is-growth">
+        <span class="sb-match-status">SKILL GROWTH OPPORTUNITY</span><b>${esc(job.title || 'Role to explore')}</b><small>${esc(job.company || 'StepUp employer')}</small>
+        <p>Build familiarity with ${esc((job.missingSkills || []).slice(0, 3).join(', '))} to strengthen your fit.</p><a href="#/skills" data-mission-route="skills">Explore Skills <span aria-hidden="true">→</span></a>
+      </article>`)
+    ].join('');
+    return `<section class="sb-job-matches" aria-label="Job match explanations">
+      <div class="sb-feature-heading"><div><small>LIVE STEPUP OPPORTUNITIES</small><h3>Why these roles?</h3></div></div>
+      ${cards || '<p class="sb-feature-empty">No current role matches to explain yet. New opportunities will appear here when available.</p>'}
+      <p class="sb-feature-footnote">Eligibility is a starting point, not a hiring guarantee. Always review each listing.</p>
+    </section>`;
+  }
+
+  function careerWinsMarkup() {
+    const latestWins = [...careerWins].slice(-4).reverse();
+    const wins = latestWins.length
+      ? latestWins.map(win => `<span class="sb-win-badge" title="${esc(win.detail)}"><i>✦</i><b>${esc(win.title)}</b></span>`).join('')
+      : '<p class="sb-feature-empty">Your first small win will show up here. There is no streak to maintain.</p>';
+    return `<section class="sb-career-wins" aria-label="Career wins"><div class="sb-feature-heading"><div><small>WORTH CELEBRATING</small><h3>Small wins</h3></div><span>${careerWins.length}</span></div>
+      ${winMessage ? `<div class="sb-win-celebration" role="status"><span>✦</span><p>${esc(winMessage)}</p><button type="button" data-dismiss-win aria-label="Dismiss celebration">×</button></div>` : ''}
+      <div class="sb-win-list">${wins}</div>
+    </section>`;
   }
 
   function missionMarkup(compact = false) {
@@ -383,7 +738,9 @@ export function initChatbot() {
     const percent = Math.round(completed / missionTasks.length * 100);
     const taskRows = missionTasks.map(task => {
       const done = missionDone.has(task.id);
-      const action = task.prompt
+      const action = task.mockInterview
+        ? `<button type="button" class="sb-mission-action" data-mock-start>${esc(task.label)}</button>`
+        : task.prompt
         ? `<button type="button" class="sb-mission-action" data-mission-prompt="${esc(task.prompt)}">${esc(task.label)}</button>`
         : task.external
           ? `<a class="sb-mission-action" href="${esc(task.href)}" target="_blank" rel="noopener noreferrer">${esc(task.label)} <span aria-hidden="true">↗</span></a>`
@@ -412,7 +769,10 @@ export function initChatbot() {
     return `<div class="sb-mission-screen">
       <div class="sb-mission-screen-top"><span class="sb-mission-screen-icon">${ICON.mission}</span><div><small>YOUR PERSONAL ROADMAP</small><h2>Placement Mission</h2></div></div>
       <p class="sb-mission-screen-intro">A focused checklist built from your profile and live StepUp opportunities. Pick one step and keep moving forward.</p>
+      ${careerProgressMarkup()}
+      ${jobMatchMarkup()}
       ${missionMarkup()}
+      ${careerWinsMarkup()}
     </div>`;
   }
 
@@ -446,7 +806,11 @@ export function initChatbot() {
   function toggleMissionTask(taskId) {
     if (!missionTasks.some(task => task.id === taskId) || !missionKey) return;
     if (missionDone.has(taskId)) missionDone.delete(taskId);
-    else missionDone.add(taskId);
+    else {
+      missionDone.add(taskId);
+      if (missionDone.size === 1) celebrateWin(`mission-first-step:${currentMissionWeek()}`, 'First mission step', 'A little progress is still progress.');
+      if (missionDone.size === missionTasks.length) celebrateWin(`mission-complete:${currentMissionWeek()}`, 'Weekly mission complete', 'You made time for your next steps.');
+    }
     try {
       localStorage.setItem(missionKey, JSON.stringify([...missionDone]));
     } catch {
@@ -458,11 +822,14 @@ export function initChatbot() {
   function renderAll() {
     body.innerHTML = '';
     const signedIn = Boolean(getToken());
+    form.hidden = showingChallenge;
     missionButton.hidden = !signedIn;
-    missionButton.setAttribute('aria-pressed', String(showingMission));
-    missionButton.title = showingMission ? 'Return to chat' : 'Open weekly mission';
-    missionButton.setAttribute('aria-label', showingMission ? 'Return to chat' : 'Open weekly mission');
-    if (showingMission && signedIn) {
+    missionButton.setAttribute('aria-pressed', String(showingMission || showingChallenge));
+    missionButton.title = showingMission || showingChallenge ? 'Return to chat' : 'Open weekly mission';
+    missionButton.setAttribute('aria-label', showingMission || showingChallenge ? 'Return to chat' : 'Open weekly mission');
+    if (showingChallenge) {
+      body.innerHTML = challengeView();
+    } else if (showingMission && signedIn) {
       body.innerHTML = missionView();
     } else if (!history.length) {
       const personalized = Boolean(getToken());
@@ -482,7 +849,7 @@ export function initChatbot() {
         ${personalized ? missionMarkup(true) : ''}
         <div class="sb-task-heading"><span>What would you like to work on?</span><small>${personalized ? 'PICK A STARTING POINT' : 'QUICK START'}</small></div>
         <div class="sb-task-grid">${COPILOT_TASKS.map((task, index) => `
-          <button type="button" class="sb-task" data-chat-prompt="${esc(task.prompt)}">
+          <button type="button" class="sb-task"${task.mockInterview ? ' data-mock-start' : task.skillChallenge ? ' data-skill-challenge' : ` data-chat-prompt="${esc(task.prompt)}"`}>
             <span class="sb-task-icon sb-task-icon-${index + 1}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${task.icon}</svg></span>
             <span class="sb-task-copy"><b>${esc(task.title)}</b><small>${esc(task.detail)}</small></span>
             <span class="sb-task-arrow" aria-hidden="true">↗</span>
@@ -501,7 +868,7 @@ export function initChatbot() {
     updateJump();
   }
 
-  function updateJump() { jump.hidden = !history.length || nearBottom(); }
+  function updateJump() { jump.hidden = showingChallenge || !history.length || nearBottom(); }
 
   /* ---------- sending ---------- */
   function setBusy(state) {
@@ -516,7 +883,7 @@ export function initChatbot() {
     return bubble('bot', '<span class="sb-typing"><i></i><i></i><i></i></span>');
   }
 
-  async function ask(signal) {
+  async function ask(signal, mockAnswer = false) {
     const local = new AbortController();
     const token = getToken();
     const endpoint = token ? '/student/chat' : '/chat';
@@ -526,10 +893,14 @@ export function initChatbot() {
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
+      const messages = history.map(({ role, content }) => ({ role, content }));
+      if (mockAnswer && messages.length) {
+        messages[messages.length - 1].content += '\n\n[Mock interview mode: Respond to the student\'s answer with brief, supportive feedback. Mention one thing they did well and one specific improvement they could try. Keep it low-pressure, do not score or judge them, and do not ask another interview question; the student chooses when to continue.]';
+      }
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })) }),
+        body: JSON.stringify({ messages }),
         signal: local.signal
       });
       const data = await res.json().catch(() => ({}));
@@ -554,16 +925,38 @@ export function initChatbot() {
     const typing = typingRow();
     toBottom();
     abort = new AbortController();
+    const lastMessage = history[history.length - 1];
+    const activeQuestion = [...history].reverse().find(item => item.role === 'assistant' && item.mockQuestionId);
+    const mockAnswer = Boolean(
+      interviewState.active &&
+      !interviewState.awaitingNext &&
+      lastMessage?.role === 'user' &&
+      activeQuestion
+    );
     let result;
     try {
-      result = await ask(abort.signal);
+      result = await ask(abort.signal, mockAnswer);
     } catch {            // stopped while waiting
       typing.remove(); abort = null; setBusy(false); input.focus(); renderAll(); return;
     }
     abort = null;
     typing.remove();
 
-    const item = { role: 'assistant', content: result.text, t: Date.now(), offline: result.offline };
+    const item = {
+      role: 'assistant',
+      content: result.text,
+      t: Date.now(),
+      offline: result.offline,
+      mockFeedback: mockAnswer && !result.offline,
+      mockQuestionId: mockAnswer && result.offline ? activeQuestion.mockQuestionId : undefined
+    };
+    if (item.mockFeedback) {
+      interviewState.awaitingNext = true;
+      interviewState.answers = (interviewState.answers || 0) + 1;
+      persistMockInterview();
+      if (interviewState.answers === 1) celebrateWin('mock-first-answer', 'First answer practiced', 'You showed up and gave it a try.');
+      if (interviewState.answers === 3) celebrateWin('mock-three-answers', 'Three answers practiced', 'That is real interview practice.');
+    }
     history.push(item);
     save(history, historyKey);
 
@@ -606,6 +999,11 @@ export function initChatbot() {
   function send(text) {
     text = (text || '').trim();
     if (!text || busy) return;
+    if (interviewState.active && interviewState.awaitingNext) {
+      interviewState.active = false;
+      interviewState.awaitingNext = false;
+      persistMockInterview();
+    }
     history.push({ role: 'user', content: text, t: Date.now() });
     save(history, historyKey);
     input.value = ''; autosize();
@@ -615,6 +1013,10 @@ export function initChatbot() {
 
   function regenerate() {
     if (busy) return;
+    if (interviewState.active && interviewState.awaitingNext) {
+      interviewState.awaitingNext = false;
+      persistMockInterview();
+    }
     while (history.length && history[history.length - 1].role === 'assistant') history.pop();
     if (!history.length) return;
     save(history, historyKey);
@@ -626,6 +1028,12 @@ export function initChatbot() {
   function newChat() {
     stop();
     history = [];
+    showingChallenge = false;
+    challengeSession = null;
+    winMessage = '';
+    interviewState.active = false;
+    interviewState.awaitingNext = false;
+    persistMockInterview();
     save(history, historyKey);
     confirmBar.hidden = true;
     renderAll();
@@ -695,7 +1103,11 @@ export function initChatbot() {
   launcher.addEventListener('click', () => open(!wrap.classList.contains('open')));
   $('sbClose').addEventListener('click', () => open(false));
   missionButton.addEventListener('click', () => {
-    showingMission = !showingMission;
+    if (showingMission) showingMission = false;
+    else {
+      showingChallenge = false;
+      showingMission = true;
+    }
     renderAll();
     if (showingMission && !missionContext) void loadMission();
     body.scrollTop = 0;
@@ -712,6 +1124,35 @@ export function initChatbot() {
   jump.addEventListener('click', () => toBottom());
   body.addEventListener('scroll', updateJump, { passive: true });
   body.addEventListener('click', e => {
+    if (e.target.closest('[data-skill-challenge],[data-challenge-restart]')) {
+      startSkillChallenge();
+      return;
+    }
+    if (e.target.closest('[data-challenge-exit]')) {
+      showingChallenge = false;
+      challengeSession = null;
+      renderAll();
+      return;
+    }
+    const challengeAnswer = e.target.closest('[data-challenge-answer]');
+    if (challengeAnswer) {
+      answerChallenge(Number(challengeAnswer.dataset.challengeAnswer));
+      return;
+    }
+    if (e.target.closest('[data-challenge-next]')) {
+      advanceChallenge();
+      return;
+    }
+    if (e.target.closest('[data-dismiss-win]')) {
+      winMessage = '';
+      renderAll();
+      return;
+    }
+    if (e.target.closest('[data-mock-start]')) {
+      showingChallenge = false;
+      startMockInterview();
+      return;
+    }
     const toggle = e.target.closest('[data-mission-toggle]');
     if (toggle) {
       toggleMissionTask(toggle.dataset.missionToggle);
