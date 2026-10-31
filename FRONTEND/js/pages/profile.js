@@ -54,9 +54,10 @@ const MORE = [
   ['breaks','Career Breaks','Add Career Break',[['title','Reason'],['period','Duration'],['desc','Details','area']]],
 ];
 const DETAIL_DOCUMENTS = [
-  ['tenthProof','10th marksheet'],
-  ['twelfthProof','12th marksheet'],
-  ['aadhaarProof','Aadhaar proof']
+  ['tenthProof','10th marksheet','tenthSignature','10th signature'],
+  ['twelfthProof','12th marksheet','twelfthSignature','12th signature'],
+  ['cgpaProof','CGPA marksheet','cgpaSignature','CGPA signature'],
+  ['aadhaarProof','Aadhaar proof','aadhaarSignature','Aadhaar signature']
 ];
 const ACAD = [['level','Level (Current / 12th / 10th / Diploma)'],['inst','Institution / School'],['course','Course'],['branch','Branch / Stream'],['cgpa','CGPA or %'],['year','Year'],['status','Status (e.g. Out Going)'],['arrears','Current arrears'],['arrHist','Arrears history'],['sems','Semester scores (comma separated, e.g. 8.18, 7.91, 8.61)']];
 
@@ -154,7 +155,12 @@ async function load(){
     documents: {
       tenthProof: remoteProfile.tenthProof || remoteProfile.schoolMarksProof || '',
       twelfthProof: remoteProfile.twelfthProof || '',
-      aadhaarProof: remoteProfile.aadhaarProof || ''
+      cgpaProof: remoteProfile.cgpaProof || '',
+      aadhaarProof: remoteProfile.aadhaarProof || '',
+      tenthSignature: remoteProfile.tenthSignature || remoteProfile.signature || '',
+      twelfthSignature: remoteProfile.twelfthSignature || '',
+      cgpaSignature: remoteProfile.cgpaSignature || '',
+      aadhaarSignature: remoteProfile.aadhaarSignature || ''
     },
     social: remoteProfile.social && typeof remoteProfile.social === 'object' ? remoteProfile.social : {},
     langs: remoteProfile.languages && typeof remoteProfile.languages === 'object' ? remoteProfile.languages : {},
@@ -224,7 +230,7 @@ function details(){
 
 function detailDocuments(){
   const status = S.verificationStatus === 'approved' ? 'Approved' : P.logged ? 'Pending admin approval' : 'Saved on this device';
-  return `<section class="pf-card pf-detail-documents"><div class="pf-sh"><h2>Marksheets and Aadhaar</h2></div><p class="pf-hint">If you did not upload these during sign-up, you can add them here. Files can be up to 1 MB; images retain full resolution when they fit. Uploads and replacements are sent to the admin for approval.</p><div class="pf-detail-doc-grid">${DETAIL_DOCUMENTS.map(([key,label])=>`<div class="pf-detail-doc"><div><b>${label}</b><span class="pf-hint">${S.documents[key] ? status : 'Not uploaded'}</span></div><label class="pf-file-label">${S.documents[key] ? 'Replace file' : 'Upload file'}<input type="file" accept="image/*,application/pdf,.pdf" data-detail-document="${key}"></label>${S.documents[key] ? `<button type="button" class="pf-pill" data-detail-document-view="${key}">View uploaded file</button>` : ''}</div>`).join('')}</div></section>`;
+  return `<section class="pf-card pf-detail-documents"><div class="pf-sh"><h2>Marksheets, Aadhaar and signatures</h2></div><p class="pf-hint">If you missed a document or signature during sign-in, add it here. Draw each signature or upload an image; document and signature updates are submitted for admin approval.</p><div class="pf-detail-doc-grid">${DETAIL_DOCUMENTS.map(([key,label,signatureKey,signatureLabel])=>`<div class="pf-detail-doc"><div><b>${label}</b><span class="pf-hint">${S.documents[key] ? status : 'Not uploaded'}</span></div><label class="pf-file-label">${S.documents[key] ? 'Replace file' : 'Upload file'}<input type="file" accept="image/*,application/pdf,.pdf" data-detail-document="${key}"></label>${S.documents[key] ? `<button type="button" class="pf-pill" data-detail-document-view="${key}">View uploaded file</button>` : ''}<div class="pf-signature-area"><b>${signatureLabel}</b><span class="pf-hint">${S.documents[signatureKey] ? status : 'No signature submitted'}</span><canvas class="pf-signature-canvas" width="520" height="120" data-profile-signature="${signatureKey}" aria-label="Draw ${signatureLabel}"></canvas><div class="pf-signature-actions"><button type="button" class="pf-pill" data-signature-clear="${signatureKey}">Clear</button><label class="pf-pill pf-signature-upload">${S.documents[signatureKey] ? 'Replace image' : 'Upload image'}<input type="file" accept="image/*" data-signature-upload="${signatureKey}"></label></div>${S.documents[signatureKey] ? `<img class="pf-signature-preview" src="${esc(S.documents[signatureKey])}" alt="${esc(signatureLabel)} preview">` : ''}</div></div>`).join('')}</div></section>`;
 }
 
 function academics(){
@@ -443,6 +449,73 @@ function syncCore(){
 
 function bind(){
   const on = (sel, fn) => $$(sel).forEach(el => el.addEventListener('click', e => fn(el, e)));
+  $$('[data-profile-signature]').forEach(canvas => {
+    const key=canvas.dataset.profileSignature,context=canvas.getContext('2d');
+    if(!context)return;
+    context.lineWidth=3;
+    context.lineCap='round';
+    context.lineJoin='round';
+    context.strokeStyle='#172033';
+    let drawing=false,drew=false;
+    const existing=S.documents[key];
+    if(existing){
+      const image=new Image();
+      image.onload=()=>{if(!drawing)context.drawImage(image,0,0,canvas.width,canvas.height)};
+      image.src=existing;
+    }
+    const point=event=>{
+      const bounds=canvas.getBoundingClientRect();
+      return {x:(event.clientX-bounds.left)*canvas.width/bounds.width,y:(event.clientY-bounds.top)*canvas.height/bounds.height};
+    };
+    canvas.addEventListener('pointerdown',event=>{
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      const position=point(event);
+      context.beginPath();
+      context.moveTo(position.x,position.y);
+      drawing=true;
+      drew=false;
+    });
+    canvas.addEventListener('pointermove',event=>{
+      if(!drawing)return;
+      event.preventDefault();
+      const position=point(event);
+      context.lineTo(position.x,position.y);
+      context.stroke();
+      drew=true;
+    });
+    const finish=()=>{
+      if(!drawing)return;
+      drawing=false;
+      if(!drew)return;
+      drew=false;
+      S.documents[key]=canvas.toDataURL('image/png');
+      save();
+      toast('Signature submitted for admin approval');
+      render();
+    };
+    canvas.addEventListener('pointerup',finish);
+    canvas.addEventListener('pointercancel',finish);
+  });
+  $$('[data-signature-clear]').forEach(button=>button.addEventListener('click',()=>{
+    const key=button.dataset.signatureClear;
+    if(!key)return;
+    S.documents[key]='';
+    save();
+    render();
+    toast('Signature cleared');
+  }));
+  $$('[data-signature-upload]').forEach(input=>input.addEventListener('change',async()=>{
+    const file=input.files?.[0],key=input.dataset.signatureUpload;
+    input.value='';
+    if(!file||!key)return;
+    try{
+      S.documents[key]=await prepareUploadFile(file);
+      save();
+      render();
+      toast('Signature submitted for admin approval');
+    }catch(error){toast(error.message)}
+  }));
   $$('[data-detail-document]').forEach(input => input.addEventListener('change', async () => {
     const file = input.files?.[0], documentKey = input.dataset.detailDocument;
     input.value = '';
