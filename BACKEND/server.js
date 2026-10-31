@@ -3099,7 +3099,13 @@ app.delete('/api/admin/activity/:id', requireAdmin, async (req,res)=>{
 app.get('/api/admin/students', requireAdmin, async (_req, res) => {
   try {
     const r = await pool.query(`
-      SELECT id,name,reg_no,email,department,profile_completed
+      SELECT id,name,reg_no,email,department,profile_completed,
+             CASE
+               WHEN LOWER(COALESCE(profile_details->>'verificationStatus','')) IN ('approved','verified')
+                 OR LOWER(COALESCE(profile_details->>'verified','false'))='true'
+               THEN 'approved'
+               ELSE 'not_approved'
+             END AS profile_approval_status
       FROM students
       ORDER BY created_at DESC
     `);
