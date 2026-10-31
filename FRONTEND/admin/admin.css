@@ -70,3 +70,6 @@
 .stats{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:900px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.stats{grid-template-columns:1fr}}
+.admin-loading{min-height:180px;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-weight:600}
+.admin-loading-spinner{width:20px;height:20px;border:2px solid rgba(148,163,184,.35);border-top-color:var(--primary);border-radius:50%;animation:admin-spin .75s linear infinite}
+@keyframes admin-spin{to{transform:rotate(360deg)}}

@@ -163,32 +163,18 @@ function isStudentEligibleForJob(student, job) {
 }
 
 async function notifyStudentsAboutApprovedJob(db, jobId, notificationVersion) {
-  const jobResult = await db.query(
-    `SELECT j.id,j.title,j.apply_before,j.min_cgpa,j.backlogs_allowed,j.eligible_batches,j.required_skills,
-            ARRAY(SELECT jd.department FROM job_departments jd WHERE jd.job_id=j.id) AS eligible_departments,
-            c.name AS company_name
-     FROM jobs j JOIN companies c ON c.id=j.company_id
+  await db.query(
+    `INSERT INTO notifications
+       (recipient_role,recipient_id,type,title,message,job_id,dedupe_key)
+     SELECT 'student',s.id::text,'job','New job: '||j.title,
+            c.name||' posted an approved opportunity. Review the eligibility criteria and apply before the deadline.',
+            j.id,'job-'||j.id||'-approved-'||$2||'-student-'||s.id
+     FROM students s CROSS JOIN jobs j JOIN companies c ON c.id=j.company_id
      WHERE j.id=$1 AND j.approval_status='Approved' AND c.admin_status='Active'
-       AND j.apply_before >= CURRENT_DATE`,
-    [jobId]
+       AND j.apply_before>=CURRENT_DATE
+     ON CONFLICT(dedupe_key) DO NOTHING`,
+    [jobId, notificationVersion.toISOString()]
   );
-  const job = jobResult.rows[0];
-  if (!job) return;
-  const students = await db.query(
-    `SELECT id,department,study_year,graduation_year,cgpa,skills,profile_details
-     FROM students`
-  );
-  for (const student of students.rows) {
-    await createNotification(db, {
-      recipientRole: 'student',
-      recipientId: student.id,
-      type: 'job',
-      title: `New job: ${job.title}`,
-      message: `${job.company_name} posted an approved opportunity. Review the eligibility criteria and apply before the deadline.`,
-      jobId: job.id,
-      dedupeKey: `job-${job.id}-approved-${notificationVersion}-student-${student.id}`
-    });
-  }
 }
 
 const newsArticleCache = new Map();
@@ -2989,7 +2975,11 @@ app.delete('/api/admin/activity/:id', requireAdmin, async (req,res)=>{
 
 app.get('/api/admin/students', requireAdmin, async (_req, res) => {
   try {
-    const r = await pool.query(`${adminStudentSelect} ORDER BY created_at DESC`);
+    const r = await pool.query(`
+      SELECT id,name,reg_no,email,department,profile_completed
+      FROM students
+      ORDER BY created_at DESC
+    `);
     res.json({ data: r.rows });
   } catch (e) {
     console.error(e);

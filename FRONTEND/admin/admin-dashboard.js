@@ -2,6 +2,7 @@ const API_BASE = (window.STEPUP_API_BASE_URL || 'http://localhost:3000/api').rep
 const tokenKey='stepupAdminToken', adminKey='stepupAdmin';
 const token=sessionStorage.getItem(tokenKey); if(!token){location.href='admin-login.html';}
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let navigationController=null,navigationPending=false,navigationSequence=0;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const admin=JSON.parse(sessionStorage.getItem(adminKey)||'{}'); $('#adminName').textContent=admin.name||admin.id||'Administrator'; $('#adminRole').textContent=admin.role||'Super Admin';
 function initials(name){return String(name||'SA').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'SA'}
@@ -9,6 +10,13 @@ document.documentElement.dataset.theme='light'; try{localStorage.removeItem('ste
 const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles, documents and approvals'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}
 async function api(path,opt={}){const r=await fetch(API_BASE+path,{...opt,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opt.headers||{})}});let j={};try{j=await r.json()}catch{}if(r.status===401){sessionStorage.clear();location.href='admin-login.html';throw Error('Session expired.')}if(!r.ok)throw Error(j.error||'Request failed');return j.data}
+// Cancel page reads when navigation changes so late responses cannot render stale sections.
+const sendAdminRequest=api;
+api=async function(path,opt={}){
+  const isRead=(opt.method||'GET').toUpperCase()==='GET';
+  const signal=isRead&&navigationPending?navigationController?.signal:undefined;
+  return sendAdminRequest(path,{...opt,...(signal&&!opt.signal?{signal}:{})});
+};
 function sectionHead(name){const [t,s]=titles[name]||[name,''];$('#sectionTitle').textContent=t;$('#sectionSub').textContent=s}
 function table(headers,rows){return `<div class="table-wrap"><table class="table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows||''}</tbody></table></div>`}
 function empty(msg='No records found'){return `<div class="empty">${msg}</div>`}
@@ -322,15 +330,19 @@ async function companies(){
     if(button){
       try{
         await api('/admin/companies/'+button.dataset.company,{method:'PATCH',body:JSON.stringify({status:button.dataset.status})});
+        const company=data.find(c=>String(c.id)===button.dataset.company);
+        if(company)company.admin_status=button.dataset.status;
+        draw();
         toast(button.dataset.status==='Active'?'Company approved':'Company status updated');
-        await companies();
       }catch(error){toast(error.message)}
     }
     if(remove)confirmDelete('this company',async()=>{
       try{
         await api('/admin/companies/'+remove.dataset.del,{method:'DELETE'});
+        const index=data.findIndex(c=>String(c.id)===remove.dataset.del);
+        if(index!==-1)data.splice(index,1);
+        draw();
         toast('Company removed');
-        await companies();
       }catch(error){toast(error.message)}
     });
   };
@@ -377,7 +389,8 @@ async function jobs(){
         return;
       }
       toast(`Job "${job.title}" and related records removed`);
-      try{await reload()}catch(error){toast(`Job removed, but the list could not refresh: ${error.message}`)}
+      data=data.filter(item=>String(item.id)!==String(job.id));
+      draw();
       return;
     }
     const approve=e.target.closest('[data-approve]'),reject=e.target.closest('[data-reject]'),view=e.target.closest('[data-view]'),applicantButton=e.target.closest('[data-applicants]');
@@ -393,8 +406,8 @@ async function jobs(){
       $('#jobApplicantTable').onchange=async ev=>{if(!ev.target.matches('.app-status'))return;try{await api('/admin/applications/'+ev.target.dataset.id,{method:'PATCH',body:JSON.stringify({status:ev.target.value})});const item=jobApps.find(a=>String(a.id)===ev.target.dataset.id);if(item)item.status=ev.target.value;toast('Applicant status updated');}catch(err){toast(err.message)}};
       return;
     }
-    if(approve){const j=data.find(x=>String(x.id)===approve.dataset.approve);if(!j)return;try{await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});toast(`${j.title} approved and published to eligible students`);await reload()}catch(err){toast(err.message)}}
-    if(reject){const j=data.find(x=>String(x.id)===reject.dataset.reject);if(!j)return;openModal('Reject job submission',`<p class="muted">You are rejecting <b>${esc(j.title)}</b> from ${esc(j.company_name)}. The company will need to review the reason before resubmitting.</p><div class="field full"><label>Reason for rejection *</label><textarea name="approvalNote" required minlength="5" placeholder="Explain what needs to be corrected (e.g. missing salary details, unclear eligibility)…"></textarea></div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="approval-btn reject">Confirm rejection</button></div>`,async f=>{const approvalNote=new FormData(f).get('approvalNote')?.toString().trim();if(!approvalNote||approvalNote.length<5)throw Error('Please provide a clear rejection reason (at least 5 characters).');await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Rejected',approvalNote})});toast('Job rejected and feedback saved');closeModal();await reload()})}
+    if(approve){const j=data.find(x=>String(x.id)===approve.dataset.approve);if(!j)return;try{await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});j.approval_status='Approved';j.approval_note=null;draw();toast(`${j.title} approved and published to eligible students`)}catch(err){toast(err.message)}}
+    if(reject){const j=data.find(x=>String(x.id)===reject.dataset.reject);if(!j)return;openModal('Reject job submission',`<p class="muted">You are rejecting <b>${esc(j.title)}</b> from ${esc(j.company_name)}. The company will need to review the reason before resubmitting.</p><div class="field full"><label>Reason for rejection *</label><textarea name="approvalNote" required minlength="5" placeholder="Explain what needs to be corrected (e.g. missing salary details, unclear eligibility)…"></textarea></div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="approval-btn reject">Confirm rejection</button></div>`,async f=>{const approvalNote=new FormData(f).get('approvalNote')?.toString().trim();if(!approvalNote||approvalNote.length<5)throw Error('Please provide a clear rejection reason (at least 5 characters).');await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Rejected',approvalNote})});j.approval_status='Rejected';j.approval_note=approvalNote;draw();toast('Job rejected and feedback saved');closeModal()})}
     if(view){
       const j=data.find(x=>String(x.id)===view.dataset.view);
       if(!j)return;
@@ -411,7 +424,7 @@ async function jobs(){
         toggle.setAttribute('aria-expanded',String(expanded));
         toggle.classList.toggle('is-expanded',expanded);
       };
-      $('#detailApprove')?.addEventListener('click',async()=>{try{await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});closeModal();toast('Job approved and published');await reload()}catch(err){toast(err.message)}});
+      $('#detailApprove')?.addEventListener('click',async()=>{try{await api('/admin/jobs/'+j.id,{method:'PATCH',body:JSON.stringify({approvalStatus:'Approved'})});j.approval_status='Approved';j.approval_note=null;closeModal();draw();toast('Job approved and published')}catch(err){toast(err.message)}});
     }
   };
 }
@@ -601,5 +614,22 @@ function openModal(title,html,onSubmit){$('#modalTitle').textContent=title;$('#m
 function closeModal(){$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
 function downloadCSV(name,rows){if(!rows.length)return toast('No data to export');const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))];const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""').replace(/\n/g,' ')}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
 const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,announcements,analyticsreports,activity,admins};
-async function navigate(name){$$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.section===name));try{await loaders[name]()}catch(e){setContent(`<div class="panel"><div class="danger-text">${esc(e.message)}</div></div>`);toast(e.message)}}
+async function navigate(name){
+  const sequence=++navigationSequence;
+  navigationController?.abort();
+  navigationController=new AbortController();
+  navigationPending=true;
+  $$('.nav').forEach(b=>b.classList.toggle('active',b.dataset.section===name));
+  sectionHead(name);
+  setContent(`<div class="panel admin-loading" role="status" aria-live="polite"><span class="admin-loading-spinner" aria-hidden="true"></span><span>Loading ${esc((titles[name]||[name])[0])}…</span></div>`);
+  try{
+    await loaders[name]();
+  }catch(e){
+    if(sequence!==navigationSequence||e.name==='AbortError')return;
+    setContent(`<div class="panel"><div class="danger-text">${esc(e.message)}</div></div>`);
+    toast(e.message);
+  }finally{
+    if(sequence===navigationSequence)navigationPending=false;
+  }
+}
 $('#nav').onclick=e=>{const b=e.target.closest('.nav');if(b)navigate(b.dataset.section)};$('#content').onclick=async e=>{const go=e.target.closest('[data-go]');if(go){navigate(go.dataset.go);return;}const b=e.target.closest('[data-export]');if(!b)return;try{const d=await api('/admin/'+b.dataset.export);const arr=d.data||d;downloadCSV(b.dataset.export+'.csv',Array.isArray(arr)?arr:[]);toast('Report exported')}catch(err){toast(err.message)}};$('#logout').onclick=()=>{sessionStorage.clear();location.href='admin-login.html'};navigate('overview');
