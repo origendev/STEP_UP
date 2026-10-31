@@ -16,6 +16,7 @@ const HOME_ICONS = {
 
 let requestVersion = 0;
 let refreshTimer;
+let currentCompetitions = [];
 
 function refreshOnFocus(){
   if(document.body.dataset.route === 'home') void loadLiveData();
@@ -31,6 +32,10 @@ const applicationsFrom = response => {
 };
 const jobsFrom = response => {
   if(!Array.isArray(response?.data)) throw new Error('Job data had an unexpected format.');
+  return response.data;
+};
+const competitionsFrom = response => {
+  if(!Array.isArray(response?.data)) throw new Error('Competition data had an unexpected format.');
   return response.data;
 };
 const statusOf = application => String(application.status || 'Applied').toLowerCase();
@@ -141,6 +146,42 @@ function paintOpenings(jobs, applications){
     </div>`).join('') : '<p class="home-empty">No new eligible opportunities right now.</p>';
 }
 
+function paintCompetitions(competitions){
+  const host=$('#competitionList'),count=$('#competitionCount');
+  if(!host)return;
+  currentCompetitions=competitions||[];
+  if(!competitions){
+    host.innerHTML='<p class="home-empty">Competitions could not be loaded. Please refresh the dashboard.</p>';
+    if(count)count.textContent='';
+    return;
+  }
+  if(count)count.textContent=`${competitions.length} available`;
+  host.innerHTML=competitions.length?competitions.map(item=>`
+    <button class="home-competition-item" type="button" data-competition-id="${esc(item.id)}" aria-label="View details for ${esc(item.title)}">
+      <img class="home-competition-image" src="${esc(item.image_data)}" alt="" loading="lazy">
+      <span class="home-competition-copy">
+        <strong>${esc(item.title)}</strong>
+        <span>${esc(item.description)}</span>
+        <small>Deadline · ${esc(formatDate(item.deadline))}</small>
+        <b>View details →</b>
+      </span>
+    </button>`).join(''):'<p class="home-empty">No competitions have been published yet.</p>';
+}
+
+function showCompetitionDetails(item){
+  const dialog=$('#competitionDialog'),details=$('#competitionDetails');
+  if(!dialog||!details)return;
+  details.innerHTML=`
+    <img class="competition-detail-image" src="${esc(item.image_data)}" alt="${esc(item.title)}">
+    <div class="competition-detail-content">
+      <p class="competition-detail-deadline">Deadline · ${esc(formatDate(item.deadline))}</p>
+      <h2 id="competitionDetailsTitle">${esc(item.title)}</h2>
+      <p class="competition-detail-description">${esc(item.description).replace(/\n/g,'<br>')}</p>
+      <a class="competition-register-link" href="${esc(item.registration_url)}" target="_blank" rel="noopener noreferrer">Visit competition / Register</a>
+    </div>`;
+  if(!dialog.open)dialog.showModal();
+}
+
 function roundList(application){
   try{
     const config = typeof application.interview_rounds === 'string'
@@ -222,17 +263,20 @@ async function loadLiveData(){
   const results = await Promise.allSettled([
     api('/student/me'),
     api('/student/applications'),
-    api('/jobs')
+    api('/jobs'),
+    api('/student/competitions')
   ]);
   if(version !== requestVersion) return;
   const profile = results[0].status === 'fulfilled' ? results[0].value.data : null;
-  let applications = null, jobs = null;
+  let applications = null, jobs = null, competitions = null;
   try{ if(results[1].status === 'fulfilled') applications = applicationsFrom(results[1].value); }catch(error){ results[1] = {status:'rejected',reason:error}; }
   try{ if(results[2].status === 'fulfilled') jobs = jobsFrom(results[2].value); }catch(error){ results[2] = {status:'rejected',reason:error}; }
+  try{ if(results[3].status === 'fulfilled') competitions = competitionsFrom(results[3].value); }catch(error){ results[3] = {status:'rejected',reason:error}; }
   paintStats(applications, profile);
   paintSkills(profile);
   paintMilestones(applications);
   paintOpenings(jobs, applications);
+  paintCompetitions(competitions);
   paintUpcoming(applications);
   paintFunnel(applications);
   const failed = results.some(result => result.status === 'rejected');
@@ -257,6 +301,13 @@ export function mount(){
   $('#askStepBtn')?.addEventListener('click', () => document.getElementById('sbLauncher')?.click());
   $('#homeLiveStatus')?.addEventListener('click', event => {
     if(event.target.closest('[data-home-refresh]')) loadLiveData();
+  });
+  $('#competitionList')?.addEventListener('click',event=>{
+    const button=event.target.closest('[data-competition-id]');
+    if(!button)return;
+    const id=button.dataset.competitionId;
+    const competition=currentCompetitions.find(item=>String(item.id)===id);
+    if(competition)showCompetitionDetails(competition);
   });
   clearInterval(refreshTimer);
   void loadLiveData();

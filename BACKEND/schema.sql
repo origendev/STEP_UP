@@ -37,6 +37,20 @@ CREATE TABLE IF NOT EXISTS jobs (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS competitions (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  image_data TEXT NOT NULL,
+  registration_url TEXT NOT NULL,
+  deadline DATE NOT NULL,
+  published BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_competitions_published_deadline
+  ON competitions(published, deadline);
+
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS industry TEXT NOT NULL DEFAULT 'IT';
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS location TEXT;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS description TEXT;

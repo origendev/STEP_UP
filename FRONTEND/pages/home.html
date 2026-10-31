@@ -162,6 +162,16 @@
     </div>
   </div>
 
+  <section class="card home-competitions" aria-labelledby="competitionHeading">
+    <div class="card-head">
+      <div class="card-title" id="competitionHeading">Competitions</div>
+      <span class="home-competition-count" id="competitionCount"></span>
+    </div>
+    <div class="home-competition-list" id="competitionList">
+      <p class="home-empty">Loading competitions…</p>
+    </div>
+  </section>
+
   <!-- ROW 3: funnel + quick actions -->
   <div class="grid2 home-row">
     <div class="card">
@@ -175,3 +185,10 @@
   </div>
 
 </div>
+
+<dialog class="competition-dialog" id="competitionDialog" aria-labelledby="competitionDetailsTitle">
+  <form method="dialog">
+    <button class="competition-dialog-close" type="submit" aria-label="Close competition details">×</button>
+  </form>
+  <div id="competitionDetails"></div>
+</dialog>

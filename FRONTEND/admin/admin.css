@@ -81,3 +81,4 @@
 .document-preview-modal h2{margin:0 40px 16px 0}
 .review-document{display:block;width:100%;height:min(70vh,760px);border:0;background:#f4f7fc}
 .review-document-image{display:block;max-width:100%;max-height:70vh;margin:0 auto;object-fit:contain}
+.competition-image-preview{display:block;max-width:100%;max-height:180px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#f8fafc}.competition-image-preview.hidden{display:none}

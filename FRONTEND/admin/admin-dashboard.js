@@ -7,7 +7,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const admin=JSON.parse(sessionStorage.getItem(adminKey)||'{}'); $('#adminName').textContent=admin.name||admin.id||'Administrator'; $('#adminRole').textContent=admin.role||'Super Admin';
 function initials(name){return String(name||'SA').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'SA'}
 document.documentElement.dataset.theme='light'; try{localStorage.removeItem('stepupAdminTheme')}catch{} $('#adminAvatar').textContent=initials(admin.name||admin.id);
-const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles, documents and approvals'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
+const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles, documents and approvals'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],competitions:['Competitions','Publish competitions and manage student registrations'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}
 async function api(path,opt={}){const r=await fetch(API_BASE+path,{...opt,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opt.headers||{})}});let j={};try{j=await r.json()}catch{}if(r.status===401){sessionStorage.clear();location.href='admin-login.html';throw Error('Session expired.')}if(!r.ok)throw Error(j.error||'Request failed');return j.data}
 // Cancel page reads when navigation changes so late responses cannot render stale sections.
@@ -464,6 +464,79 @@ async function applications(){
     catch(error){toast(error.message)}
   };
 }
+async function competitions(){
+  sectionHead('competitions');
+  const data=await api('/admin/competitions');
+  setContent(`<div class="panel"><div class="toolbar"><input class="search" id="competitionSearch" placeholder="Search competitions..."><button class="primary" id="newCompetition">+ Add Competition</button></div><div id="competitionTable"></div></div>`);
+  const formatDeadline=value=>value?new Date(`${String(value).slice(0,10)}T00:00:00`).toLocaleDateString():'—';
+  function draw(){
+    const query=($('#competitionSearch').value||'').trim().toLowerCase();
+    const rows=data.filter(item=>[item.title,item.description].join(' ').toLowerCase().includes(query));
+    $('#competitionTable').innerHTML=table(['Competition','Deadline','Status','Created','Actions'],rows.map(item=>`<tr><td><b>${esc(item.title)}</b><br><small>${esc(item.description).slice(0,90)}</small></td><td>${esc(formatDeadline(item.deadline))}</td><td><span class="pill">${item.published?'Published':'Unpublished'}</span></td><td>${item.created_at?new Date(item.created_at).toLocaleDateString():'—'}</td><td><button class="btn" data-toggle-competition="${item.id}" data-published="${!item.published}">${item.published?'Unpublish':'Publish'}</button><button class="btn danger" data-delete-competition="${item.id}">Remove</button></td></tr>`).join('')||empty('No competitions match this search.'));
+  }
+  draw();
+  $('#competitionSearch').oninput=draw;
+  $('#newCompetition').onclick=()=>openModal('Publish Competition',`<div class="form-grid">
+    <div class="field full"><label>Competition Name</label><input name="title" maxlength="160" required></div>
+    <div class="field full"><label>Description</label><textarea name="description" maxlength="10000" required></textarea></div>
+    <div class="field full"><label>Competition Image</label><input id="competitionImage" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required><small>PNG, JPG, WebP or GIF; maximum 1 MB.</small><img id="competitionImagePreview" class="competition-image-preview hidden" alt="Competition image preview"></div>
+    <div class="field full"><label>Registration Link</label><input name="registrationUrl" type="url" placeholder="https://example.com/register" required></div>
+    <div class="field"><label>Deadline</label><input name="deadline" type="date" required></div>
+  </div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Publish Competition</button></div>`,async form=>{
+    const file=form.elements.image.files[0];
+    if(!file)throw Error('Choose a competition image.');
+    if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type))throw Error('Use a PNG, JPG, WebP or GIF image.');
+    if(file.size>1024*1024)throw Error('The competition image must be 1 MB or smaller.');
+    const imageData=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error('Could not read the competition image.'));
+      reader.onload=()=>resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+    const body=formToObj(form);
+    delete body.image;
+    body.imageData=imageData;
+    await api('/admin/competitions',{method:'POST',body:JSON.stringify(body)});
+    toast('Competition published to the student portal');
+    closeModal();
+    await competitions();
+  });
+  $('#modalForm').onchange=event=>{
+    if(!event.target.matches('#competitionImage'))return;
+    const file=event.target.files[0],preview=$('#competitionImagePreview');
+    if(preview.src.startsWith('blob:'))URL.revokeObjectURL(preview.src);
+    if(!file){preview.removeAttribute('src');preview.classList.add('hidden');return}
+    if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)||file.size>1024*1024){
+      event.target.value='';
+      preview.removeAttribute('src');
+      preview.classList.add('hidden');
+      toast('Choose a PNG, JPG, WebP or GIF image up to 1 MB.');
+      return;
+    }
+    preview.src=URL.createObjectURL(file);
+    preview.classList.remove('hidden');
+  };
+  $('#competitionTable').onclick=async event=>{
+    const toggle=event.target.closest('[data-toggle-competition]');
+    const remove=event.target.closest('[data-delete-competition]');
+    if(toggle){
+      try{
+        await api(`/admin/competitions/${toggle.dataset.toggleCompetition}`,{method:'PATCH',body:JSON.stringify({published:toggle.dataset.published==='true'})});
+        toast(toggle.dataset.published==='true'?'Competition published':'Competition unpublished');
+        await competitions();
+      }catch(error){toast(error.message)}
+    }
+    if(remove){
+      const item=data.find(row=>String(row.id)===remove.dataset.deleteCompetition);
+      if(!item||!confirm(`Remove "${item.title}"? This action cannot be undone.`))return;
+      try{
+        await api(`/admin/competitions/${remove.dataset.deleteCompetition}`,{method:'DELETE'});
+        toast('Competition removed');
+        await competitions();
+      }catch(error){toast(error.message)}
+    }
+  };
+}
 async function drives(){sectionHead('drives');const [data,companiesData,jobsData]=await Promise.all([api('/admin/drives'),api('/admin/companies'),api('/admin/jobs')]);setContent(`<div class="panel"><div class="toolbar"><input class="search" id="driveSearch" placeholder="Search drives..."><button class="primary" id="newDrive">+ Create Drive</button></div><div id="driveTable"></div></div>`);function draw(){const q=($('#driveSearch').value||'').toLowerCase();$('#driveTable').innerHTML=table(['Drive','Company','Job','Date','Eligibility','Status','Actions'],data.filter(d=>[d.title,d.company_name,d.job_title].join(' ').toLowerCase().includes(q)).map(d=>`<tr><td>${esc(d.title)}</td><td>${esc(d.company_name||'—')}</td><td>${esc(d.job_title||'—')}</td><td>${esc(d.drive_date||'—')}</td><td>${esc(d.eligible_batch||'—')}</td><td><span class="pill">${esc(d.status)}</span></td><td><button class="btn" data-close="${d.id}">Close</button><button class="btn danger" data-del="${d.id}">Remove</button></td></tr>`).join('')||empty())}draw();$('#driveSearch').oninput=draw;$('#newDrive').onclick=()=>openModal('Create Placement Drive',`<div class="form-grid"><div class="field full"><label>Title</label><input name="title" required></div><div class="field"><label>Company</label><select name="companyId"><option value="">Select</option>${companiesData.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Job</label><select name="jobId"><option value="">Select</option>${jobsData.map(j=>`<option value="${j.id}">${esc(j.title)} — ${esc(j.company_name)}</option>`).join('')}</select></div><div class="field"><label>Drive Date</label><input name="driveDate" type="date"></div><div class="field"><label>Eligible Batch</label><input name="eligibleBatch" placeholder="2027"></div><div class="field"><label>Minimum CGPA</label><input name="minCgpa" type="number" step="0.01"></div><div class="field"><label>Departments</label><input name="departments" placeholder="CSE, IT, ECE"></div><div class="field"><label>Location</label><input name="location"></div><div class="field full"><label>Description</label><textarea name="description"></textarea></div><div class="field"><label>Backlogs Allowed</label><select name="backlogsAllowed"><option value="false">No</option><option value="true">Yes</option></select></div></div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Create Drive</button></div>`,async f=>{const b=formToObj(f);b.departments=b.departments.split(',').map(x=>x.trim()).filter(Boolean);b.backlogsAllowed=b.backlogsAllowed==='true';await api('/admin/drives',{method:'POST',body:JSON.stringify(b)});toast('Placement drive created');closeModal();drives()});$('#driveTable').onclick=async e=>{const c=e.target.closest('[data-close]');const d=e.target.closest('[data-del]');if(c){await api('/admin/drives/'+c.dataset.close,{method:'PATCH',body:JSON.stringify({status:'Closed'})});toast('Drive closed');drives()}if(d)confirmDelete('this drive',async()=>{await api('/admin/drives/'+d.dataset.del,{method:'DELETE'});toast('Drive removed');drives()})}}
 async function announcements(){sectionHead('announcements');const data=await api('/admin/announcements');setContent(`<div class="panel"><div class="toolbar"><span class="muted">Keep students informed about placement activity.</span><button class="primary" id="newAnn">+ Publish Announcement</button></div>${table(['Title','Audience','Published','Created','Actions'],data.map(a=>`<tr><td><b>${esc(a.title)}</b><br><small>${esc(a.message).slice(0,90)}</small></td><td>${esc(a.audience)}</td><td>${a.published?'Yes':'No'}</td><td>${new Date(a.created_at).toLocaleDateString()}</td><td><button class="btn" data-toggle="${a.id}" data-pub="${!a.published}">${a.published?'Unpublish':'Publish'}</button><button class="btn danger" data-del="${a.id}">Remove</button></td></tr>`).join('')||empty())}</div>`);$('#newAnn').onclick=()=>openModal('Publish Announcement',`<div class="form-grid"><div class="field full"><label>Title</label><input name="title" required></div><div class="field"><label>Audience</label><select name="audience"><option>All</option><option>Students</option><option>Companies</option></select></div><div class="field full"><label>Message</label><textarea name="message" required></textarea></div></div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Publish</button></div>`,async f=>{await api('/admin/announcements',{method:'POST',body:JSON.stringify(formToObj(f))});toast('Announcement published');closeModal();announcements()});$('.panel').onclick=async e=>{const t=e.target.closest('[data-toggle]'),d=e.target.closest('[data-del]');if(t){await api('/admin/announcements/'+t.dataset.toggle,{method:'PATCH',body:JSON.stringify({published:t.dataset.pub==='true'})});announcements()}if(d)confirmDelete('this announcement',async()=>{await api('/admin/announcements/'+d.dataset.del,{method:'DELETE'});announcements()})}}
 async function interviews(){sectionHead('interviews');const [data,studentsData,companiesData,jobsData]=await Promise.all([api('/admin/interviews'),api('/admin/students'),api('/admin/companies'),api('/admin/jobs')]);setContent(`<div class="panel"><div class="toolbar"><span class="muted">Schedule online or campus interviews.</span><button class="primary" id="newInterview">+ Schedule Interview</button></div>${table(['Student','Company','Job','Date','Mode','Status','Actions'],data.map(i=>`<tr><td>${esc(i.student_name)}<br><small>${esc(i.reg_no)}</small></td><td>${esc(i.company_name||'—')}</td><td>${esc(i.job_title||'—')}</td><td>${i.interview_date?new Date(i.interview_date).toLocaleString():'—'}</td><td>${esc(i.mode)}</td><td>${esc(i.status)}</td><td><select class="int-status" data-id="${i.id}">${['Scheduled','Completed','Cancelled','No Show'].map(x=>`<option ${x===i.status?'selected':''}>${x}</option>`).join('')}</select></td></tr>`).join('')||empty())}</div>`);$('#newInterview').onclick=()=>openModal('Schedule Interview',`<div class="form-grid"><div class="field"><label>Student</label><select name="studentId">${studentsData.map(s=>`<option value="${s.id}">${esc(s.name)} (${esc(s.reg_no)})</option>`).join('')}</select></div><div class="field"><label>Company</label><select name="companyId"><option value="">Select</option>${companiesData.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Job</label><select name="jobId"><option value="">Select</option>${jobsData.map(j=>`<option value="${j.id}">${esc(j.title)}</option>`).join('')}</select></div><div class="field"><label>Date & Time</label><input name="interviewDate" type="datetime-local" required></div><div class="field"><label>Mode</label><select name="mode"><option>Online</option><option>Campus</option><option>Phone</option></select></div><div class="field"><label>Meeting Link</label><input name="meetingLink"></div><div class="field"><label>Interviewer</label><input name="interviewer"></div><div class="field full"><label>Notes</label><textarea name="notes"></textarea></div></div><div class="form-actions"><button class="primary">Schedule</button></div>`,async f=>{await api('/admin/interviews',{method:'POST',body:JSON.stringify(formToObj(f))});toast('Interview scheduled');closeModal();interviews()});$('.panel').onchange=async e=>{if(e.target.matches('.int-status')){await api('/admin/interviews/'+e.target.dataset.id,{method:'PATCH',body:JSON.stringify({status:e.target.value})});toast('Interview updated')}}}
@@ -617,9 +690,9 @@ async function admins(){
 }
 function formToObj(f){const o={};new FormData(f).forEach((v,k)=>o[k]=v);return o}
 function openModal(title,html,onSubmit){$('#modalTitle').textContent=title;$('#modalForm').innerHTML=html;$('#modal').classList.remove('hidden');$('#cancelModal')?.addEventListener('click',closeModal);$('#modalForm').onsubmit=async e=>{e.preventDefault();try{await onSubmit(e.target)}catch(err){toast(err.message)}}}
-function closeModal(){$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
+function closeModal(){const preview=$('#competitionImagePreview');if(preview?.src.startsWith('blob:'))URL.revokeObjectURL(preview.src);$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
 function downloadCSV(name,rows){if(!rows.length)return toast('No data to export');const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))];const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""').replace(/\n/g,' ')}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,announcements,analyticsreports,activity,admins};
+const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,competitions,announcements,analyticsreports,activity,admins};
 async function navigate(name){
   const sequence=++navigationSequence;
   navigationController?.abort();
