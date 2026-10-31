@@ -1030,10 +1030,12 @@ async function ensureSchema() {
       title TEXT NOT NULL,
       message TEXT NOT NULL,
       audience TEXT NOT NULL DEFAULT 'All',
+      target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4),
       published BOOLEAN NOT NULL DEFAULT TRUE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4);
 
     CREATE TABLE IF NOT EXISTS competitions (
       id BIGSERIAL PRIMARY KEY,
@@ -1042,10 +1044,12 @@ async function ensureSchema() {
       image_data TEXT NOT NULL,
       registration_url TEXT NOT NULL,
       deadline DATE NOT NULL,
+      target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4),
       published BOOLEAN NOT NULL DEFAULT FALSE,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE competitions ADD COLUMN IF NOT EXISTS target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4);
     CREATE INDEX IF NOT EXISTS idx_competitions_published_deadline
       ON competitions(published, deadline);
 
@@ -2574,13 +2578,25 @@ app.patch('/api/admin/drives/:id', requireAdmin, async (req,res)=>{ try { const 
 app.delete('/api/admin/drives/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM placement_drives WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Drive not found.'});await adminCrudLog(req,'Placement drive removed','drive',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove drive.'});}});
 
 app.get('/api/admin/announcements', requireAdmin, async(_req,res)=>{try{const r=await pool.query('SELECT * FROM announcements ORDER BY created_at DESC');res.json({data:r.rows});}catch(e){console.error(e);res.status(500).json({error:'Could not load announcements.'});}});
-app.post('/api/admin/announcements', requireAdmin, async(req,res)=>{if(!clean(req.body.title)||!clean(req.body.message))return res.status(400).json({error:'Title and message are required.'});try{const r=await pool.query('INSERT INTO announcements(title,message,audience,published) VALUES($1,$2,$3,$4) RETURNING *',[clean(req.body.title),clean(req.body.message),clean(req.body.audience)||'All',req.body.published!==false]);await adminCrudLog(req,'Announcement published','announcement',r.rows[0].id,r.rows[0].title);res.status(201).json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not create announcement.'});}});
+app.post('/api/admin/announcements', requireAdmin, async(req,res)=>{
+  const body=req.body||{};
+  const title=typeof body.title==='string'?body.title.trim():'';
+  const message=typeof body.message==='string'?body.message.trim():'';
+  const targetYear=body.targetYear===''||body.targetYear==null?null:Number(body.targetYear);
+  if(!title||!message)return res.status(400).json({error:'Title and message are required.'});
+  if(targetYear!==null&&(!Number.isInteger(targetYear)||targetYear<1||targetYear>4))return res.status(400).json({error:'Choose a valid target year.'});
+  try{
+    const r=await pool.query('INSERT INTO announcements(title,message,audience,target_year,published) VALUES($1,$2,$3,$4,$5) RETURNING *',[title,message,clean(body.audience)||'All',targetYear,body.published!==false]);
+    await adminCrudLog(req,'Announcement published','announcement',r.rows[0].id,r.rows[0].title);
+    res.status(201).json({data:r.rows[0]});
+  }catch(e){console.error(e);res.status(500).json({error:'Could not create announcement.'});}
+});
 app.patch('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE announcements SET published=COALESCE($1,published),updated_at=NOW() WHERE id=$2 RETURNING *',[typeof req.body.published==='boolean'?req.body.published:null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update announcement.'});}});
 app.delete('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM announcements WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});await adminCrudLog(req,'Announcement removed','announcement',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove announcement.'});}});
 
 app.get('/api/admin/competitions', requireAdmin, async (_req, res) => {
   try {
-    const result = await pool.query('SELECT id,title,description,deadline,published,created_at FROM competitions ORDER BY created_at DESC');
+    const result = await pool.query('SELECT id,title,description,deadline,target_year,published,created_at FROM competitions ORDER BY created_at DESC');
     res.json({ data: result.rows });
   } catch (e) {
     console.error('Could not load competitions:', e);
@@ -2592,16 +2608,18 @@ app.post('/api/admin/competitions', requireAdmin, async (req, res) => {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const description = typeof body.description === 'string' ? body.description.trim() : '';
   const registrationUrl = normalizeHttpUrl(body.registrationUrl);
+  const targetYear = body.targetYear === '' || body.targetYear == null ? null : Number(body.targetYear);
   if (!title || title.length > 160) return res.status(400).json({ error: 'Competition name is required and must be 160 characters or fewer.' });
   if (!description || description.length > 10000) return res.status(400).json({ error: 'Competition description is required and must be 10,000 characters or fewer.' });
   if (!isValidCompetitionImage(body.imageData)) return res.status(400).json({ error: 'Upload a valid PNG, JPG, WebP or GIF image up to 1 MB.' });
   if (!registrationUrl || registrationUrl.length > 2048) return res.status(400).json({ error: 'Enter a valid HTTP or HTTPS registration link.' });
   if (!isValidDateOnly(body.deadline)) return res.status(400).json({ error: 'Enter a valid competition deadline.' });
+  if (targetYear !== null && (!Number.isInteger(targetYear) || targetYear < 1 || targetYear > 4)) return res.status(400).json({ error: 'Choose a valid target year.' });
   try {
     const result = await pool.query(
-      `INSERT INTO competitions(title,description,image_data,registration_url,deadline,published)
-       VALUES($1,$2,$3,$4,$5,TRUE) RETURNING *`,
-      [title, description, body.imageData, registrationUrl, body.deadline]
+      `INSERT INTO competitions(title,description,image_data,registration_url,deadline,target_year,published)
+       VALUES($1,$2,$3,$4,$5,$6,TRUE) RETURNING *`,
+      [title, description, body.imageData, registrationUrl, body.deadline, targetYear]
     );
     await adminCrudLog(req, 'Competition published', 'competition', result.rows[0].id, title);
     res.status(201).json({ data: result.rows[0] });
@@ -2646,9 +2664,13 @@ function notificationGoto(type) {
 }
 
 async function materializeLegacyNotifications(studentId) {
+  const student = await pool.query('SELECT study_year FROM students WHERE id=$1', [studentId]);
+  if (!student.rows[0]) return;
   const announcements = await pool.query(
     `SELECT id,title,message FROM announcements
-     WHERE published=TRUE AND audience IN ('All','Students')`
+     WHERE published=TRUE AND audience IN ('All','Students')
+       AND (target_year IS NULL OR target_year=$1)`,
+    [student.rows[0].study_year]
   );
   for (const announcement of announcements.rows) {
     await createNotification(pool, {
@@ -5006,12 +5028,16 @@ app.get('/api/company/applications/:id/resume', requireCompany, async (req, res)
    PUBLIC JOB LIST
 ========================================================= */
 
-app.get('/api/student/competitions', requireStudent, async (_req, res) => {
+app.get('/api/student/competitions', requireStudent, async (req, res) => {
   try {
+    const student = await pool.query('SELECT study_year FROM students WHERE id=$1', [req.student.studentId]);
+    if (!student.rows[0]) return res.status(401).json({ error: 'Student account not found.' });
     const result = await pool.query(
       `SELECT id,title,description,image_data,registration_url,deadline,created_at
-       FROM competitions WHERE published=TRUE
-       ORDER BY deadline ASC,created_at DESC`
+       FROM competitions
+       WHERE published=TRUE AND (target_year IS NULL OR target_year=$1)
+       ORDER BY deadline ASC,created_at DESC`,
+      [student.rows[0].study_year]
     );
     res.json({ data: result.rows });
   } catch (e) {

@@ -44,12 +44,26 @@ CREATE TABLE IF NOT EXISTS competitions (
   image_data TEXT NOT NULL,
   registration_url TEXT NOT NULL,
   deadline DATE NOT NULL,
+  target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4),
   published BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE competitions ADD COLUMN IF NOT EXISTS target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4);
 CREATE INDEX IF NOT EXISTS idx_competitions_published_deadline
   ON competitions(published, deadline);
+
+CREATE TABLE IF NOT EXISTS announcements (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  audience TEXT NOT NULL DEFAULT 'All',
+  target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4),
+  published BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4);
 
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS industry TEXT NOT NULL DEFAULT 'IT';
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS location TEXT;
