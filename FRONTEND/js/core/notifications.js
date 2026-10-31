@@ -6,6 +6,8 @@ const KEY = 'stepup-notif';
 const ICON = {
   job: '<path d="M3 7h18v13H3z"/><path d="M9 7V4h6v3"/>',
   announcement: '<path d="m3 11 18-5v12L3 13z"/><path d="M7 14l2 6h4l-2-6"/>',
+  competition: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v2a4 4 0 0 0 4 4M17 6h3v2a4 4 0 0 1-4 4"/>',
+  profile_verification: '<path d="M20 6 9 17l-5-5"/><path d="M12 22a10 10 0 1 1 7.07-2.93"/>',
   reminder: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
   learning: '<path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/>',
 };

@@ -26,7 +26,7 @@ import { mount as mountResumeParser } from './pages/resume-parser.js?v=20261022r
 import { mount as mountCgpaGrader } from './pages/cgpa-grader.js?v=20261022a';
 import { mount as mountWorkspace } from './pages/workspace.js?v=20261011a';
 import * as prefs from './core/prefs.js';
-import * as notifications from './core/notifications.js';
+import * as notifications from './core/notifications.js?v=20261031a';
 
 /* Route name -> pages/<name>.html + its mount function */
 router.register('home',         mountHome);

@@ -158,6 +158,20 @@ async function createNotification(db, notification) {
   );
 }
 
+async function notifyStudentsAboutCompetition(db, competition) {
+  await db.query(
+    `INSERT INTO notifications
+       (recipient_role,recipient_id,type,title,message,dedupe_key)
+     SELECT 'student',s.id::text,'competition','New competition: '||$2,
+            $2||' is open until '||TO_CHAR($3::date,'FMDD Mon YYYY')||'. View details in your dashboard.',
+            'competition-'||$1||'-published-'||$4||'-student-'||s.id
+     FROM students s
+     WHERE $5::smallint IS NULL OR s.study_year=$5
+     ON CONFLICT(dedupe_key) DO NOTHING`,
+    [competition.id, competition.title, competition.deadline, competition.updated_at.toISOString(), competition.target_year]
+  );
+}
+
 function studentHasBacklogs(student) {
   const profile = student.profile_details && typeof student.profile_details === 'object'
     ? student.profile_details
@@ -2615,32 +2629,51 @@ app.post('/api/admin/competitions', requireAdmin, async (req, res) => {
   if (!registrationUrl || registrationUrl.length > 2048) return res.status(400).json({ error: 'Enter a valid HTTP or HTTPS registration link.' });
   if (!isValidDateOnly(body.deadline)) return res.status(400).json({ error: 'Enter a valid competition deadline.' });
   if (targetYear !== null && (!Number.isInteger(targetYear) || targetYear < 1 || targetYear > 4)) return res.status(400).json({ error: 'Choose a valid target year.' });
+  let client;
   try {
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const result = await client.query(
       `INSERT INTO competitions(title,description,image_data,registration_url,deadline,target_year,published)
        VALUES($1,$2,$3,$4,$5,$6,TRUE) RETURNING *`,
       [title, description, body.imageData, registrationUrl, body.deadline, targetYear]
     );
+    await notifyStudentsAboutCompetition(client, result.rows[0]);
+    await client.query('COMMIT');
     await adminCrudLog(req, 'Competition published', 'competition', result.rows[0].id, title);
     res.status(201).json({ data: result.rows[0] });
   } catch (e) {
+    await client?.query('ROLLBACK').catch(() => {});
     console.error('Could not publish competition:', e);
     res.status(500).json({ error: 'Could not publish competition.' });
+  } finally {
+    client?.release();
   }
 });
 app.patch('/api/admin/competitions/:id', requireAdmin, async (req, res) => {
   if (typeof req.body?.published !== 'boolean') return res.status(400).json({ error: 'Published status must be true or false.' });
+  let client;
   try {
-    const result = await pool.query(
+    client = await pool.connect();
+    await client.query('BEGIN');
+    const result = await client.query(
       'UPDATE competitions SET published=$1,updated_at=NOW() WHERE id=$2 RETURNING *',
       [req.body.published, req.params.id]
     );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Competition not found.' });
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Competition not found.' });
+    }
+    if (req.body.published) await notifyStudentsAboutCompetition(client, result.rows[0]);
+    await client.query('COMMIT');
     await adminCrudLog(req, req.body.published ? 'Competition published' : 'Competition unpublished', 'competition', req.params.id, result.rows[0].title);
     res.json({ data: result.rows[0] });
   } catch (e) {
+    await client?.query('ROLLBACK').catch(() => {});
     console.error('Could not update competition:', e);
     res.status(500).json({ error: 'Could not update competition.' });
+  } finally {
+    client?.release();
   }
 });
 app.delete('/api/admin/competitions/:id', requireAdmin, async (req, res) => {
@@ -2659,6 +2692,8 @@ function notificationGoto(type) {
   if (type === 'job') return 'jobs';
   if (type === 'job_pending') return 'jobs';
   if (type === 'new_application' || type === 'job_decision' || type === 'round_update' || type === 'assessment') return 'applications';
+  if (type === 'profile_verification') return 'profile';
+  if (type === 'competition') return 'home';
   if (type === 'announcement') return 'home';
   return 'progress';
 }
@@ -2726,7 +2761,7 @@ async function loadNotifications(res, role, recipientId) {
   res.json({
     data: result.rows.map(item => ({
       id: item.id,
-      type: item.type === 'announcement' ? 'announcement' : item.type === 'job' ? 'job' : 'status',
+      type: item.type === 'announcement' ? 'announcement' : item.type === 'job' ? 'job' : item.type === 'competition' ? 'competition' : item.type === 'profile_verification' ? 'profile_verification' : 'status',
       title: item.title,
       text: item.message,
       time: item.created_at,
@@ -3143,7 +3178,7 @@ app.patch('/api/admin/students/:id/verification', requireAdmin, async (req, res)
     client = await pool.connect();
     await client.query('BEGIN');
     const existing = await client.query(
-      'SELECT profile_details FROM students WHERE id=$1 FOR UPDATE',
+      'SELECT name,profile_details FROM students WHERE id=$1 FOR UPDATE',
       [studentId]
     );
     if (!existing.rows[0]) {
@@ -3153,6 +3188,8 @@ app.patch('/api/admin/students/:id/verification', requireAdmin, async (req, res)
 
     const currentProfile = existing.rows[0].profile_details || {};
     const pending = currentProfile.pendingChanges?.profile;
+    const previousStatus = normalizeVerificationStatus(currentProfile.verificationStatus, 'pending');
+    const shouldNotifyStudent = status !== 'pending' && status !== previousStatus;
     const profile = withVerificationState(
       status === 'approved' && pending?.profileDetails
         ? pending.profileDetails
@@ -3209,6 +3246,20 @@ app.patch('/api/admin/students/:id/verification', requireAdmin, async (req, res)
          WHERE id=$2 RETURNING id,profile_details`,
         [JSON.stringify(profile), studentId]
       );
+    }
+
+    if (shouldNotifyStudent) {
+      const approved = status === 'approved';
+      await createNotification(client, {
+        recipientRole: 'student',
+        recipientId: studentId,
+        type: 'profile_verification',
+        title: approved ? 'Profile approved' : 'Profile needs updates',
+        message: approved
+          ? 'Your profile has been approved by the admin team.'
+          : 'Your profile was not approved. Please review your profile and resubmit the required updates.',
+        dedupeKey: `profile-verification-${studentId}-${profile.reviewedAt}`
+      });
     }
 
     await client.query('COMMIT');
