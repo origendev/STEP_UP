@@ -262,7 +262,13 @@ async function viewStudentPerformance(studentId){
         const preview=doc.data.startsWith('data:application/pdf')
           ?`<iframe class="review-document" src="${esc(doc.data)}" title="${esc(doc.label)}"></iframe>`
           :`<img class="review-document-image" src="${esc(doc.data)}" alt="${esc(doc.label)}">`;
-        openModal(doc.label,`${preview}<div class="form-actions"><button type="button" class="btn" id="cancelModal">Close</button></div>`,async()=>{});
+        const previewModal=document.createElement('div');
+        previewModal.className='modal document-preview-modal';
+        previewModal.innerHTML=`<div class="modal-card"><button type="button" class="close" data-close-document-preview aria-label="Close document preview">×</button><h2>${esc(doc.label)}</h2>${preview}<div class="form-actions"><button type="button" class="btn" data-close-document-preview>Close</button></div></div>`;
+        previewModal.addEventListener('click',event=>{
+          if(event.target===previewModal||event.target.closest('[data-close-document-preview]'))previewModal.remove();
+        });
+        document.body.append(previewModal);
         return;
       }
       const decision=approve||reject;

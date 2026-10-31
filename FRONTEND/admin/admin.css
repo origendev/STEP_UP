@@ -73,3 +73,11 @@
 .admin-loading{min-height:180px;display:flex;align-items:center;justify-content:center;gap:12px;color:var(--muted);font-weight:600}
 .admin-loading-spinner{width:20px;height:20px;border:2px solid rgba(148,163,184,.35);border-top-color:var(--primary);border-radius:50%;animation:admin-spin .75s linear infinite}
 @keyframes admin-spin{to{transform:rotate(360deg)}}
+.brand{flex-direction:column;align-items:flex-start;gap:8px}
+.brand-logo{display:block;width:166px;height:58px;object-fit:contain;padding:7px 9px;border-radius:9px;background:#fff}
+.brand span{padding-left:2px}
+.document-preview-modal{z-index:11}
+.document-preview-modal .modal-card{width:min(1000px,96vw)}
+.document-preview-modal h2{margin:0 40px 16px 0}
+.review-document{display:block;width:100%;height:min(70vh,760px);border:0;background:#f4f7fc}
+.review-document-image{display:block;max-width:100%;max-height:70vh;margin:0 auto;object-fit:contain}
