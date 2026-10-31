@@ -157,6 +157,33 @@ CREATE TABLE IF NOT EXISTS student_skill_certificates (
 CREATE INDEX IF NOT EXISTS idx_student_skill_certificates_review
   ON student_skill_certificates(status, submitted_at DESC);
 
+CREATE TABLE IF NOT EXISTS admin_skill_courses (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  url TEXT NOT NULL,
+  description TEXT NOT NULL,
+  certificate_label TEXT NOT NULL DEFAULT 'Certificate',
+  course_type TEXT NOT NULL CHECK (course_type IN ('general','department','programming')),
+  category TEXT NOT NULL,
+  group_name TEXT,
+  language TEXT,
+  level TEXT,
+  departments TEXT[] NOT NULL DEFAULT '{}',
+  study_years SMALLINT[] NOT NULL DEFAULT '{1,2,3,4}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_skill_courses_provider_title
+  ON admin_skill_courses(LOWER(provider), LOWER(title));
+CREATE INDEX IF NOT EXISTS idx_admin_skill_courses_created_at
+  ON admin_skill_courses(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_hidden_skill_courses (
+  course_id TEXT PRIMARY KEY,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS password_reset_otps (
   id BIGSERIAL PRIMARY KEY,
   student_id BIGINT NOT NULL REFERENCES students(id) ON DELETE CASCADE,

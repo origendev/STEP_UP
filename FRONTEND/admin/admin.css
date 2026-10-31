@@ -97,3 +97,23 @@
 #clearApplications:disabled{opacity:.5;cursor:not-allowed;transform:none}
 @media(max-width:700px){.applications-toolbar{grid-template-columns:minmax(0,1fr);align-items:stretch}.application-toolbar-actions{justify-content:space-between}}
 @media(max-width:420px){.application-toolbar-actions{align-items:stretch}.application-toolbar-actions>*{flex:1}}
+
+.skill-course-toolbar{align-items:center}
+.skill-course-toolbar p{margin:5px 0 0;font-size:12px}
+.skill-course-toolbar-copy{display:grid;gap:3px}
+.skill-course-search-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.skill-course-search-row .search{flex:1;min-width:0}
+.skill-theme-pill{margin-top:5px;background:hsl(var(--skill-theme-hue,260) 70% 95%);color:hsl(var(--skill-theme-hue,260) 55% 38%)}
+.skill-course-form .field small{color:var(--muted);font-size:11px;line-height:1.45}
+.skill-course-form [hidden]{display:none}
+.skill-course-checks{display:flex;flex-wrap:wrap;gap:8px}
+.skill-course-check{display:inline-flex!important;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;background:var(--panel-solid);color:var(--text)!important;font-size:12px!important;cursor:pointer}
+.skill-course-check input{width:15px;height:15px;margin:0;accent-color:var(--primary)}
+.skill-theme-preview{display:grid;align-content:center;gap:4px;min-height:74px;padding:12px 14px;border-radius:12px;color:#fff;background:radial-gradient(circle at 85% 20%,rgba(255,255,255,.28),transparent 45%),linear-gradient(135deg,hsl(var(--skill-theme-hue,230) 62% 46%),hsl(calc(var(--skill-theme-hue,230) + 38) 66% 36%))}
+.skill-theme-preview span{font-size:8px;font-weight:700;letter-spacing:.13em;opacity:.8}
+.skill-theme-preview b{font-size:15px}
+.skill-course-workflow-note{margin:0;padding:11px 13px;border:1px solid rgba(91,92,240,.12);border-radius:10px;background:var(--primary-soft);font-size:12px;line-height:1.5;color:var(--muted)}
+.skill-course-hidden{background:rgba(229,72,77,.10);color:var(--danger)}
+.skill-course-row-hidden{opacity:.68}
+.skill-course-description{display:inline-block;max-width:260px;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+@media(max-width:600px){.skill-course-toolbar{align-items:stretch}.skill-course-toolbar .primary{width:100%}.skill-course-search-row{align-items:stretch;flex-direction:column}.skill-course-search-row .pill{align-self:flex-start}}

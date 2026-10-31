@@ -1,7 +1,7 @@
 <!-- ============================================================
      skills.html — Skills page: free courses with free certificates
-     Markup only. Cards are rendered by js/pages/skills.js from
-     js/data/skills.data.js
+     Markup only. Cards are rendered by js/pages/skills.js from the
+     curated catalog and courses managed by admins.
 
      Layout:  General courses  -> one row, scrolls sideways
               Department courses -> two rows, scrolls sideways
@@ -31,6 +31,16 @@
   <section class="sk-search-results" id="skSearchResults" aria-label="Course search results" hidden>
     <div class="sk-search-results-head"><h3>Matching courses</h3><span class="badge badge-violet" id="skSearchResultCount"></span></div>
     <div class="sk-search-results-grid" id="skSearchResultsList" aria-live="polite"></div>
+  </section>
+
+  <section class="sk-section sk-new-section" id="skNewSec" aria-labelledby="skNewTitle" hidden>
+    <div class="sk-sec-head">
+      <div>
+        <h3 id="skNewTitle">New courses</h3>
+        <p>Recently added by your admin team</p>
+      </div>
+    </div>
+    <div class="sk-scroller sk-one-row" id="skNewCourses" tabindex="0" role="region" aria-label="New courses"></div>
   </section>
 
   <!-- ===== General courses: title, then All / department chips, then the courses ===== -->

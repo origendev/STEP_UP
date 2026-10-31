@@ -1,6 +1,6 @@
 /* ============================================================
    skills.js — Skills page
-   Renders free courses (js/data/skills.data.js) into pages/skills.html.
+   Renders curated and admin-managed courses into pages/skills.html.
 
    Layout
      Title "General courses", then chips  All | CSE | IT | ...  then the courses (two rows, scrolls sideways)
@@ -48,9 +48,16 @@ function studentYear(){
    Signed-in submissions are stored for admin review; signed-out uploads stay local.
    Student files are limited to 1 MB each. */
 const certKey = () => 'stepupCerts:' + ((read('stepupStudent') || {}).reg_no || 'guest');
-const courseId = c => (c.company + '|' + c.title).toLowerCase();
+const hiddenCourseKey = 'stepupHiddenSkillCourses';
+const readHiddenCourseIds = () => {
+  const saved = read(hiddenCourseKey);
+  return new Set(Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : []);
+};
+const courseId = c => c.courseId || (c.company + '|' + c.title).toLowerCase();
 let certRecords = {};
 const courseMetadata = new Map();
+let adminCourses = [];
+let hiddenCourseIds = readHiddenCourseIds();
 function loadCerts(){ return certRecords; }
 function saveLocalCertificates(records){
   try{ localStorage.setItem(certKey(), JSON.stringify(records)); return true; }
@@ -83,10 +90,16 @@ const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" strok
 
 const CHECK = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
 const CLIP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.4-2.4L15 7"/></svg>';
+const NEW_COURSE_WINDOW = 7 * 24 * 60 * 60 * 1000;
+const isNewCourse = course => {
+  const createdAt = Date.parse(course.createdAt || '');
+  return Number.isFinite(createdAt) && createdAt <= Date.now() && Date.now() - createdAt < NEW_COURSE_WINDOW;
+};
 
 const state = { dept: 'ALL', year: 0, lang: 'Python', query: '' };
 const PROG_LEVELS = [{ key: 'Beginner' }, { key: 'Intermediate' }, { key: 'Advanced' }];
 let locked = false;   // true when the student's year is known: they only see their own year
+let studentDepartment = null;
 
 function ordinal(y){ return y + (y === 1 ? 'st' : y === 2 ? 'nd' : y === 3 ? 'rd' : 'th'); }
 
@@ -146,6 +159,13 @@ const TOPICS = [
   [/program|code|coding|software|algorithm|computer|cs50/, 'code', '', 230],
 ];
 function topicOf(c){
+  const themes = {
+    programming:['Programming',230], web:['Web',45], ai:['AI',275], data:['Data',160],
+    cloud:['Cloud',195], cybersecurity:['Cybersecurity',345], aptitude:['Aptitude',30],
+    communication:['Communication',330], electronics:['Electronics',175], electrical:['Electrical',50],
+    mechanical:['Mechanical',20], civil:['Civil',95], courses:['Courses',260]
+  };
+  if(themes[c.theme]) return { label:themes[c.theme][0], hue:themes[c.theme][1] };
   const text = [c.lang, c.title, c.desc, c.group].filter(Boolean).join(' ').toLowerCase();
   const t = TOPICS.find(r => r[0].test(text));
   const labels = {
@@ -204,6 +224,7 @@ function card(c){
       ${banner(c)}
       <div class="sk-top">
         <span class="sk-co">${esc(c.company)}</span>
+        ${isNewCourse(c) ? '<span class="sk-new-badge">NEW</span>' : ''}
       </div>
       <h4 class="sk-title">${esc(c.title)}</h4>
       <p class="sk-desc">${esc(c.desc)}</p>
@@ -251,6 +272,15 @@ function render(){
   const searchResults = $('#skSearchResults');
   const searchList = $('#skSearchResultsList');
   const searching = Boolean(query);
+  const curatedCourses = [...COURSES, ...PROG_COURSES].filter(course => !hiddenCourseIds.has(courseId(course)));
+  const allCourses = [...curatedCourses, ...adminCourses];
+  const newCourses = adminCourses.filter(course =>
+    isNewCourse(course) && yearOk(course) &&
+    (course.general || course.lang || !studentDepartment || course.depts === 'ALL' || course.depts.includes(studentDepartment))
+  );
+  const newSection = $('#skNewSec');
+  newSection.hidden = searching || !newCourses.length;
+  if(!searching) fill($('#skNewCourses'), newCourses, '');
 
   $$('#skTabs .sk-tab').forEach(b => {
     const on = b.dataset.tab === state.dept;
@@ -272,7 +302,7 @@ function render(){
   searchResults.hidden = !searching;
   $('#skSearchClear').hidden = !searching;
   if(searching){
-    const uniqueCourses = new Map([...COURSES, ...PROG_COURSES].filter(yearOk).map(course => [courseId(course), course]));
+    const uniqueCourses = new Map(allCourses.filter(yearOk).map(course => [courseId(course), course]));
     const terms = query.split(/\s+/).filter(Boolean);
     const matches = [...uniqueCourses.values()].filter(course => {
       const searchable = Object.values(course).flat().join(' ').toLowerCase();
@@ -291,16 +321,19 @@ function render(){
   const order = GENERAL_GROUPS.map(g => g.key);
   const showAll = state.dept === 'ALL';
   const deptLabel = DEPARTMENTS.find(d => d.key === state.dept)?.label || state.dept;
-  const general = COURSES.filter(c => c.general && yearOk(c))
+  const departmentCourses = [...curatedCourses.filter(c => !c.lang), ...adminCourses.filter(c => !c.lang)];
+  const programmingCourses = [...PROG_COURSES, ...adminCourses.filter(c => c.lang)];
+  const visibleProgrammingCourses = programmingCourses.filter(course => !hiddenCourseIds.has(courseId(course)));
+  const general = departmentCourses.filter(c => c.general && yearOk(c))
     .sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
-  const others = COURSES.filter(c => !c.general && yearOk(c) &&
+  const others = departmentCourses.filter(c => !c.general && yearOk(c) &&
     (showAll || c.depts === 'ALL' || c.depts.includes(state.dept)));
   const dept = showAll ? [...general, ...others] : others;
   $('#skDeptSub').textContent = showAll
     ? 'Showing general courses along with every department\'s courses'
     : `Showing ${deptLabel} courses`;
 
-  const programming = PROG_COURSES.filter(c => c.lang === state.lang && yearOk(c));
+  const programming = visibleProgrammingCourses.filter(c => c.lang === state.lang && yearOk(c));
   const visibleCount = new Set([...dept, ...programming].map(courseId)).size;
   $('#skCount').textContent = `${visibleCount} course${visibleCount === 1 ? '' : 's'}`;
   fill($('#skDept'), dept, showAll
@@ -318,7 +351,7 @@ function render(){
     b.setAttribute('aria-selected', on ? 'true' : 'false');
   });
     PROG_LEVELS.forEach(lv => {
-    const list = PROG_COURSES.filter(c =>
+    const list = visibleProgrammingCourses.filter(c =>
       c.lang === state.lang && (c.level || 'Beginner') === lv.key && yearOk(c));
     fill($('#skProgLevels' + lv.key), list, `${lv.key} ${state.lang} courses coming soon.`);
   });
@@ -337,9 +370,12 @@ export function mount(){
   const search = $('#skSearch');
   const clearSearch = $('#skSearchClear');
   state.query = '';
+  adminCourses = [];
+  hiddenCourseIds = readHiddenCourseIds();
   if(search) search.value = '';
 
   const mine = studentDept();
+  studentDepartment = mine;
   const myYear = studentYear();
   locked = myYear !== 0;
 
@@ -454,6 +490,29 @@ export function mount(){
   state.dept = 'ALL';   // opens on "All"; the student's own department is tagged in the chips
   state.year = myYear;
   render();
+  api('/skill-courses').then(response => {
+    hiddenCourseIds = new Set((response.data.hiddenCourseIds || []).filter(id => typeof id === 'string'));
+    try { localStorage.setItem(hiddenCourseKey, JSON.stringify([...hiddenCourseIds])); }
+    catch(error) { toast('Could not cache the student Skills catalog: ' + error.message); }
+    adminCourses = (response.data.courses || []).map(course => ({
+      id:course.id,
+      courseId:`admin-skill-${course.id}`,
+      title:course.title,
+      company:course.provider,
+      url:course.url,
+      desc:course.description,
+      cert:course.certificateLabel,
+      depts:course.departments,
+      years:course.years,
+      general:course.courseType === 'general',
+      group:course.groupName,
+      lang:course.language,
+      level:course.level,
+      theme:course.theme,
+      createdAt:course.createdAt
+    }));
+    render();
+  }).catch(error => toast('Could not load admin-added courses: ' + error.message));
   if(getToken()){
     api('/student/skill-certificates').then(async response => {
       const records = {};

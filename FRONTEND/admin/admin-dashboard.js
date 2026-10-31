@@ -1,3 +1,5 @@
+import { COURSES, PROG_COURSES } from '../js/data/skills.data.js?v=20261031a';
+
 const API_BASE = (window.STEPUP_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 const tokenKey='stepupAdminToken', adminKey='stepupAdmin';
 const token=sessionStorage.getItem(tokenKey); if(!token){location.href='admin-login.html';}
@@ -8,7 +10,7 @@ const yearLabel=year=>year?`${year}${Number(year)===1?'st':Number(year)===2?'nd'
 const admin=JSON.parse(sessionStorage.getItem(adminKey)||'{}'); $('#adminName').textContent=admin.name||admin.id||'Administrator'; $('#adminRole').textContent=admin.role||'Super Admin';
 function initials(name){return String(name||'SA').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()||'SA'}
 document.documentElement.dataset.theme='light'; try{localStorage.removeItem('stepupAdminTheme')}catch{} $('#adminAvatar').textContent=initials(admin.name||admin.id);
-const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles, documents and approvals'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],competitions:['Competitions','Publish competitions and manage student registrations'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
+const titles={overview:['Overview','StepUp placement platform control center'],students:['Students','Manage student accounts, profiles, documents and approvals'],jobs:['Jobs','Monitor vacancies and recruitment activity'],applications:['Applications','Track applications and pipeline status'],competitions:['Competitions','Publish competitions and manage student registrations'],skillcourses:['Skill Courses','Manage courses, links, student visibility and certificate submissions'],announcements:['Announcements','Publish updates to students and recruiters'],analytics:['Analytics','Placement and recruitment intelligence'],reports:['Reports','Export operational data for Excel and reporting'],analyticsreports:['Analytics & Reports','Placement insights and exportable platform data'],activity:['Activity Log','Audit administrator actions'],admins:['Admin Roles','Manage administrator accounts and permissions']};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800)}
 async function api(path,opt={}){const r=await fetch(API_BASE+path,{...opt,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`,...(opt.headers||{})}});let j={};try{j=await r.json()}catch{}if(r.status===401){sessionStorage.clear();location.href='admin-login.html';throw Error('Session expired.')}if(!r.ok)throw Error(j.error||'Request failed');return j.data}
 // Cancel page reads when navigation changes so late responses cannot render stale sections.
@@ -542,6 +544,135 @@ async function competitions(){
     }
   };
 }
+async function skillcourses(){
+  sectionHead('skillcourses');
+  const catalog=await api('/admin/skill-courses');
+  const themes=[
+    ['programming','Programming',230],['web','Web development',45],['ai','AI & machine learning',275],
+    ['data','Data & analytics',160],['cloud','Cloud & DevOps',195],['cybersecurity','Cybersecurity',345],
+    ['aptitude','Aptitude & reasoning',30],['communication','Communication',330],['electronics','Electronics',175],
+    ['electrical','Electrical',50],['mechanical','Mechanical',20],['civil','Civil',95],['courses','General courses',260]
+  ];
+  const departments=['CSE','IT','ECE','EEE','Mechanical','Civil'];
+  const typeLabel=value=>({general:'General',department:'Department',programming:'Programming'}[value]||value);
+  const yearsLabel=value=>Array.isArray(value)?value.map(yearLabel).join(', '):'—';
+  const hiddenIds=new Set(catalog.hiddenCourseIds||[]);
+  const curatedCatalog=new Map([...COURSES,...PROG_COURSES].map(course=>[
+    (course.company+'|'+course.title).toLowerCase(),course
+  ]));
+  const curatedCourses=[...curatedCatalog.entries()].map(([courseId,course])=>{
+    const courseType=course.lang?'programming':course.general?'general':'department';
+    const theme=course.lang?'programming':course.general?({communication:'communication',aptitude:'aptitude',digital:'ai'}[course.group]||'courses'):'courses';
+    return {
+      id:`curated-${courseId}`,courseId,isCurated:true,hidden:hiddenIds.has(courseId),
+      title:course.title,provider:course.company,url:course.url,description:course.desc,
+      certificateLabel:course.cert,courseType,theme,
+      groupName:course.group||'',language:course.lang||'',level:course.level||'Beginner',
+      departments:course.depts==='ALL'?departments:course.depts||[],years:course.years,createdAt:null
+    };
+  });
+  const data=[
+    ...curatedCourses,
+    ...(catalog.courses||[]).map(course=>({...course,isCurated:false,courseId:`admin-skill-${course.id}`,hidden:false}))
+  ];
+  setContent(`<div class="panel"><div class="toolbar skill-course-toolbar"><div><b>Student Skills catalog</b><p class="muted">Add new courses or remove and restore courses already shown to students. Course cards include certificate uploads and admin review.</p></div><button class="primary" id="newSkillCourse">+ Add Course</button></div><div class="skill-course-search-row"><input class="search" id="skillCourseSearch" placeholder="Search title, provider or theme"><span class="pill" id="skillCourseManagedCount"></span></div><div id="skillCourseTable"></div></div>`);
+  function draw(){
+    const query=($('#skillCourseSearch').value||'').trim().toLowerCase();
+    const rows=data.filter(item=>[item.title,item.provider,item.theme,item.courseType].join(' ').toLowerCase().includes(query));
+    $('#skillCourseManagedCount').textContent=`${data.filter(item=>!item.hidden).length} active courses`;
+    $('#skillCourseTable').innerHTML=table(['Course','Type / theme','Student access','Years','Catalog','Actions'],rows.map(item=>{
+      const theme=themes.find(value=>value[0]===item.theme)||themes[themes.length-1];
+      const access=item.courseType==='programming'?`${item.language} · ${item.level}`:item.courseType==='general'?`General · ${item.groupName}`:(item.departments||[]).join(', ');
+      const state=item.hidden?'<span class="pill skill-course-hidden">Removed</span>':'<span class="pill">Active</span>';
+      const action=item.isCurated
+        ?`<button class="btn ${item.hidden?'success':'danger'}" data-skill-course-visibility="${esc(item.courseId)}" data-hidden="${!item.hidden}">${item.hidden?'Restore':'Remove'}</button>`
+        :`<button class="btn danger" data-delete-skill-course="${item.id}">Remove</button>`;
+      return `<tr class="${item.hidden?'skill-course-row-hidden':''}"><td><b>${esc(item.title)}</b><br><small>${esc(item.provider)} · ${esc(item.certificateLabel||'Certificate')}</small><br><small class="skill-course-description">${esc(item.description||'')}</small></td><td>${esc(typeLabel(item.courseType))}<br><span class="pill skill-theme-pill" style="--skill-theme-hue:${theme[2]}">${esc(theme[1])}</span></td><td>${esc(access||'—')}</td><td>${esc(yearsLabel(item.years))}</td><td>${item.isCurated?'Curated catalog':`${state}<br><small>Added ${item.createdAt?new Date(item.createdAt).toLocaleDateString():'recently'}</small>`}</td><td><a class="btn" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Open link</a>${action}</td></tr>`;
+    }).join('')||empty('No managed courses yet. Add a course to publish it on the student Skills page.'));
+  }
+  draw();
+  $('#skillCourseSearch').oninput=draw;
+  $('#newSkillCourse').onclick=()=>{
+    const themeOptions=themes.map(([key,label])=>`<option value="${key}">${esc(label)}</option>`).join('');
+    const yearOptions=[[1,'1st Year'],[2,'2nd Year'],[3,'3rd Year'],[4,'4th Year']].map(([value,label])=>`<label class="skill-course-check"><input type="checkbox" name="years" value="${value}" checked><span>${label}</span></label>`).join('');
+    const departmentOptions=departments.map(department=>`<label class="skill-course-check"><input type="checkbox" name="departments" value="${department}"><span>${department}</span></label>`).join('');
+    openModal('Add Skill Course',`<div class="form-grid skill-course-form">
+      <div class="field"><label>Course title</label><input name="title" maxlength="160" placeholder="e.g. Introduction to Data Analytics" required></div>
+      <div class="field"><label>Provider / company</label><input name="provider" maxlength="120" placeholder="e.g. Google" required></div>
+      <div class="field full"><label>Course link</label><input name="url" type="url" placeholder="https://..." required></div>
+      <div class="field full"><label>Short description</label><textarea name="description" maxlength="2000" rows="3" required></textarea></div>
+      <div class="field"><label>Certificate / badge students can earn</label><input name="certificateLabel" maxlength="100" value="Certificate" required></div>
+      <div class="field"><label>Student Skills section</label><select name="courseType"><option value="department">Department course</option><option value="general">General course</option><option value="programming">Programming course</option></select></div>
+      <div class="field"><label>Course card theme</label><select name="theme">${themeOptions}</select><small>Controls the banner color and topic label on the student Skills page.</small><div class="skill-theme-preview" id="skillThemePreview"><span>COURSE THEME</span><b>Programming</b></div></div>
+      <div class="field skill-course-years"><label>Available to study years</label><div class="skill-course-checks">${yearOptions}</div></div>
+      <div class="field full skill-course-departments" hidden><label>Available to departments</label><div class="skill-course-checks">${departmentOptions}</div></div>
+      <div class="field skill-course-group" hidden><label>General courses group</label><select name="groupName"><option value="communication">Communication &amp; workplace skills</option><option value="aptitude">Aptitude &amp; reasoning</option><option value="digital">AI &amp; digital skills</option></select></div>
+      <div class="field skill-course-language" hidden><label>Programming language</label><select name="language"><option>Python</option><option>Java</option><option>C</option><option>C++</option></select></div>
+      <div class="field skill-course-level" hidden><label>Learning level</label><select name="level"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></div>
+      <p class="skill-course-workflow-note field full">After publishing, students can open the course link and attach a certificate or badge from its card. Submitted certificates continue through the existing admin review workflow.</p>
+    </div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Add course to student Skills</button></div>`,async form=>{
+      const courseType=form.elements.courseType.value;
+      const body={
+        title:form.elements.title.value,
+        provider:form.elements.provider.value,
+        url:form.elements.url.value,
+        description:form.elements.description.value,
+        certificateLabel:form.elements.certificateLabel.value,
+        courseType,
+        theme:form.elements.theme.value,
+        years:[...form.querySelectorAll('input[name="years"]:checked')].map(input=>Number(input.value)),
+        departments:courseType==='department'?[...form.querySelectorAll('input[name="departments"]:checked')].map(input=>input.value):[],
+        groupName:courseType==='general'?form.elements.groupName.value:'',
+        language:courseType==='programming'?form.elements.language.value:'',
+        level:courseType==='programming'?form.elements.level.value:''
+      };
+      const course=await api('/admin/skill-courses',{method:'POST',body:JSON.stringify(body)});
+      data.unshift(course);
+      toast('Course added to the student Skills page');
+      closeModal();
+      draw();
+    });
+    const syncCourseFields=()=>{
+      const form=$('#modalForm'),type=form.elements.courseType.value;
+      form.querySelector('.skill-course-departments').hidden=type!=='department';
+      form.querySelector('.skill-course-group').hidden=type!=='general';
+      form.querySelector('.skill-course-language').hidden=type!=='programming';
+      form.querySelector('.skill-course-level').hidden=type!=='programming';
+    };
+    const updateThemePreview=()=>{
+      const [key,label,hue]=themes.find(theme=>theme[0]===$('#modalForm').elements.theme.value)||themes[0];
+      const preview=$('#skillThemePreview');
+      preview.style.setProperty('--skill-theme-hue',hue);
+      preview.innerHTML=`<span>COURSE THEME</span><b>${esc(label)}</b>`;
+    };
+    $('#modalForm').onchange=event=>{
+      if(event.target.matches('[name="courseType"]'))syncCourseFields();
+      if(event.target.matches('[name="theme"]'))updateThemePreview();
+    };
+    syncCourseFields();
+    updateThemePreview();
+  };
+  $('#skillCourseTable').onclick=event=>{
+    const button=event.target.closest('[data-delete-skill-course]');
+    const visibility=event.target.closest('[data-skill-course-visibility]');
+    if(button){
+      const course=data.find(item=>String(item.id)===button.dataset.deleteSkillCourse);
+      if(!course||!confirm(`Remove "${course.title}" from the student Skills page? Previously submitted certificates and their review history will be kept.`))return;
+      api(`/admin/skill-courses/${button.dataset.deleteSkillCourse}`,{method:'DELETE'})
+        .then(()=>{data.splice(data.indexOf(course),1);draw();toast('Course removed from the student Skills page')})
+        .catch(error=>toast(error.message));
+      return;
+    }
+    if(visibility){
+      const course=data.find(item=>item.courseId===visibility.dataset.skillCourseVisibility);
+      const hidden=visibility.dataset.hidden==='true';
+      if(!course||!confirm(`${hidden?'Restore':'Remove'} "${course.title}" ${hidden?'to':'from'} the student Skills page?`))return;
+      api('/admin/skill-course-visibility',{method:'PATCH',body:JSON.stringify({courseId:course.courseId,hidden})})
+        .then(()=>{course.hidden=hidden;draw();toast(hidden?'Course removed from the student Skills page':'Course restored to the student Skills page')})
+        .catch(error=>toast(error.message));
+    }
+  };
+}
 async function drives(){sectionHead('drives');const [data,companiesData,jobsData]=await Promise.all([api('/admin/drives'),api('/admin/companies'),api('/admin/jobs')]);setContent(`<div class="panel"><div class="toolbar"><input class="search" id="driveSearch" placeholder="Search drives..."><button class="primary" id="newDrive">+ Create Drive</button></div><div id="driveTable"></div></div>`);function draw(){const q=($('#driveSearch').value||'').toLowerCase();$('#driveTable').innerHTML=table(['Drive','Company','Job','Date','Eligibility','Status','Actions'],data.filter(d=>[d.title,d.company_name,d.job_title].join(' ').toLowerCase().includes(q)).map(d=>`<tr><td>${esc(d.title)}</td><td>${esc(d.company_name||'—')}</td><td>${esc(d.job_title||'—')}</td><td>${esc(d.drive_date||'—')}</td><td>${esc(d.eligible_batch||'—')}</td><td><span class="pill">${esc(d.status)}</span></td><td><button class="btn" data-close="${d.id}">Close</button><button class="btn danger" data-del="${d.id}">Remove</button></td></tr>`).join('')||empty())}draw();$('#driveSearch').oninput=draw;$('#newDrive').onclick=()=>openModal('Create Placement Drive',`<div class="form-grid"><div class="field full"><label>Title</label><input name="title" required></div><div class="field"><label>Company</label><select name="companyId"><option value="">Select</option>${companiesData.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Job</label><select name="jobId"><option value="">Select</option>${jobsData.map(j=>`<option value="${j.id}">${esc(j.title)} — ${esc(j.company_name)}</option>`).join('')}</select></div><div class="field"><label>Drive Date</label><input name="driveDate" type="date"></div><div class="field"><label>Eligible Batch</label><input name="eligibleBatch" placeholder="2027"></div><div class="field"><label>Minimum CGPA</label><input name="minCgpa" type="number" step="0.01"></div><div class="field"><label>Departments</label><input name="departments" placeholder="CSE, IT, ECE"></div><div class="field"><label>Location</label><input name="location"></div><div class="field full"><label>Description</label><textarea name="description"></textarea></div><div class="field"><label>Backlogs Allowed</label><select name="backlogsAllowed"><option value="false">No</option><option value="true">Yes</option></select></div></div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Create Drive</button></div>`,async f=>{const b=formToObj(f);b.departments=b.departments.split(',').map(x=>x.trim()).filter(Boolean);b.backlogsAllowed=b.backlogsAllowed==='true';await api('/admin/drives',{method:'POST',body:JSON.stringify(b)});toast('Placement drive created');closeModal();drives()});$('#driveTable').onclick=async e=>{const c=e.target.closest('[data-close]');const d=e.target.closest('[data-del]');if(c){await api('/admin/drives/'+c.dataset.close,{method:'PATCH',body:JSON.stringify({status:'Closed'})});toast('Drive closed');drives()}if(d)confirmDelete('this drive',async()=>{await api('/admin/drives/'+d.dataset.del,{method:'DELETE'});toast('Drive removed');drives()})}}
 async function announcements(){sectionHead('announcements');const data=await api('/admin/announcements');setContent(`<div class="panel"><div class="toolbar"><span class="muted">Keep students informed about placement activity.</span><button class="primary" id="newAnn">+ Publish Announcement</button></div>${table(['Title','Audience','Target year','Published','Created','Actions'],data.map(a=>`<tr><td><b>${esc(a.title)}</b><br><small>${esc(a.message).slice(0,90)}</small></td><td>${esc(a.audience)}</td><td>${esc(yearLabel(a.target_year))}</td><td>${a.published?'Yes':'No'}</td><td>${new Date(a.created_at).toLocaleDateString()}</td><td><button class="btn" data-toggle="${a.id}" data-pub="${!a.published}">${a.published?'Unpublish':'Publish'}</button><button class="btn danger" data-del="${a.id}">Remove</button></td></tr>`).join('')||empty())}</div>`);$('#newAnn').onclick=()=>openModal('Publish Announcement',`<div class="form-grid"><div class="field full"><label>Title</label><input name="title" required></div><div class="field"><label>Audience</label><select name="audience"><option>All</option><option>Students</option><option>Companies</option></select></div><div class="field"><label>Target year</label><select name="targetYear"><option value="">All years</option><option value="1">1st Year</option><option value="2">2nd Year</option><option value="3">3rd Year</option><option value="4">4th Year</option></select></div><div class="field full"><label>Message</label><textarea name="message" required></textarea></div></div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Publish</button></div>`,async f=>{await api('/admin/announcements',{method:'POST',body:JSON.stringify(formToObj(f))});toast('Announcement published');closeModal();announcements()});$('.panel').onclick=async e=>{const t=e.target.closest('[data-toggle]'),d=e.target.closest('[data-del]');if(t){await api('/admin/announcements/'+t.dataset.toggle,{method:'PATCH',body:JSON.stringify({published:t.dataset.pub==='true'})});announcements()}if(d)confirmDelete('this announcement',async()=>{await api('/admin/announcements/'+d.dataset.del,{method:'DELETE'});announcements()})}}
 async function interviews(){sectionHead('interviews');const [data,studentsData,companiesData,jobsData]=await Promise.all([api('/admin/interviews'),api('/admin/students'),api('/admin/companies'),api('/admin/jobs')]);setContent(`<div class="panel"><div class="toolbar"><span class="muted">Schedule online or campus interviews.</span><button class="primary" id="newInterview">+ Schedule Interview</button></div>${table(['Student','Company','Job','Date','Mode','Status','Actions'],data.map(i=>`<tr><td>${esc(i.student_name)}<br><small>${esc(i.reg_no)}</small></td><td>${esc(i.company_name||'—')}</td><td>${esc(i.job_title||'—')}</td><td>${i.interview_date?new Date(i.interview_date).toLocaleString():'—'}</td><td>${esc(i.mode)}</td><td>${esc(i.status)}</td><td><select class="int-status" data-id="${i.id}">${['Scheduled','Completed','Cancelled','No Show'].map(x=>`<option ${x===i.status?'selected':''}>${x}</option>`).join('')}</select></td></tr>`).join('')||empty())}</div>`);$('#newInterview').onclick=()=>openModal('Schedule Interview',`<div class="form-grid"><div class="field"><label>Student</label><select name="studentId">${studentsData.map(s=>`<option value="${s.id}">${esc(s.name)} (${esc(s.reg_no)})</option>`).join('')}</select></div><div class="field"><label>Company</label><select name="companyId"><option value="">Select</option>${companiesData.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></div><div class="field"><label>Job</label><select name="jobId"><option value="">Select</option>${jobsData.map(j=>`<option value="${j.id}">${esc(j.title)}</option>`).join('')}</select></div><div class="field"><label>Date & Time</label><input name="interviewDate" type="datetime-local" required></div><div class="field"><label>Mode</label><select name="mode"><option>Online</option><option>Campus</option><option>Phone</option></select></div><div class="field"><label>Meeting Link</label><input name="meetingLink"></div><div class="field"><label>Interviewer</label><input name="interviewer"></div><div class="field full"><label>Notes</label><textarea name="notes"></textarea></div></div><div class="form-actions"><button class="primary">Schedule</button></div>`,async f=>{await api('/admin/interviews',{method:'POST',body:JSON.stringify(formToObj(f))});toast('Interview scheduled');closeModal();interviews()});$('.panel').onchange=async e=>{if(e.target.matches('.int-status')){await api('/admin/interviews/'+e.target.dataset.id,{method:'PATCH',body:JSON.stringify({status:e.target.value})});toast('Interview updated')}}}
@@ -697,7 +828,7 @@ function formToObj(f){const o={};new FormData(f).forEach((v,k)=>o[k]=v);return o
 function openModal(title,html,onSubmit){$('#modalTitle').textContent=title;$('#modalForm').innerHTML=html;$('#modal').classList.remove('hidden');$('#cancelModal')?.addEventListener('click',closeModal);$('#modalForm').onsubmit=async e=>{e.preventDefault();try{await onSubmit(e.target)}catch(err){toast(err.message)}}}
 function closeModal(){const preview=$('#competitionImagePreview');if(preview?.src.startsWith('blob:'))URL.revokeObjectURL(preview.src);$('#modal').classList.add('hidden');$('#modalForm').innerHTML=''}$('#closeModal').onclick=closeModal;
 function downloadCSV(name,rows){if(!rows.length)return toast('No data to export');const keys=[...new Set(rows.flatMap(x=>Object.keys(x)))];const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]??'').replace(/"/g,'""').replace(/\n/g,' ')}"`).join(','))].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=name;a.click();URL.revokeObjectURL(a.href)}
-const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,competitions,announcements,analyticsreports,activity,admins};
+const loaders={overview:async()=>{sectionHead('overview');setContent(`<div class="stats" id="stats"></div><div class="panel overview-grid"><div><h3>Platform Overview</h3><div id="overviewText">Loading...</div></div><div><h3>Quick Actions</h3><div class="quick"><button data-go="students">Add Student</button><button data-go="announcements">Publish Announcement</button></div></div></div>`);await loadOverview()},students,jobs,applications,competitions,skillcourses,announcements,analyticsreports,activity,admins};
 async function navigate(name){
   const sequence=++navigationSequence;
   navigationController?.abort();

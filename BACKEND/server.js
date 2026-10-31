@@ -172,6 +172,21 @@ async function notifyStudentsAboutCompetition(db, competition) {
   );
 }
 
+async function notifyStudentsAboutSkillCourse(db, course) {
+  await db.query(
+    `INSERT INTO notifications
+       (recipient_role,recipient_id,type,title,message,dedupe_key)
+     SELECT 'student',s.id::text,'learning','New course: '||$1,
+            $2||' added a new course to Skills. Open the Skills page to view the course and attach your certificate after completion.',
+            'skill-course-'||$3||'-student-'||s.id
+     FROM students s
+     WHERE s.study_year::smallint=ANY($4::smallint[])
+       AND ($5::boolean=FALSE OR s.department=ANY($6::text[]))
+     ON CONFLICT(dedupe_key) DO NOTHING`,
+    [course.title, course.provider, course.id, course.study_years, course.course_type === 'department', course.departments]
+  );
+}
+
 function studentHasBacklogs(student) {
   const profile = student.profile_details && typeof student.profile_details === 'object'
     ? student.profile_details
@@ -850,6 +865,33 @@ async function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_student_skill_certificates_review
       ON student_skill_certificates(status, submitted_at DESC);
+
+    CREATE TABLE IF NOT EXISTS admin_skill_courses (
+      id BIGSERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      url TEXT NOT NULL,
+      description TEXT NOT NULL,
+      certificate_label TEXT NOT NULL DEFAULT 'Certificate',
+      course_type TEXT NOT NULL CHECK (course_type IN ('general','department','programming')),
+      category TEXT NOT NULL,
+      group_name TEXT,
+      language TEXT,
+      level TEXT,
+      departments TEXT[] NOT NULL DEFAULT '{}',
+      study_years SMALLINT[] NOT NULL DEFAULT '{1,2,3,4}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_skill_courses_provider_title
+      ON admin_skill_courses(LOWER(provider), LOWER(title));
+    CREATE INDEX IF NOT EXISTS idx_admin_skill_courses_created_at
+      ON admin_skill_courses(created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS admin_hidden_skill_courses (
+      course_id TEXT PRIMARY KEY,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
 
     CREATE TABLE IF NOT EXISTS job_applications (
       id BIGSERIAL PRIMARY KEY,
@@ -2609,6 +2651,186 @@ app.post('/api/admin/announcements', requireAdmin, async(req,res)=>{
 app.patch('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('UPDATE announcements SET published=COALESCE($1,published),updated_at=NOW() WHERE id=$2 RETURNING *',[typeof req.body.published==='boolean'?req.body.published:null,req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not update announcement.'});}});
 app.delete('/api/admin/announcements/:id', requireAdmin, async(req,res)=>{try{const r=await pool.query('DELETE FROM announcements WHERE id=$1 RETURNING id,title',[req.params.id]);if(!r.rows[0])return res.status(404).json({error:'Announcement not found.'});await adminCrudLog(req,'Announcement removed','announcement',req.params.id,r.rows[0].title);res.json({data:r.rows[0]});}catch(e){console.error(e);res.status(500).json({error:'Could not remove announcement.'});}});
 
+const SKILL_COURSE_TYPES = new Set(['general','department','programming']);
+const SKILL_COURSE_THEMES = new Set(['programming','web','ai','data','cloud','cybersecurity','aptitude','communication','electronics','electrical','mechanical','civil','courses']);
+const SKILL_COURSE_DEPARTMENTS = new Set(['CSE','IT','ECE','EEE','Mechanical','Civil']);
+const SKILL_COURSE_GROUPS = new Set(['communication','aptitude','digital']);
+const SKILL_COURSE_LANGUAGES = new Set(['Python','Java','C','C++']);
+const SKILL_COURSE_LEVELS = new Set(['Beginner','Intermediate','Advanced']);
+function normalizeSkillCourse(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    provider: row.provider,
+    url: row.url,
+    description: row.description,
+    certificateLabel: row.certificate_label,
+    courseType: row.course_type,
+    theme: row.category,
+    groupName: row.group_name,
+    language: row.language,
+    level: row.level,
+    departments: row.departments,
+    years: row.study_years,
+    createdAt: row.created_at
+  };
+}
+app.get('/api/skill-courses', async (_req, res) => {
+  try {
+    const [courses, hidden] = await Promise.all([
+      pool.query(
+        `SELECT id,title,provider,url,description,certificate_label,course_type,category,
+                group_name,language,level,departments,study_years,created_at
+         FROM admin_skill_courses ORDER BY created_at DESC`
+      ),
+      pool.query('SELECT course_id FROM admin_hidden_skill_courses')
+    ]);
+    res.json({
+      data: {
+        courses: courses.rows.map(normalizeSkillCourse),
+        hiddenCourseIds: hidden.rows.map(row => row.course_id)
+      }
+    });
+  } catch (e) {
+    console.error('Could not load admin-added skill courses:', e);
+    res.status(500).json({ error: 'Could not load additional skill courses.' });
+  }
+});
+app.get('/api/admin/skill-courses', requireAdmin, async (_req, res) => {
+  try {
+    const [courses, hidden] = await Promise.all([
+      pool.query(
+        `SELECT id,title,provider,url,description,certificate_label,course_type,category,
+                group_name,language,level,departments,study_years,created_at
+         FROM admin_skill_courses ORDER BY created_at DESC`
+      ),
+      pool.query('SELECT course_id FROM admin_hidden_skill_courses')
+    ]);
+    res.json({
+      data: {
+        courses: courses.rows.map(normalizeSkillCourse),
+        hiddenCourseIds: hidden.rows.map(row => row.course_id)
+      }
+    });
+  } catch (e) {
+    console.error('Could not load admin-managed skill courses:', e);
+    res.status(500).json({ error: 'Could not load managed skill courses.' });
+  }
+});
+app.patch('/api/admin/skill-course-visibility', requireAdmin, async (req, res) => {
+  const courseId = typeof req.body?.courseId === 'string' ? req.body.courseId.trim() : '';
+  const hidden = req.body?.hidden;
+  if (!courseId || courseId.length > 500 || !courseId.includes('|') || typeof hidden !== 'boolean') {
+    return res.status(400).json({ error: 'Provide a valid built-in course and visibility state.' });
+  }
+  try {
+    if (hidden) {
+      await pool.query(
+        `INSERT INTO admin_hidden_skill_courses(course_id) VALUES($1)
+         ON CONFLICT(course_id) DO UPDATE SET updated_at=NOW()`,
+        [courseId]
+      );
+    } else {
+      await pool.query('DELETE FROM admin_hidden_skill_courses WHERE course_id=$1', [courseId]);
+    }
+    await adminCrudLog(req, hidden ? 'Built-in skill course hidden' : 'Built-in skill course restored', 'skill_course', courseId);
+    res.json({ data: { courseId, hidden } });
+  } catch (e) {
+    console.error('Could not update built-in skill course visibility:', e);
+    res.status(500).json({ error: 'Could not update built-in course visibility.' });
+  }
+});
+app.post('/api/admin/skill-courses', requireAdmin, async (req, res) => {
+  const body = req.body || {};
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const provider = typeof body.provider === 'string' ? body.provider.trim() : '';
+  const url = normalizeHttpUrl(body.url);
+  const description = typeof body.description === 'string' ? body.description.trim() : '';
+  const certificateLabel = typeof body.certificateLabel === 'string' ? body.certificateLabel.trim() : '';
+  const courseType = typeof body.courseType === 'string' ? body.courseType : '';
+  const theme = typeof body.theme === 'string' ? body.theme : '';
+  const groupName = typeof body.groupName === 'string' ? body.groupName : '';
+  const language = typeof body.language === 'string' ? body.language : '';
+  const level = typeof body.level === 'string' ? body.level : '';
+  const departments = Array.isArray(body.departments) ? [...new Set(body.departments)] : [];
+  const years = Array.isArray(body.years) ? [...new Set(body.years.map(Number))] : [];
+  if (!title || title.length > 160 || !provider || provider.length > 120 || !description || description.length > 2000) {
+    return res.status(400).json({ error: 'Enter a course title (160 characters max), provider (120 max), and description (2,000 max).' });
+  }
+  if (!url || url.length > 2048) return res.status(400).json({ error: 'Enter a valid HTTP or HTTPS course link.' });
+  if (!certificateLabel || certificateLabel.length > 100) return res.status(400).json({ error: 'Enter the certificate or badge students can earn (100 characters max).' });
+  if (!SKILL_COURSE_TYPES.has(courseType) || !SKILL_COURSE_THEMES.has(theme)) {
+    return res.status(400).json({ error: 'Choose a valid course type and visual theme.' });
+  }
+  if (!years.length || years.some(year => !Number.isInteger(year) || year < 1 || year > 4)) {
+    return res.status(400).json({ error: 'Select at least one valid study year.' });
+  }
+  if (courseType === 'department' &&
+      (!departments.length || departments.some(department => !SKILL_COURSE_DEPARTMENTS.has(department)))) {
+    return res.status(400).json({ error: 'Select at least one valid department for this course.' });
+  }
+  if (courseType === 'general' && !SKILL_COURSE_GROUPS.has(groupName)) {
+    return res.status(400).json({ error: 'Choose a valid General courses section.' });
+  }
+  if (courseType === 'programming' &&
+      (!SKILL_COURSE_LANGUAGES.has(language) || !SKILL_COURSE_LEVELS.has(level))) {
+    return res.status(400).json({ error: 'Choose a programming language and learning level.' });
+  }
+  try {
+    const client = await pool.connect();
+    let result;
+    try {
+      await client.query('BEGIN');
+      result = await client.query(
+      `INSERT INTO admin_skill_courses
+         (title,provider,url,description,certificate_label,course_type,category,group_name,
+          language,level,departments,study_years)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING id,title,provider,url,description,certificate_label,course_type,category,
+                 group_name,language,level,departments,study_years,created_at`,
+        [
+          title, provider, url, description, certificateLabel, courseType, theme,
+          courseType === 'general' ? groupName : null,
+          courseType === 'programming' ? language : null,
+          courseType === 'programming' ? level : null,
+          courseType === 'department' ? departments : [],
+          years
+        ]
+      );
+      await notifyStudentsAboutSkillCourse(client, result.rows[0]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+    const course = normalizeSkillCourse(result.rows[0]);
+    await adminCrudLog(req, 'Skill course created', 'skill_course', course.id, `${provider}: ${title}`);
+    res.status(201).json({ data: course });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'A course with this provider and title already exists.' });
+    console.error('Could not create admin-managed skill course:', e);
+    res.status(500).json({ error: 'Could not create the skill course.' });
+  }
+});
+app.delete('/api/admin/skill-courses/:id', requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Invalid skill course ID.' });
+  try {
+    const result = await pool.query(
+      'DELETE FROM admin_skill_courses WHERE id=$1 RETURNING id,title,provider',
+      [id]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Skill course not found.' });
+    await adminCrudLog(req, 'Skill course removed', 'skill_course', id, `${result.rows[0].provider}: ${result.rows[0].title}`);
+    res.json({ data: result.rows[0] });
+  } catch (e) {
+    console.error('Could not remove admin-managed skill course:', e);
+    res.status(500).json({ error: 'Could not remove the skill course.' });
+  }
+});
+
 app.get('/api/admin/competitions', requireAdmin, async (_req, res) => {
   try {
     const result = await pool.query('SELECT id,title,description,deadline,target_year,published,created_at FROM competitions ORDER BY created_at DESC');
@@ -2697,6 +2919,7 @@ function notificationGoto(type) {
   if (type === 'profile_verification') return 'profile';
   if (type === 'competition') return 'home';
   if (type === 'announcement') return 'home';
+  if (type === 'learning') return 'skills';
   return 'progress';
 }
 
@@ -2763,7 +2986,7 @@ async function loadNotifications(res, role, recipientId) {
   res.json({
     data: result.rows.map(item => ({
       id: item.id,
-      type: item.type === 'announcement' ? 'announcement' : item.type === 'job' ? 'job' : item.type === 'competition' ? 'competition' : item.type === 'profile_verification' ? 'profile_verification' : 'status',
+      type: item.type === 'announcement' ? 'announcement' : item.type === 'job' ? 'job' : item.type === 'competition' ? 'competition' : item.type === 'learning' ? 'learning' : item.type === 'profile_verification' ? 'profile_verification' : 'status',
       title: item.title,
       text: item.message,
       time: item.created_at,

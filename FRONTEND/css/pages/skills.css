@@ -138,6 +138,9 @@
   font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
   color:var(--violet-700);
 }
+.sk-new-badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--green-bg);color:var(--green);font-size:10px;font-weight:800;letter-spacing:.08em}
+.sk-new-section{padding:16px;border:1px solid rgba(111,78,214,.14);border-radius:16px;background:linear-gradient(135deg,rgba(111,78,214,.055),rgba(255,255,255,.4))}
+.sk-new-section[hidden]{display:none}
 .sk-title{ margin:2px 0 0; font-size:16px; line-height:1.3; font-weight:700; }
 .sk-desc{ margin:0; font-size:13.5px; line-height:1.5; color:var(--ink-soft); flex:1; }
 .sk-bottom{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:8px; flex-wrap:wrap; }

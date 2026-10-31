@@ -9,6 +9,7 @@ Express + PostgreSQL API for the StepUp Company Portal and public Jobs page.
 - Companies can edit and delete only their own listings.
 - Public Jobs page reads from PostgreSQL, so changes are shared instead of being stored in a JS data file.
 - Student profile edits—including Details and More content—and uploaded 10th/12th marksheets and Aadhaar proof are held for admin review; approved changes update the verified profile, and skill-course certificates are stored for admin review.
+- Admins can add student skill courses with links, themes, and year/department targeting; matching students receive a notification, and new courses are highlighted for seven days. Admins can also hide or restore curated courses without deleting existing certificate reviews.
 - Student documents, course certificates, profile proof images, and resumes can be up to 1 MB each. Supported images at or below the limit keep their original bytes and resolution; larger images use high-quality WebP/JPEG compression with a minimum resolution floor. PDFs are kept unchanged and must fit the limit.
 - Public job detail page (`job-details.html?id=<job-id>`).
 - Company profile information (industry/location/description) is included in public listings.
