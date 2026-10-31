@@ -856,11 +856,13 @@ export function initChatbot() {
       <div class="sb-mission-screen-top"><span class="sb-mission-screen-icon">${ICON.mission}</span><div><small>YOUR STEPUP NEXT STEPS</small><h2>Tasks for this week</h2></div></div>
       <p class="sb-mission-screen-intro">Start with one step. Your progress only counts when the work is done.</p>
       ${missionMarkup()}
-      <details class="sb-extra-tools" data-career-tools${showingCareerTools ? ' open' : ''}>
-        <summary>Career map, opportunities &amp; small wins</summary>
+      <div class="sb-career-default">
         ${careerProgressMarkup()}
-        ${jobMatchMarkup()}
         ${careerWinsMarkup()}
+      </div>
+      <details class="sb-extra-tools" data-career-tools${showingCareerTools ? ' open' : ''}>
+        <summary>Opportunity explanations</summary>
+        ${jobMatchMarkup()}
       </details>
     </div>`;
   }
@@ -1042,7 +1044,7 @@ export function initChatbot() {
             <div class="sb-orb" aria-hidden="true"><span></span><img src="${ROBOT}" alt=""></div>
             <span class="sb-welcome-badge">${personalized ? 'PERSONALIZED FOR YOU' : 'YOUR CAREER, IN FOCUS'}</span>
           </div>
-          <p class="sb-eyebrow">YOUR STEPUP PLACEMENT COPILOT</p>
+          <p class="sb-eyebrow">Step</p>
           <h2>${name ? `Hey ${esc(name)},` : 'Meet your next step.'}<br><span>let’s make it count.</span></h2>
           <p class="sb-welcome-copy">${personalized
             ? 'Turn your goals into a clear plan. Step can use your study path, skills and live StepUp opportunities to make its guidance relevant.'
