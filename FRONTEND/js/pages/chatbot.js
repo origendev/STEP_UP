@@ -423,6 +423,8 @@ export function initChatbot() {
   let missionLoading = false;
   let missionError = '';
   let showingMission = false;
+  let showingWeeklyTasks = false;
+  let showingCareerTools = false;
   let showingChallenge = false;
   let challengeSession = null;
   let winMessage = '';
@@ -666,7 +668,7 @@ export function initChatbot() {
     const statuses = applications.map(application => String(application.status || '').toLowerCase());
     const milestones = [
       { title: 'Profile ready', detail: 'Your StepUp profile is complete.', done: Boolean(student.profileCompleted), href: '#/profile' },
-      { title: 'Skills added', detail: `${Array.isArray(student.skills) ? student.skills.length : 0} skills on your profile.`, done: Boolean(student.skills?.length), href: '#/profile' },
+      { title: 'Skills added', detail: `${Array.isArray(student.skills) ? student.skills.length : 0} skill${student.skills?.length === 1 ? '' : 's'} on your profile.`, done: Boolean(student.skills?.length), href: '#/profile' },
       { title: 'Project experience', detail: `${student.projectCount || 0} project${student.projectCount === 1 ? '' : 's'} added.`, done: Boolean(student.projectCount), href: '#/profile' },
       { title: 'First application', detail: applications.length ? `${applications.length} application${applications.length === 1 ? '' : 's'} in progress.` : 'Your applications will show here.', done: applications.length > 0, href: '#/progress' },
       { title: 'Interview stage', detail: statuses.some(value => value.includes('interview')) ? 'You have reached an interview stage.' : 'Keep preparing; interview updates appear here.', done: statuses.some(value => value.includes('interview')), href: '#/progress' },
@@ -717,17 +719,25 @@ export function initChatbot() {
     </section>`;
   }
 
+  function weeklyTasksSummary() {
+    if (missionLoading && !missionContext) return 'Loading your tasks…';
+    if (!missionTasks.length) return 'Your weekly next steps';
+    const completed = missionTasks.filter(task => missionDone.has(task.id)).length;
+    return `${completed} of ${missionTasks.length} complete`;
+  }
+
   function missionMarkup(compact = false) {
+    const missionLabel = compact ? 'WEEKLY TASKS' : 'TASKS FOR THIS WEEK';
     if (missionLoading && !missionContext) {
       return `<section class="sb-mission sb-mission-loading" aria-live="polite">
-        <div class="sb-mission-head"><span class="sb-mission-kicker">THIS WEEK'S PLACEMENT MISSION</span><span class="sb-mission-week">${esc(currentMissionWeek())}</span></div>
+        <div class="sb-mission-head"><span class="sb-mission-kicker">${missionLabel}</span><span class="sb-mission-week">${esc(currentMissionWeek())}</span></div>
         <p>Building a plan around your StepUp profile and live opportunities…</p>
         <div class="sb-mission-skeleton"></div><div class="sb-mission-skeleton short"></div>
       </section>`;
     }
     if (missionError && !missionContext) {
       return `<section class="sb-mission sb-mission-error" role="status">
-        <div class="sb-mission-head"><span class="sb-mission-kicker">THIS WEEK'S PLACEMENT MISSION</span></div>
+        <div class="sb-mission-head"><span class="sb-mission-kicker">${missionLabel}</span></div>
         <p>${esc(missionError)}</p>
         <button type="button" class="sb-mission-retry" data-mission-retry>Try again</button>
       </section>`;
@@ -753,7 +763,7 @@ export function initChatbot() {
 
     return `<section class="sb-mission${compact ? ' sb-mission-compact' : ''}" aria-label="Weekly placement mission">
       <div class="sb-mission-head">
-        <div><span class="sb-mission-kicker">THIS WEEK'S PLACEMENT MISSION</span><b>${completed === missionTasks.length ? 'Mission complete!' : 'Small steps. Real progress.'}</b></div>
+        <div><span class="sb-mission-kicker">${missionLabel}</span><b>${completed === missionTasks.length ? 'All done for this week' : 'Choose a next step'}</b></div>
         <span class="sb-mission-week">${esc(currentMissionWeek())}</span>
       </div>
       <div class="sb-mission-progress">
@@ -767,12 +777,15 @@ export function initChatbot() {
 
   function missionView() {
     return `<div class="sb-mission-screen">
-      <div class="sb-mission-screen-top"><span class="sb-mission-screen-icon">${ICON.mission}</span><div><small>YOUR PERSONAL ROADMAP</small><h2>Placement Mission</h2></div></div>
-      <p class="sb-mission-screen-intro">A focused checklist built from your profile and live StepUp opportunities. Pick one step and keep moving forward.</p>
-      ${careerProgressMarkup()}
-      ${jobMatchMarkup()}
+      <div class="sb-mission-screen-top"><span class="sb-mission-screen-icon">${ICON.mission}</span><div><small>YOUR STEPUP NEXT STEPS</small><h2>Tasks for this week</h2></div></div>
+      <p class="sb-mission-screen-intro">Pick one useful step. You can do these in any order, and it’s okay to skip a week.</p>
       ${missionMarkup()}
-      ${careerWinsMarkup()}
+      <details class="sb-extra-tools" data-career-tools${showingCareerTools ? ' open' : ''}>
+        <summary>Career map, opportunities &amp; small wins</summary>
+        ${careerProgressMarkup()}
+        ${jobMatchMarkup()}
+        ${careerWinsMarkup()}
+      </details>
     </div>`;
   }
 
@@ -825,8 +838,8 @@ export function initChatbot() {
     form.hidden = showingChallenge;
     missionButton.hidden = !signedIn;
     missionButton.setAttribute('aria-pressed', String(showingMission || showingChallenge));
-    missionButton.title = showingMission || showingChallenge ? 'Return to chat' : 'Open weekly mission';
-    missionButton.setAttribute('aria-label', showingMission || showingChallenge ? 'Return to chat' : 'Open weekly mission');
+    missionButton.title = showingMission || showingChallenge ? 'Return to chat' : 'Tasks for this week';
+    missionButton.setAttribute('aria-label', showingMission || showingChallenge ? 'Return to chat' : 'Tasks for this week');
     if (showingChallenge) {
       body.innerHTML = challengeView();
     } else if (showingMission && signedIn) {
@@ -846,7 +859,14 @@ export function initChatbot() {
             ? 'Turn your goals into a clear plan. Step can use your study path, skills and live StepUp opportunities to make its guidance relevant.'
             : 'Get clear, practical guidance for placements, interviews, resumes and skills. Sign in to unlock suggestions based on your profile and live opportunities.'}</p>
         </section>
-        ${personalized ? missionMarkup(true) : ''}
+        ${personalized ? `<section class="sb-weekly-fold">
+          <button type="button" class="sb-weekly-trigger" data-weekly-toggle aria-expanded="${showingWeeklyTasks}" aria-controls="sbWeeklyTasksPanel">
+            <span class="sb-weekly-trigger-icon">${ICON.mission}</span>
+            <span class="sb-weekly-trigger-copy"><b>Tasks for this week</b><small>${esc(weeklyTasksSummary())}</small></span>
+            <span class="sb-weekly-trigger-chevron" aria-hidden="true">${showingWeeklyTasks ? '−' : '+'}</span>
+          </button>
+          <div id="sbWeeklyTasksPanel" class="sb-weekly-content"${showingWeeklyTasks ? '' : ' hidden'}>${missionMarkup(true)}</div>
+        </section>` : ''}
         <div class="sb-task-heading"><span>What would you like to work on?</span><small>${personalized ? 'PICK A STARTING POINT' : 'QUICK START'}</small></div>
         <div class="sb-task-grid">${COPILOT_TASKS.map((task, index) => `
           <button type="button" class="sb-task"${task.mockInterview ? ' data-mock-start' : task.skillChallenge ? ' data-skill-challenge' : ` data-chat-prompt="${esc(task.prompt)}"`}>
@@ -863,7 +883,16 @@ export function initChatbot() {
         if (m.role === 'assistant') actionsFor(row, m, i === history.length - 1);
       });
     }
-    if (history.length) toBottom(false);
+    const careerTools = body.querySelector('.sb-extra-tools');
+    if (careerTools) careerTools.addEventListener('toggle', () => { showingCareerTools = careerTools.open; });
+    const weeklyToggle = body.querySelector('[data-weekly-toggle]');
+    if (weeklyToggle) weeklyToggle.addEventListener('click', () => {
+      showingWeeklyTasks = !showingWeeklyTasks;
+      renderAll();
+      if (showingWeeklyTasks && !missionContext) void loadMission();
+    });
+    if (showingWeeklyTasks && !history.length && !showingMission && !showingChallenge) body.scrollTop = 0;
+    else if (history.length) toBottom(false);
     else body.scrollTop = 0;
     updateJump();
   }

@@ -4,7 +4,7 @@
 
 import { $, esc } from '../core/dom.js';
 import { api } from '../core/api.js';
-import { initChatbot } from './chatbot.js?v=20261031j';
+import { initChatbot } from './chatbot.js?v=20261031k';
 import { getUser, greeting, USER_EVENT } from '../core/user.js';
 
 const HOME_ICONS = {
