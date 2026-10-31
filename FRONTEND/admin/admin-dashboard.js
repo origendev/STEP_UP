@@ -580,14 +580,14 @@ async function skillcourses(){
     const query=($('#skillCourseSearch').value||'').trim().toLowerCase();
     const rows=data.filter(item=>[item.title,item.provider,item.theme,item.courseType].join(' ').toLowerCase().includes(query));
     $('#skillCourseManagedCount').textContent=`${data.filter(item=>!item.hidden).length} active courses`;
-    $('#skillCourseTable').innerHTML=table(['Course','Type / theme','Student access','Years','Catalog','Actions'],rows.map(item=>{
+    $('#skillCourseTable').innerHTML=table(['Course','Type / theme','Student access','Years','Status','Actions'],rows.map(item=>{
       const theme=themes.find(value=>value[0]===item.theme)||themes[themes.length-1];
       const access=item.courseType==='programming'?`${item.language} · ${item.level}`:item.courseType==='general'?`General · ${item.groupName}`:(item.departments||[]).join(', ');
       const state=item.hidden?'<span class="pill skill-course-hidden">Removed</span>':'<span class="pill">Active</span>';
       const action=item.isCurated
         ?`<button class="btn ${item.hidden?'success':'danger'}" data-skill-course-visibility="${esc(item.courseId)}" data-hidden="${!item.hidden}">${item.hidden?'Restore':'Remove'}</button>`
         :`<button class="btn danger" data-delete-skill-course="${item.id}">Remove</button>`;
-      return `<tr class="${item.hidden?'skill-course-row-hidden':''}"><td><b>${esc(item.title)}</b><br><small>${esc(item.provider)} · ${esc(item.certificateLabel||'Certificate')}</small><br><small class="skill-course-description">${esc(item.description||'')}</small></td><td>${esc(typeLabel(item.courseType))}<br><span class="pill skill-theme-pill" style="--skill-theme-hue:${theme[2]}">${esc(theme[1])}</span></td><td>${esc(access||'—')}</td><td>${esc(yearsLabel(item.years))}</td><td>${item.isCurated?'Curated catalog':`${state}<br><small>Added ${item.createdAt?new Date(item.createdAt).toLocaleDateString():'recently'}</small>`}</td><td><a class="btn" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Open link</a>${action}</td></tr>`;
+      return `<tr class="${item.hidden?'skill-course-row-hidden':''}"><td><b>${esc(item.title)}</b><br><small>${esc(item.provider)} · ${esc(item.certificateLabel||'Certificate')}</small><br><small class="skill-course-description">${esc(item.description||'')}</small></td><td>${esc(typeLabel(item.courseType))}<br><span class="pill skill-theme-pill" style="--skill-theme-hue:${theme[2]}">${esc(theme[1])}</span></td><td>${esc(access||'—')}</td><td>${esc(yearsLabel(item.years))}</td><td>${state}${!item.isCurated?`<br><small>Added ${item.createdAt?new Date(item.createdAt).toLocaleDateString():'recently'}</small>`:''}</td><td><a class="btn" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Open link</a>${action}</td></tr>`;
     }).join('')||empty('No managed courses yet. Add a course to publish it on the student Skills page.'));
   }
   draw();
