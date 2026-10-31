@@ -164,7 +164,16 @@
 .home-competition-list{ display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr)); gap:14px; }
 .home-competition-item{ display:flex; flex-direction:column; gap:0; overflow:hidden; padding:0; text-align:left; color:var(--ink); background:var(--white); border:1px solid var(--line); border-radius:var(--radius-md); cursor:pointer; transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease; }
 .home-competition-item:hover,.home-competition-item:focus-visible{ transform:translateY(-2px); border-color:var(--violet-300); box-shadow:var(--shadow-card); outline:none; }
-.home-competition-image{ display:block; width:100%; aspect-ratio:16/9; object-fit:cover; background:var(--violet-100); }
+.home-competition-poster,.competition-detail-poster{display:flex;align-items:center;justify-content:center;height:clamp(180px,30vw,340px);overflow:hidden;background:#f4f1ff}
+.home-competition-image,.competition-detail-image{display:block;width:100%;height:100%;object-fit:contain}
+.home-competition-default-poster,.competition-detail-default-poster{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:220px;padding:24px;text-align:center;overflow:hidden;color:#fff;background:radial-gradient(ellipse at 15% 15%,rgba(255,255,255,.25),transparent 38%),linear-gradient(135deg,#5141b8,#7856d8 55%,#a66bd4)}
+.home-competition-default-poster::before,.competition-detail-default-poster::before{content:"";position:absolute;width:220px;height:220px;border:1px solid rgba(255,255,255,.18);border-radius:50%;right:-90px;top:-125px}
+.home-competition-default-poster::after,.competition-detail-default-poster::after{content:"";position:absolute;width:170px;height:170px;border:1px solid rgba(255,255,255,.14);border-radius:50%;left:-90px;bottom:-105px}
+.competition-default-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid rgba(255,255,255,.45);border-radius:14px;background:rgba(255,255,255,.14)}
+.competition-default-icon svg{width:24px;height:24px}
+.competition-default-eyebrow{font-size:10px;font-weight:800;letter-spacing:.16em;opacity:.82}
+.home-competition-default-poster strong,.competition-detail-default-poster strong{z-index:1;max-width:28ch;font:700 20px Sora,sans-serif;line-height:1.3}
+.competition-default-deadline{font-size:12px;opacity:.9}
 .home-competition-copy{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; padding:14px; }
 .home-competition-copy strong{ font:700 15px Sora,sans-serif; }
 .home-competition-copy span{ display:-webkit-box; overflow:hidden; color:var(--ink-soft); font-size:12px; line-height:1.5; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
@@ -174,7 +183,9 @@
 .competition-dialog::backdrop{ background:rgba(15,23,42,.62); backdrop-filter:blur(4px); }
 .competition-dialog form{ position:absolute; z-index:1; top:10px; right:10px; margin:0; }
 .competition-dialog-close{ display:grid; width:38px; height:38px; place-items:center; border:0; border-radius:50%; color:var(--ink); background:rgba(255,255,255,.92); font-size:26px; cursor:pointer; box-shadow:0 2px 12px rgba(0,0,0,.15); }
-.competition-detail-image{ display:block; width:100%; max-height:300px; object-fit:cover; background:var(--violet-100); }
+.competition-detail-poster{height:clamp(200px,42vw,380px)}
+.competition-detail-default-poster{min-height:280px}
+.competition-detail-default-poster strong{font-size:26px}
 .competition-detail-content{ padding:24px; }
 .competition-detail-content h2{ margin:5px 0 12px; font:700 24px Sora,sans-serif; }
 .competition-detail-deadline{ margin:0; color:var(--violet-700); font-size:12px; font-weight:700; }

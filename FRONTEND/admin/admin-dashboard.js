@@ -480,21 +480,23 @@ async function competitions(){
   $('#newCompetition').onclick=()=>openModal('Publish Competition',`<div class="form-grid">
     <div class="field full"><label>Competition Name</label><input name="title" maxlength="160" required></div>
     <div class="field full"><label>Description</label><textarea name="description" maxlength="10000" required></textarea></div>
-    <div class="field full"><label>Competition Image</label><input id="competitionImage" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required><small>PNG, JPG, WebP or GIF; maximum 1 MB.</small><img id="competitionImagePreview" class="competition-image-preview hidden" alt="Competition image preview"></div>
+    <div class="field full"><label>Competition Poster (optional)</label><input id="competitionImage" name="image" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><small>Upload a PNG, JPG, WebP or GIF poster up to 1 MB, or leave empty to use the default competition design.</small><img id="competitionImagePreview" class="competition-image-preview hidden" alt="Competition poster preview"></div>
     <div class="field full"><label>Registration Link</label><input name="registrationUrl" type="url" placeholder="https://example.com/register" required></div>
     <div class="field"><label>Target year</label><select name="targetYear"><option value="">All years</option><option value="1">1st Year</option><option value="2">2nd Year</option><option value="3">3rd Year</option><option value="4">4th Year</option></select></div>
     <div class="field"><label>Deadline</label><input name="deadline" type="date" required></div>
   </div><div class="form-actions"><button type="button" class="btn" id="cancelModal">Cancel</button><button class="primary">Publish Competition</button></div>`,async form=>{
     const file=form.elements.image.files[0];
-    if(!file)throw Error('Choose a competition image.');
-    if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type))throw Error('Use a PNG, JPG, WebP or GIF image.');
-    if(file.size>1024*1024)throw Error('The competition image must be 1 MB or smaller.');
-    const imageData=await new Promise((resolve,reject)=>{
-      const reader=new FileReader();
-      reader.onerror=()=>reject(new Error('Could not read the competition image.'));
-      reader.onload=()=>resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
+    let imageData=null;
+    if(file){
+      if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type))throw Error('Use a PNG, JPG, WebP or GIF image.');
+      if(file.size>1024*1024)throw Error('The competition image must be 1 MB or smaller.');
+      imageData=await new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onerror=()=>reject(new Error('Could not read the competition image.'));
+        reader.onload=()=>resolve(reader.result);
+        reader.readAsDataURL(file);
+      });
+    }
     const body=formToObj(form);
     delete body.image;
     body.imageData=imageData;

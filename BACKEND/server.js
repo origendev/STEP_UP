@@ -1055,7 +1055,7 @@ async function ensureSchema() {
       id BIGSERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT NOT NULL,
-      image_data TEXT NOT NULL,
+      image_data TEXT,
       registration_url TEXT NOT NULL,
       deadline DATE NOT NULL,
       target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4),
@@ -1063,6 +1063,7 @@ async function ensureSchema() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE competitions ALTER COLUMN image_data DROP NOT NULL;
     ALTER TABLE competitions ADD COLUMN IF NOT EXISTS target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4);
     CREATE INDEX IF NOT EXISTS idx_competitions_published_deadline
       ON competitions(published, deadline);
@@ -2625,7 +2626,8 @@ app.post('/api/admin/competitions', requireAdmin, async (req, res) => {
   const targetYear = body.targetYear === '' || body.targetYear == null ? null : Number(body.targetYear);
   if (!title || title.length > 160) return res.status(400).json({ error: 'Competition name is required and must be 160 characters or fewer.' });
   if (!description || description.length > 10000) return res.status(400).json({ error: 'Competition description is required and must be 10,000 characters or fewer.' });
-  if (!isValidCompetitionImage(body.imageData)) return res.status(400).json({ error: 'Upload a valid PNG, JPG, WebP or GIF image up to 1 MB.' });
+  const imageData = body.imageData || null;
+  if (imageData !== null && !isValidCompetitionImage(imageData)) return res.status(400).json({ error: 'Upload a valid PNG, JPG, WebP or GIF image up to 1 MB.' });
   if (!registrationUrl || registrationUrl.length > 2048) return res.status(400).json({ error: 'Enter a valid HTTP or HTTPS registration link.' });
   if (!isValidDateOnly(body.deadline)) return res.status(400).json({ error: 'Enter a valid competition deadline.' });
   if (targetYear !== null && (!Number.isInteger(targetYear) || targetYear < 1 || targetYear > 4)) return res.status(400).json({ error: 'Choose a valid target year.' });
@@ -2636,7 +2638,7 @@ app.post('/api/admin/competitions', requireAdmin, async (req, res) => {
     const result = await client.query(
       `INSERT INTO competitions(title,description,image_data,registration_url,deadline,target_year,published)
        VALUES($1,$2,$3,$4,$5,$6,TRUE) RETURNING *`,
-      [title, description, body.imageData, registrationUrl, body.deadline, targetYear]
+      [title, description, imageData, registrationUrl, body.deadline, targetYear]
     );
     await notifyStudentsAboutCompetition(client, result.rows[0]);
     await client.query('COMMIT');

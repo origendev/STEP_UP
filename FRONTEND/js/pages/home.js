@@ -158,7 +158,7 @@ function paintCompetitions(competitions){
   if(count)count.textContent=`${competitions.length} available`;
   host.innerHTML=competitions.length?competitions.map(item=>`
     <button class="home-competition-item" type="button" data-competition-id="${esc(item.id)}" aria-label="View details for ${esc(item.title)}">
-      <img class="home-competition-image" src="${esc(item.image_data)}" alt="" loading="lazy">
+      ${competitionArtwork(item)}
       <span class="home-competition-copy">
         <strong>${esc(item.title)}</strong>
         <span>${esc(item.description)}</span>
@@ -168,11 +168,23 @@ function paintCompetitions(competitions){
     </button>`).join(''):'<p class="home-empty">No competitions have been published yet.</p>';
 }
 
+function competitionArtwork(item,detail=false){
+  if(item.image_data){
+    return `<div class="${detail?'competition-detail-poster':'home-competition-poster'}"><img class="${detail?'competition-detail-image':'home-competition-image'}" src="${esc(item.image_data)}" alt="${esc(item.title)} event poster" loading="lazy"></div>`;
+  }
+  return `<div class="${detail?'competition-detail-default-poster':'home-competition-default-poster'}">
+    <span class="competition-default-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 6H4v2a4 4 0 0 0 4 4M17 6h3v2a4 4 0 0 1-4 4"/></svg></span>
+    <span class="competition-default-eyebrow">STUDENT COMPETITION</span>
+    <strong>${esc(item.title)}</strong>
+    <span class="competition-default-deadline">Deadline · ${esc(formatDate(item.deadline))}</span>
+  </div>`;
+}
+
 function showCompetitionDetails(item){
   const dialog=$('#competitionDialog'),details=$('#competitionDetails');
   if(!dialog||!details)return;
   details.innerHTML=`
-    <img class="competition-detail-image" src="${esc(item.image_data)}" alt="${esc(item.title)}">
+    ${competitionArtwork(item,true)}
     <div class="competition-detail-content">
       <p class="competition-detail-deadline">Deadline · ${esc(formatDate(item.deadline))}</p>
       <h2 id="competitionDetailsTitle">${esc(item.title)}</h2>

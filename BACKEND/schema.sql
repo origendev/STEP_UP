@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS competitions (
   id BIGSERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT NOT NULL,
-  image_data TEXT NOT NULL,
+  image_data TEXT,
   registration_url TEXT NOT NULL,
   deadline DATE NOT NULL,
   target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4),
@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS competitions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE competitions ALTER COLUMN image_data DROP NOT NULL;
 ALTER TABLE competitions ADD COLUMN IF NOT EXISTS target_year SMALLINT CHECK (target_year BETWEEN 1 AND 4);
 CREATE INDEX IF NOT EXISTS idx_competitions_published_deadline
   ON competitions(published, deadline);
