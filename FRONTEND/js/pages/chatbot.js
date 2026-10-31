@@ -254,7 +254,9 @@ function readSkillChallengeState(key) {
 function readStudentWins(key) {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || '[]');
-    return Array.isArray(saved) ? saved.filter(item => item && typeof item.id === 'string') : [];
+    return Array.isArray(saved)
+      ? saved.filter(item => item && typeof item.id === 'string' && !item.id.startsWith('mission-first-step:') && !item.id.startsWith('mission-complete:'))
+      : [];
   } catch {
     return [];
   }
@@ -263,9 +265,25 @@ function readStudentWins(key) {
 function readMissionProgress(key) {
   try {
     const saved = JSON.parse(localStorage.getItem(key) || '[]');
-    return new Set(Array.isArray(saved) ? saved.filter(item => typeof item === 'string') : []);
+    if (Array.isArray(saved)) {
+      return {
+        done: new Set(),
+        inProgress: new Set(saved.filter(item => typeof item === 'string')),
+        verification: new Map()
+      };
+    }
+    if (!saved || typeof saved !== 'object') {
+      return { done: new Set(), inProgress: new Set(), verification: new Map() };
+    }
+    const done = new Set(Array.isArray(saved.done) ? saved.done.filter(item => typeof item === 'string') : []);
+    const inProgress = new Set(Array.isArray(saved.inProgress) ? saved.inProgress.filter(item => typeof item === 'string') : []);
+    const verification = new Map(
+      Object.entries(saved.verification || {}).filter(([, value]) => value === 'profile')
+    );
+    for (const id of done) inProgress.delete(id);
+    return { done, inProgress, verification };
   } catch {
-    return new Set();
+    return { done: new Set(), inProgress: new Set(), verification: new Map() };
   }
 }
 
@@ -290,7 +308,8 @@ function buildMissionTasks(context) {
       title: 'Get your profile application-ready',
       detail: `This week, ${missing.join(', ')}.`,
       label: 'Update profile',
-      href: '#/profile'
+      href: '#/profile',
+      verification: 'profile'
     });
   } else {
     tasks.push({
@@ -419,7 +438,10 @@ export function initChatbot() {
   let missionContext = null;
   let missionTasks = [];
   let missionDone = new Set();
+  let missionInProgress = new Set();
+  let missionVerification = new Map();
   let missionKey = '';
+  let selectedMissionTaskId = '';
   let missionLoading = false;
   let missionError = '';
   let showingMission = false;
@@ -741,7 +763,32 @@ export function initChatbot() {
     if (missionLoading && !missionContext) return 'Loading your tasks…';
     if (!missionTasks.length) return 'Your weekly next steps';
     const completed = missionTasks.filter(task => missionDone.has(task.id)).length;
-    return `${completed} of ${missionTasks.length} complete`;
+    const active = missionTasks.filter(task => missionInProgress.has(task.id) && !missionDone.has(task.id)).length;
+    return completed === missionTasks.length
+      ? 'Weekly plan complete'
+      : `${completed} of ${missionTasks.length} done${active ? ` · ${active} underway` : ''}`;
+  }
+
+  function missionTaskStatus(task) {
+    if (missionDone.has(task.id)) return { label: 'Done', className: 'is-done' };
+    if (missionInProgress.has(task.id)) return { label: 'In progress', className: 'is-active' };
+    return { label: 'Up next', className: '' };
+  }
+
+  function missionAction(task) {
+    const started = missionInProgress.has(task.id);
+    const label = started ? 'Continue' : task.label;
+    const start = `data-mission-start="${esc(task.id)}"`;
+    if (task.mockInterview) {
+      return `<button type="button" class="sb-mission-action is-primary" ${start} data-mock-start>${started ? 'Continue interview' : esc(label)} <span aria-hidden="true">→</span></button>`;
+    }
+    if (task.prompt) {
+      return `<button type="button" class="sb-mission-action is-primary" ${start} data-mission-prompt="${esc(task.prompt)}">${esc(label)} <span aria-hidden="true">→</span></button>`;
+    }
+    if (task.external) {
+      return `<a class="sb-mission-action is-primary" ${start} href="${esc(task.href)}" target="_blank" rel="noopener noreferrer">${esc(label)} <span aria-hidden="true">↗</span></a>`;
+    }
+    return `<a class="sb-mission-action is-primary" ${start} href="${esc(task.href)}" data-mission-route="${esc(task.href.slice(2))}">${esc(label)} <span aria-hidden="true">→</span></a>`;
   }
 
   function missionMarkup(compact = false) {
@@ -764,40 +811,50 @@ export function initChatbot() {
 
     const completed = missionTasks.filter(task => missionDone.has(task.id)).length;
     const percent = Math.round(completed / missionTasks.length * 100);
-    const taskRows = missionTasks.map(task => {
-      const done = missionDone.has(task.id);
-      const start = `data-mission-start="${esc(task.id)}"`;
-      const action = task.mockInterview
-        ? `<button type="button" class="sb-mission-action" ${start} data-mock-start>${esc(task.label)}</button>`
-        : task.prompt
-        ? `<button type="button" class="sb-mission-action" ${start} data-mission-prompt="${esc(task.prompt)}">${esc(task.label)}</button>`
-        : task.external
-          ? `<a class="sb-mission-action" ${start} href="${esc(task.href)}" target="_blank" rel="noopener noreferrer">${esc(task.label)} <span aria-hidden="true">↗</span></a>`
-          : `<a class="sb-mission-action" ${start} href="${esc(task.href)}" data-mission-route="${esc(task.href.slice(2))}">${esc(task.label)} <span aria-hidden="true">→</span></a>`;
-      return `<article class="sb-mission-task${done ? ' is-done' : ''}" data-mission-task-id="${esc(task.id)}">
-        <button type="button" class="sb-mission-check" data-mission-toggle="${esc(task.id)}" aria-label="${done ? 'Mark incomplete' : 'Mark complete'}: ${esc(task.title)}" aria-pressed="${done}">${done ? '✓' : ''}</button>
-        <div class="sb-mission-task-copy"><b>${esc(task.title)}</b><p>${esc(task.detail)}</p>${action}</div>
-      </article>`;
+    const featured = missionTasks.find(task => task.id === selectedMissionTaskId && !missionDone.has(task.id))
+      || missionTasks.find(task => !missionDone.has(task.id));
+    if (featured) selectedMissionTaskId = featured.id;
+    const featureStatus = featured ? missionTaskStatus(featured) : null;
+    const otherTasks = missionTasks.filter(task => task.id !== featured?.id);
+    const taskRows = otherTasks.map(task => {
+      const state = missionTaskStatus(task);
+      return `<button type="button" class="sb-mission-task${state.className ? ` ${state.className}` : ''}" data-mission-select="${esc(task.id)}">
+        <span class="sb-mission-task-status ${state.className}">${esc(state.label)}</span>
+        <span class="sb-mission-task-copy"><b>${esc(task.title)}</b><small>${esc(task.detail)}</small></span>
+        <span class="sb-mission-task-arrow" aria-hidden="true">›</span>
+      </button>`;
     }).join('');
 
     return `<section class="sb-mission${compact ? ' sb-mission-compact' : ''}" aria-label="Weekly placement mission">
       <div class="sb-mission-head">
-        <div><span class="sb-mission-kicker">${missionLabel}</span><b data-mission-status>${completed === missionTasks.length ? 'All done for this week' : 'Choose a next step'}</b></div>
+        <div><span class="sb-mission-kicker">${missionLabel}</span><b data-mission-status>${completed === missionTasks.length ? 'Your weekly plan is complete' : 'One step at a time'}</b></div>
         <span class="sb-mission-week">${esc(currentMissionWeek())}</span>
       </div>
       <div class="sb-mission-progress">
-        <div><span data-mission-count>${completed} of ${missionTasks.length} steps complete</span><b data-mission-percent>${percent}%</b></div>
+        <div><span data-mission-count>${completed} of ${missionTasks.length} complete</span><b data-mission-percent>${percent}%</b></div>
         <div class="sb-mission-track" data-mission-progress role="progressbar" aria-label="Weekly mission progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div>
       </div>
-      <div class="sb-mission-list">${taskRows}</div>
-      <p class="sb-mission-footnote" data-mission-note>${missionError ? esc(missionError) : 'Starting a task marks it complete. You can also check off a step after doing it.'}</p>
+      ${featured ? `<article class="sb-mission-featured${featureStatus.className ? ` ${featureStatus.className}` : ''}" data-mission-featured="${esc(featured.id)}">
+        <div class="sb-mission-featured-top"><span class="sb-mission-kicker">YOUR NEXT STEP</span><span class="sb-mission-task-status ${featureStatus.className}" data-mission-feature-status>${esc(featureStatus.label)}</span></div>
+        <h3>${esc(featured.title)}</h3><p>${esc(featured.detail)}</p>
+        <div class="sb-mission-featured-actions">${missionAction(featured)}
+          ${missionInProgress.has(featured.id) && !featured.verification && !featured.mockInterview
+            ? `<button type="button" class="sb-mission-confirm" data-mission-confirm="${esc(featured.id)}">I’ve completed this</button>`
+            : ''}
+        </div>
+      </article>` : `<div class="sb-mission-finished"><span aria-hidden="true">✦</span><b>You made progress on every step.</b><p>Your next plan will be ready next week.</p></div>`}
+      ${otherTasks.length ? `<details class="sb-mission-more">
+        <summary>More tasks <span>${otherTasks.length}</span></summary>
+        <div class="sb-mission-list">${taskRows}</div>
+      </details>` : ''}
+      <p class="sb-mission-footnote" data-mission-note>${missionError ? esc(missionError) : 'Starting a task only marks it in progress. StepUp verifies what it can; for other tasks, confirm when you’re done.'}</p>
     </section>`;
   }
 
   function missionView() {
     return `<div class="sb-mission-screen">
       <div class="sb-mission-screen-top"><span class="sb-mission-screen-icon">${ICON.mission}</span><div><small>YOUR STEPUP NEXT STEPS</small><h2>Tasks for this week</h2></div></div>
-      <p class="sb-mission-screen-intro">Pick one useful step. You can do these in any order, and it’s okay to skip a week.</p>
+      <p class="sb-mission-screen-intro">Start with one step. Your progress only counts when the work is done.</p>
       ${missionMarkup()}
       <details class="sb-extra-tools" data-career-tools${showingCareerTools ? ' open' : ''}>
         <summary>Career map, opportunities &amp; small wins</summary>
@@ -814,7 +871,10 @@ export function initChatbot() {
       missionContext = null;
       missionTasks = [];
       missionDone = new Set();
+      missionInProgress = new Set();
+      missionVerification = new Map();
       missionKey = '';
+      selectedMissionTaskId = '';
     }
     missionLoading = true;
     missionError = '';
@@ -825,7 +885,18 @@ export function initChatbot() {
       missionContext = response.data;
       missionTasks = buildMissionTasks(missionContext);
       missionKey = missionProgressKey(currentMissionWeek());
-      missionDone = readMissionProgress(missionKey);
+      const saved = readMissionProgress(missionKey);
+      const validTaskIds = new Set(missionTasks.map(task => task.id));
+      missionDone = new Set([...saved.done].filter(id => validTaskIds.has(id)));
+      missionInProgress = new Set([...saved.inProgress].filter(id => validTaskIds.has(id) && !missionDone.has(id)));
+      missionVerification = new Map([...saved.verification].filter(([id]) => missionInProgress.has(id)));
+      for (const task of missionTasks) {
+        if (missionInProgress.has(task.id) && task.verification && !missionVerification.has(task.id)) {
+          missionVerification.set(task.id, task.verification);
+        }
+      }
+      verifyMissionTasks();
+      persistMissionProgress();
       missionError = '';
     } catch (error) {
       missionError = error.message || 'Could not load your weekly mission.';
@@ -839,10 +910,10 @@ export function initChatbot() {
     const completed = missionTasks.filter(task => missionDone.has(task.id)).length;
     const percent = missionTasks.length ? Math.round(completed / missionTasks.length * 100) : 0;
     body.querySelectorAll('[data-mission-status]').forEach(element => {
-      element.textContent = completed === missionTasks.length ? 'All done for this week' : 'Choose a next step';
+      element.textContent = completed === missionTasks.length ? 'Your weekly plan is complete' : 'One step at a time';
     });
     body.querySelectorAll('[data-mission-count]').forEach(element => {
-      element.textContent = `${completed} of ${missionTasks.length} steps complete`;
+      element.textContent = `${completed} of ${missionTasks.length} complete`;
     });
     body.querySelectorAll('[data-mission-percent]').forEach(element => {
       element.textContent = `${percent}%`;
@@ -852,48 +923,102 @@ export function initChatbot() {
       element.firstElementChild.style.width = `${percent}%`;
     });
     body.querySelectorAll('[data-mission-note]').forEach(element => {
-      element.textContent = missionError || 'Starting a task marks it complete. You can also check off a step after doing it.';
+      element.textContent = missionError || 'Starting a task only marks it in progress. StepUp verifies what it can; for other tasks, confirm when you’re done.';
     });
     const summary = body.querySelector('.sb-weekly-trigger-copy small');
     if (summary) summary.textContent = weeklyTasksSummary();
     for (const task of missionTasks) {
-      const row = [...body.querySelectorAll('[data-mission-task-id]')].find(item => item.dataset.missionTaskId === task.id);
-      if (!row) continue;
-      const done = missionDone.has(task.id);
-      row.classList.toggle('is-done', done);
-      const check = row.querySelector('[data-mission-toggle]');
-      check.setAttribute('aria-pressed', String(done));
-      check.setAttribute('aria-label', `${done ? 'Mark incomplete' : 'Mark complete'}: ${task.title}`);
-      check.textContent = done ? '✓' : '';
+      const state = missionTaskStatus(task);
+      const row = [...body.querySelectorAll('[data-mission-select]')].find(item => item.dataset.missionSelect === task.id);
+      if (row) {
+        row.classList.toggle('is-done', state.className === 'is-done');
+        row.classList.toggle('is-active', state.className === 'is-active');
+        const status = row.querySelector('.sb-mission-task-status');
+        status.className = `sb-mission-task-status ${state.className}`;
+        status.textContent = state.label;
+      }
+      if (body.querySelector('[data-mission-featured]')?.dataset.missionFeatured === task.id) {
+        const feature = body.querySelector('[data-mission-featured]');
+        feature.classList.toggle('is-done', state.className === 'is-done');
+        feature.classList.toggle('is-active', state.className === 'is-active');
+        const featureStatus = feature.querySelector('[data-mission-feature-status]');
+        featureStatus.className = `sb-mission-task-status ${state.className}`;
+        featureStatus.textContent = state.label;
+        let confirm = feature.querySelector('[data-mission-confirm]');
+        if (state.className === 'is-active' && !task.verification && !task.mockInterview && !confirm) {
+          confirm = document.createElement('button');
+          confirm.type = 'button';
+          confirm.className = 'sb-mission-confirm';
+          confirm.dataset.missionConfirm = task.id;
+          confirm.textContent = 'I’ve completed this';
+          feature.querySelector('.sb-mission-featured-actions').appendChild(confirm);
+        } else if ((state.className !== 'is-active' || task.verification || task.mockInterview) && confirm) {
+          confirm.remove();
+        }
+      }
     }
   }
 
-  function setMissionTaskDone(taskId, done) {
-    if (!missionTasks.some(task => task.id === taskId) || !missionKey) return;
-    const wasDone = missionDone.has(taskId);
-    if (done === wasDone) return;
-    if (done) {
-      missionDone.add(taskId);
-    } else {
-      missionDone.delete(taskId);
-    }
+  function persistMissionProgress() {
     try {
-      localStorage.setItem(missionKey, JSON.stringify([...missionDone]));
-    } catch {
+      localStorage.setItem(missionKey, JSON.stringify({
+        done: [...missionDone],
+        inProgress: [...missionInProgress],
+        verification: Object.fromEntries(missionVerification)
+      }));
+      return true;
+    } catch (error) {
+      console.error('Could not save weekly mission progress:', error);
       missionError = 'Could not save mission progress in this browser.';
+      status.textContent = 'Mission progress could not be saved';
+      return false;
     }
-    if (done && missionDone.size === 1) {
-      const task = missionTasks.find(item => item.id === taskId);
-      celebrateWin(`mission-first-step:${currentMissionWeek()}`, 'First mission step', `You started: ${task.title}.`);
-    }
-    if (done && missionDone.size === missionTasks.length) {
-      celebrateWin(`mission-complete:${currentMissionWeek()}`, 'Weekly mission complete', 'You started every next step in this week’s plan.');
-    }
+  }
+
+  function setMissionTaskStarted(taskId) {
+    const task = missionTasks.find(item => item.id === taskId);
+    if (!task || !missionKey || missionDone.has(taskId) || missionInProgress.has(taskId)) return;
+    missionInProgress.add(taskId);
+    if (task.verification) missionVerification.set(taskId, task.verification);
+    persistMissionProgress();
     updateMissionProgressUI();
   }
 
-  function toggleMissionTask(taskId) {
-    setMissionTaskDone(taskId, !missionDone.has(taskId));
+  function setMissionTaskDone(taskId, { verified = false } = {}) {
+    const task = missionTasks.find(item => item.id === taskId);
+    if (!task || !missionKey || missionDone.has(taskId) || !missionInProgress.has(taskId)) return;
+    if (missionVerification.has(taskId) && !verified) return;
+    const wasFirst = missionDone.size === 0;
+    missionDone.add(taskId);
+    missionInProgress.delete(taskId);
+    missionVerification.delete(taskId);
+    persistMissionProgress();
+    if (wasFirst) {
+      celebrateWin(`mission-first-step:${currentMissionWeek()}`, 'First mission step complete', `You finished: ${task.title}.`);
+    }
+    if (missionDone.size === missionTasks.length) {
+      celebrateWin(`mission-complete:${currentMissionWeek()}`, 'Weekly mission complete', 'You completed every step in this week’s plan.');
+    }
+    if (selectedMissionTaskId === taskId) {
+      selectedMissionTaskId = missionTasks.find(item => !missionDone.has(item.id))?.id || '';
+    }
+    updateMissionProgressUI();
+    if (showingMission || !history.length) renderAll();
+  }
+
+  function verifyMissionTasks() {
+    const student = missionContext?.student || {};
+    const profileReady = Boolean(student.profileCompleted && student.skills?.length && student.projectCount);
+    for (const taskId of [...missionInProgress]) {
+      if (missionVerification.get(taskId) === 'profile' && profileReady) {
+        setMissionTaskDone(taskId, { verified: true });
+      }
+    }
+  }
+
+  function confirmMissionTask(taskId) {
+    if (missionVerification.has(taskId)) return;
+    setMissionTaskDone(taskId);
   }
 
   function renderAll() {
@@ -1050,6 +1175,7 @@ export function initChatbot() {
       persistMockInterview();
       if (interviewState.answers === 1) celebrateWin('mock-first-answer', 'First answer practiced', 'You showed up and gave it a try.');
       if (interviewState.answers === 3) celebrateWin('mock-three-answers', 'Three answers practiced', 'That is real interview practice.');
+      if (missionInProgress.has('practice')) setMissionTaskDone('practice', { verified: true });
     }
     history.push(item);
     save(history, historyKey);
@@ -1203,7 +1329,7 @@ export function initChatbot() {
       showingMission = true;
     }
     renderAll();
-    if (showingMission && !missionContext) void loadMission();
+    if (showingMission) void loadMission();
     body.scrollTop = 0;
   });
   $('sbNew').addEventListener('click', askNew);
@@ -1219,7 +1345,26 @@ export function initChatbot() {
   body.addEventListener('scroll', updateJump, { passive: true });
   body.addEventListener('click', e => {
     const missionStart = e.target.closest('[data-mission-start]');
-    if (missionStart) setMissionTaskDone(missionStart.dataset.missionStart, true);
+    if (missionStart) {
+      const task = missionTasks.find(item => item.id === missionStart.dataset.missionStart);
+      setMissionTaskStarted(missionStart.dataset.missionStart);
+      if (task?.href && !task.external && !task.mockInterview && MISSION_ROUTES.has(task.href)) {
+        e.preventDefault();
+        navigate(task.href.slice(2));
+        return;
+      }
+    }
+    const missionSelection = e.target.closest('[data-mission-select]');
+    if (missionSelection) {
+      selectedMissionTaskId = missionSelection.dataset.missionSelect;
+      renderAll();
+      return;
+    }
+    const missionConfirmation = e.target.closest('[data-mission-confirm]');
+    if (missionConfirmation) {
+      confirmMissionTask(missionConfirmation.dataset.missionConfirm);
+      return;
+    }
     if (e.target.closest('[data-skill-challenge],[data-challenge-restart]')) {
       startSkillChallenge();
       return;
@@ -1247,11 +1392,6 @@ export function initChatbot() {
     if (e.target.closest('[data-mock-start]')) {
       showingChallenge = false;
       startMockInterview();
-      return;
-    }
-    const toggle = e.target.closest('[data-mission-toggle]');
-    if (toggle) {
-      toggleMissionTask(toggle.dataset.missionToggle);
       return;
     }
     if (e.target.closest('[data-mission-retry]')) {

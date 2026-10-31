@@ -12,7 +12,7 @@ import { clearSession } from './core/api.js';
 import { esc } from './core/dom.js';
 import { getUser, USER_EVENT } from './core/user.js';
 
-import { mount as mountHome } from './pages/home.js?v=20261031n';
+import { mount as mountHome } from './pages/home.js?v=20261031o';
 import { mount as mountProfile } from './pages/profile.js?v=20261031a';
 import { mount as mountJobs } from './pages/jobs.js?v=20261021c';
 import { mount as mountDemands } from './pages/demands-dashboard.js?v=20261008c';
